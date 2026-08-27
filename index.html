@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cal — R Calculator</title>
+<title>R Calculator</title>
 <meta name="description" content="Position sizing and trade management denominated in R. Size, Stop, Target, Tally.">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e13'/%3E%3Ctext x='16' y='24' font-size='20' font-family='monospace' font-weight='700' fill='%234d9fff' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
@@ -56,6 +56,10 @@ button.small{padding:4px 10px;font-size:12px}
 .okmsg{color:var(--green);font-size:12px;margin-top:5px}
 
 .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:10px}
+/* A label that wraps to two lines must not shove its own control out of line with the row.
+   Each cell is a column and the control is pushed to the bottom, so controls share a baseline. */
+.fields>div{display:flex;flex-direction:column}
+.fields>div>input,.fields>div>select{margin-top:auto}
 .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:10px}
 .metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
 .metric .k{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
@@ -103,10 +107,6 @@ details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600
 details summary::-webkit-details-marker{display:none}
 details summary::before{content:"\25B8  ";color:var(--mut)}
 details[open] summary::before{content:"\25BE  "}
-.bible p{margin:0 0 9px;font-size:13px;color:var(--sub)}
-.bible p b{color:var(--tx);font-weight:600}
-.bible details{padding:11px 0 5px;margin:0}
-.bible details summary{font-size:14px;color:var(--tx);font-weight:600}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .chart{width:100%;height:120px;display:block}
 .spark{width:100%;height:86px;display:block;margin-top:10px}
@@ -127,21 +127,13 @@ details[open] summary::before{content:"\25BE  "}
 <div class="wrap">
 
 <div class="mast">
-  <div class="logo">Ca<span>l</span></div>
-  <div class="muted" style="padding-bottom:5px">cal.xlsx, rebuilt for the browser</div>
+  <div class="logo">R Calculator</div>
 </div>
 <p class="tagline">
   R is the center of the universe. <em>Method units, not dollars.</em> You set the risk unit before you enter;
   the calculator returns the size, the stop, the target and the tally. It does not negotiate with mood,
   caffeination, or your sense of what is or isn't a large amount of money.
 </p>
-
-<div class="four">
-  <div><div class="n">BUTTON 01</div><div class="w">Position size</div><div class="d">R &divide; risk per share</div></div>
-  <div><div class="n">BUTTON 02</div><div class="w">Stop level</div><div class="d">invalidation, not comfort</div></div>
-  <div><div class="n">BUTTON 03</div><div class="w">Target</div><div class="d">decided before entry</div></div>
-  <div><div class="n">BUTTON 04</div><div class="w">Tally</div><div class="d">what the record says</div></div>
-</div>
 
 <div class="card">
   <div class="tabs" id="tabs"></div>
@@ -156,14 +148,7 @@ details[open] summary::before{content:"\25BE  "}
     <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
     <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
   </div>
-  <div class="row" style="margin-top:13px;align-items:flex-end;justify-content:space-between">
-    <div class="calans" id="runitBox" style="font-size:16px"></div>
-    <div class="row" style="align-items:flex-end">
-      <div style="min-width:200px"><label for="fhkey">Live marks &mdash; Finnhub key (optional)</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
-      <button class="small" id="refreshBtn">Refresh marks</button>
-    </div>
-  </div>
-  <div class="hint" id="refreshStatus"></div>
+  <div class="calans" id="runitBox" style="font-size:16px;margin-top:14px"></div>
   <div class="hint">
     1R recalculates from AUM, so it scales as you compound. Each trade locks its own R unit at the moment it opens.
     R expresses how much edge is in front of you &mdash; never the size you want. The survival levers (heat cap,
@@ -176,15 +161,14 @@ details[open] summary::before{content:"\25BE  "}
 <div class="card">
   <div class="head">01 &middot; Position size &mdash; new trade</div>
   <div class="fields">
-    <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="BYND"></div>
+    <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
     <div><label for="nt_side">Side</label><select id="nt_side"><option value="1">Long</option><option value="-1">Short</option></select></div>
     <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
-    <div><label for="nt_rb">Custom R (opt)</label><input id="nt_rb" type="number" step="0.05" min="0.01" placeholder="e.g. 0.5"></div>
     <div style="grid-column:span 2"><label for="nt_concept">Concept / setup</label><input id="nt_concept" type="text" placeholder="mean reversion, multiday mover"></div>
     <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
     <div><label for="nt_adr">ADR %</label><input id="nt_adr" type="number" step="0.1" placeholder="8.5"></div>
-    <div><label for="nt_qty">Shares (override)</label><input id="nt_qty" type="number" step="any" placeholder="Cal sizes it"></div>
+    <div><label for="nt_qty">Shares (override)</label><input id="nt_qty" type="number" step="any" placeholder="auto"></div>
   </div>
 
   <div class="calbox" id="nt_calbox" style="display:none">
@@ -241,75 +225,6 @@ details[open] summary::before{content:"\25BE  "}
   </div>
 </div>
 
-<div class="card bible">
-  <div class="head">The bible &mdash; rules of the desk</div>
-  <p class="muted" style="margin-bottom:4px">
-    Distilled in my own words from the six-part memoir at
-    <a href="https://www.simon-russo.com/" target="_blank" rel="noopener noreferrer">simon-russo.com</a>.
-    Paraphrase, not scripture &mdash; the stories carry what the rules can't. Go read them.
-  </p>
-
-  <details open><summary>I &middot; R is the center of the universe</summary>
-    <p>R is a <b>fixed percentage of portfolio value</b>, and it scales with AUM. Set it before the entry, not after the exit.</p>
-    <p>Positions are denominated in <b>method units</b>. The dollar figure is banned from the decision room, because the daily-finance mind cannot be trusted above a certain altitude: it will always want to round the number down.</p>
-    <p>R expresses exactly one thing &mdash; <b>how much edge is in front of you</b> (the tier). The moment R becomes a lever for manufacturing the size you want, the outcome is driving the risk input. That is backwards.</p>
-    <p>Geometric drawdown risk scales with risk <i>as a percentage of AUM</i>, not with the dollar amount. 1% of a small account and 1% of a huge one are mathematically identical. Only one of them looks frightening.</p>
-    <p>Survival levers live <b>outside</b> per-trade R on purpose: how much heat you carry at once, and when you stop trading in a bad stretch. Never fold them into sizing.</p>
-    <p>Size is not the input variable. Size is a <b>symptom</b> of conviction.</p>
-  </details>
-
-  <details><summary>II &middot; Stops</summary>
-    <p>The stop lives at <b>invalidation</b> &mdash; the price at which the idea is plainly wrong. On volatile names that is often far wider than a "tight" stop, and the win rate holds <i>because</i> of the width.</p>
-    <p>Stops move both ways. Enter deliberately loose; ratchet in as price action confirms. If the name falls back into noise and honest invalidation now sits wider, widening is a legitimate, logged decision.</p>
-    <p>Once the stop is where it belongs, <b>share count flexes</b> to hold dollar risk at R. "Undersized" cannot happen. Feeling undersized at a logical stop is the mirror, not a sizing problem.</p>
-    <p>Never place a stop to defend a win rate. Win rate is an <b>output</b>: move it through selection, stop logic and execution &mdash; never by protecting the number directly.</p>
-    <p>A canonized stop should never appear in your rearview mirror. Losses that "ran a little" &mdash; cut at 1.8R or 2.5R instead of the planned 1R &mdash; are quietly lethal to expectancy. The danger is rarely the catastrophe; it is the small trespass, repeated.</p>
-    <p>Move to breakeven only because something <b>contextually changed</b>, never to feel safe. Once a trade works, the job is not to cover risk. It is to compound. Trade the chart, not your P/L.</p>
-    <p><b>Width is the win rate.</b> Your realized win rate is not your thesis win rate; it is the probability the setup resolves before the stop is touched. A stop inside ordinary noise converts correct theses into losses that carry no information about your edge. R-sizing makes width free in dollars: wider stop, fewer shares, same 1R.</p>
-    <p><b>The thesis dictates the width.</b> A violent-move-now thesis carries invalidation close in price and in time. A destination-over-time thesis carries it at distant structure: enter loose, take the smaller size, let the ratchet and the pyramid build it. Width is never aggression or timidity. The test on every tight stop is the honest question &mdash; is this where the idea is wrong, or where my desired size wants it to be?</p>
-  </details>
-
-  <details><summary>III &middot; Adds &amp; pyramiding</summary>
-    <p><b>Constant-risk pyramiding.</b> At every add, recompute total target shares from the risk budget and the distance to the <i>new</i> stop; the add is target minus current. The aim is never to increase risk &mdash; it is to keep risk identical while size grows.</p>
-    <p><b>Booked profit expands the budget.</b> If 1R is $1,000 and you have banked $500 on the sequence, $1,500 now finances the next decision.</p>
-    <p>The add trigger is a price-based or time-based signal read from structure. Never an impulse. Position placed, then: watch. <b>Time brings information.</b></p>
-    <p>The chain has no shortcuts: <b>no signal &rarr; no stop movement &rarr; no add.</b></p>
-    <p>The standing mid-trade heuristic: <i>what would I do here if I had no position?</i></p>
-  </details>
-
-  <details><summary>IV &middot; Exits &amp; trims</summary>
-    <p>Exit when the trade has <b>actually worked</b> &mdash; never because the number on the screen got big enough to feel like a house. Dollar discomfort is not a signal.</p>
-    <p>Exits are <b>decided at entry</b> and pre-placed. The good deaths are the ones where price walks into an exit that was already waiting. The disasters all begin with holding an hour past what the plan said.</p>
-    <p>The wiggle rule for trims: <i>will this be available at this price or better later?</i> If you are confident the answer is yes, take a good amount off.</p>
-    <p>Holding through the second half of a trade because you held through the first half is not a thesis.</p>
-  </details>
-
-  <details><summary>V &middot; Selection &amp; win rate</summary>
-    <p>Win rate is engineered through <b>selectivity</b>. Trading everything that looks vaguely right lowers it mechanically; waiting for the setup that clears a high bar raises it. Patience is a win-rate lever.</p>
-    <p>Refusing wrong trades and giving right ones room are the same discipline from two ends: only take setups whose logical stop you can respect &mdash; then respect it wherever it sits.</p>
-    <p><b>Avoid Day One</b> on parabolic movers. Easy to know, hard to obey.</p>
-    <p>Most setups are replicas with bloodlines. Build the database; know today's setup by its resemblance to the family album.</p>
-    <p><b>Interrogate your filters.</b> The best setup in the arsenal may be sitting in a folder labelled "avoid." Binary categories are inherited, not real. The fix is a gradient, not abolition: names stay useful, but they lose their monopoly on the answer. In real time, replace the name with a question &mdash; what is actually here?</p>
-  </details>
-
-  <details><summary>VI &middot; Discipline &amp; penalties</summary>
-    <p>A trade is a <b>commitment, not a prediction</b>. Predictions adjusted along the way are unfalsifiable. Commitments have hinges built in before entry.</p>
-    <p><b>Build the penalty into the process</b> before the market charges you a worse one. A deadline without teeth is a suggestion. Hard now, or harder later.</p>
-    <p>The heroic ride is never required. Every big drawdown-ride either ended worse than the process path, or produced a win that process would have produced anyway without the detour.</p>
-    <p>The end state is the state of grace: enough reps with enough consequences that the right thing stops being the hard thing. Both error and mastery are thoughtless technique &mdash; the difference is which master they serve.</p>
-    <p>A checklist does not stand in for conscientiousness. You can tick every box and still walk into the day unprepared. Compliance is not the thing itself.</p>
-  </details>
-
-  <details><summary>VII &middot; The mirror &amp; the feedback loop</summary>
-    <p><b>Re-trade reviews.</b> Run finished trades back through Cal and compare the optimal decision path with what you actually did, at every decision point. The gaps are the curriculum.</p>
-    <p><b>The noise-stopout audit.</b> Tag every loss: <i>invalidation</i> (the thesis actually broke) or <i>noise stopout</i> (stopped, then the setup resolved without you). The system is engineered so the second category approaches zero. If the journal fills with noise stopouts, your stops are inside the noise and you are paying for tightness with your win rate.</p>
-    <p>An unjournaled decision is a conversation you are avoiding with yourself &mdash; and a journal entry that measures nothing about your intention to change teaches nothing.</p>
-    <p>Feedback loops must exist <b>before</b> the regime changes. The mind protects its models; the architecture has to out-vote it.</p>
-    <p>Measure the unrealized parameters of the system, not only realized results. A high win rate can be ruin sleeping in the next room.</p>
-    <p>Crowds infect; they do not instruct. The edge lives in stores of work &mdash; the databases, journals and tagged screenshots no one will ever see.</p>
-    <p>Watch what happens in you when the process feels uncomfortable. That discomfort is information about you, not about the trade.</p>
-  </details>
-</div>
 
 <div class="card">
   <div class="head">Export / import</div>
@@ -324,14 +239,13 @@ details[open] summary::before{content:"\25BE  "}
   <textarea id="io" style="margin-top:9px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON. Export here, keep it somewhere safe, paste it back to restore."></textarea>
   <div class="err" id="io_err"></div>
   <div class="hint">
-    Everything lives in this browser's localStorage. Clearing site data wipes it. Nothing is ever sent anywhere,
-    except the ticker symbols you send to Finnhub yourself when you refresh marks with your own key.
+    Everything lives in this browser's localStorage. Clearing site data wipes it.
+    Nothing is ever sent anywhere.
   </div>
 </div>
 
 <p class="muted" style="text-align:center;margin-top:26px">
-  Built from the memoir at <a href="https://www.simon-russo.com/" target="_blank" rel="noopener noreferrer">simon-russo.com</a>.
-  Not affiliated with, endorsed by, or reviewed by its author. Not financial advice &mdash; a calculator.
+  Not financial advice &mdash; a calculator.
 </p>
 
 </div>
@@ -345,12 +259,11 @@ const KEY = "cal.v1";
 let root = null, state = null;
 
 function defaults(){
-  return { settings:{ aum:100000, rPct:1, tiers:[2,1,0.5], compound:true, finnhub:"",
+  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true,
                       heatCap:5, coldR:3, sizeMode:"r", closedCollapsed:false }, trades:[] };
 }
 function newRoot(){
-  return { active:"trading", order:["trading","main"],
-           portfolios:{ trading:defaults(), main:defaults() } };
+  return { active:"Trading", order:["Trading"], portfolios:{ Trading:defaults() } };
 }
 function load(){
   try{
@@ -358,11 +271,28 @@ function load(){
     const p = raw ? JSON.parse(raw) : null;
     if(!p) root = newRoot();
     else if(p.portfolios && p.active) root = p;
-    else if(p.settings && p.trades) root = { active:"trading", order:["trading","main"],
-                                             portfolios:{ trading:p, main:defaults() } };
+    else if(p.settings && p.trades) root = { active:"Trading", order:["Trading"], portfolios:{ Trading:p } };
     else root = newRoot();
   }catch(e){ root = newRoot(); }
+  migrateNames();
   normalize();
+}
+
+// Books created before the single-"Trading" default: fold the old lowercase pair back in, but only
+// where nothing can be lost — an empty "main" is dropped, a populated one is left exactly alone.
+function migrateNames(){
+  if(!root || !root.portfolios) return;
+  const p = root.portfolios;
+  if(p.main && !p.main.trades.length && Object.keys(p).length>1){
+    delete p.main;
+    if(Array.isArray(root.order)) root.order = root.order.filter(n=>n!=="main");
+    if(root.active==="main") root.active = Object.keys(p)[0];
+  }
+  if(p.trading && !p.Trading){
+    p.Trading = p.trading; delete p.trading;
+    if(Array.isArray(root.order)) root.order = root.order.map(n=>n==="trading"?"Trading":n);
+    if(root.active==="trading") root.active = "Trading";
+  }
 }
 function normalize(){
   if(!root.portfolios || !Object.keys(root.portfolios).length) root.portfolios = newRoot().portfolios;
@@ -373,7 +303,7 @@ function normalize(){
   Object.values(root.portfolios).forEach(pf=>{
     if(!pf.settings) pf.settings = defaults().settings;
     Object.keys(d).forEach(k=>{ if(pf.settings[k]==null) pf.settings[k] = d[k]; });
-    if(!Array.isArray(pf.settings.tiers) || pf.settings.tiers.length!==3) pf.settings.tiers = [2,1,0.5];
+    if(!Array.isArray(pf.settings.tiers) || pf.settings.tiers.length!==3) pf.settings.tiers = [1,0.5,0.25];
     if(!Array.isArray(pf.trades)) pf.trades = [];
     pf.trades.forEach(t=>{
       if(!t.lastMarkTs) t.lastMarkTs = t.createdAt || Date.now();
@@ -557,7 +487,6 @@ function renderSettings(){
   $("rpct").value = s.rPct;
   $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
   $("compound").value = s.compound ? "1" : "0";
-  $("fhkey").value = s.finnhub || "";
   $("heatcap").value = s.heatCap; $("coldr").value = s.coldR;
   $("runitBox").innerHTML = "1R = " + fmt$(rUnitNow()) +
     ' <span class="muted">(' + s.rPct + "% of " + fmt$(s.aum) + ")</span>";
@@ -578,8 +507,7 @@ function newTradeCal(){
     $("nt_err").textContent = "Stop must be below entry for longs, above entry for shorts.";
     return null;
   }
-  const customR = parseFloat($("nt_rb").value);
-  const mult = (!isNaN(customR) && customR>0) ? customR : state.settings.tiers[ti];
+  const mult = state.settings.tiers[ti];
   const R = rUnitNow(), b = R*mult;
   const q = Math.floor(b/den);
 
@@ -587,7 +515,6 @@ function newTradeCal(){
   $("nt_calans").textContent = fmtQ(q) + " shares";
   $("nt_calsub").innerHTML =
     "Risk per share <b>" + fmt$(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
-    ((!isNaN(customR)&&customR>0) ? " (custom &mdash; you can upsize later from the trade card)" : "") +
     " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)";
 
   $("nt_ladder").innerHTML = q>0
@@ -622,13 +549,12 @@ function openTrade(){
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
   if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
-  const customR = parseFloat($("nt_rb").value);
   const adr = parseFloat($("nt_adr").value);
 
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
     ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
-    mult: (!isNaN(customR)&&customR>0) ? customR : state.settings.tiers[ti],
+    mult: state.settings.tiers[ti],
     adr: (!isNaN(adr)&&adr>0) ? adr : null,
     rUnit: rUnitNow(), status:"open", last:P,
     plan: { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
@@ -638,7 +564,7 @@ function openTrade(){
     createdAt: Date.now(), lastMarkTs: Date.now()
   });
 
-  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_rb","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
+  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
     .forEach(id=>{ $(id).value = ""; });
   [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
   $("nt_calbox").style.display = "none";
@@ -1143,11 +1069,9 @@ function bindSettings(){
     if(!isNaN(v) && v>0){ state.settings.tiers[i] = v; save(); render(); }
   }));
   $("compound").addEventListener("change", e=>{ state.settings.compound = e.target.value==="1"; save(); });
-  $("fhkey").addEventListener("change", e=>{ state.settings.finnhub = e.target.value.trim(); save(); });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ state.settings.heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ state.settings.coldR = v; save(); render(); } });
-  $("refreshBtn").addEventListener("click", refreshMarks);
-  ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr","nt_rb"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
 
   $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
@@ -1207,41 +1131,9 @@ function applyImport(){
 }
 
 /* ========================= live marks ========================= */
-let refreshing = false;
-async function refreshMarks(){
-  if(refreshing) return;
-  const key = state.settings.finnhub;
-  const open = state.trades.filter(t=>t.status==="open");
-  const st = $("refreshStatus");
-  if(!key){ st.textContent = "Add a free Finnhub key (finnhub.io/register) to pull live marks. Everything else works without it."; return; }
-  if(!open.length){ st.textContent = "No open trades to refresh."; return; }
-  refreshing = true;
-  st.textContent = "Refreshing "+open.length+" ticker(s)…";
-  const results = [];
-  for(const t of open){
-    try{
-      const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(t.ticker)+"&token="+encodeURIComponent(key));
-      if(!res.ok) throw new Error("HTTP "+res.status);
-      const j = await res.json();
-      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); results.push(t.ticker+" "+fmtP(j.c)); }
-      else results.push(t.ticker+": no quote");
-    }catch(err){ results.push(t.ticker+": failed"); }
-  }
-  save(); render();
-  const blocked = results.filter(r=>/failed$/.test(r)).length === results.length;
-  $("refreshStatus").textContent = "Marks as of "+new Date().toLocaleTimeString()+" — "+results.join(" · ") +
-    (blocked ? "  Every request failed. If you're viewing this inside a sandboxed preview, outside connections are blocked there — open the hosted page or the local file and it will work. Otherwise check the key." : "");
-  refreshing = false;
-}
 
 /* ========================= boot ========================= */
 load(); bindSettings(); render();
-if(state.settings.finnhub && state.trades.some(t=>t.status==="open")) refreshMarks();
-setInterval(()=>{
-  const ae = document.activeElement;
-  if(ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA")) return;
-  if(state.settings.finnhub && state.trades.some(t=>t.status==="open")) refreshMarks();
-}, 60000);
 </script>
 </body>
 </html>
