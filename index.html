@@ -138,6 +138,8 @@ details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600
 details summary::-webkit-details-marker{display:none}
 .sechead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .sechead.bare{margin:18px 0 10px;padding:0 4px}
+button.warn{color:var(--amber);border-color:rgba(240,168,50,.55)}
+button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(--amber)}
 .dedit{cursor:pointer;border-bottom:1px dotted var(--line2);padding-bottom:1px}
 .dedit:hover{color:var(--gold);border-bottom-color:var(--gold)}
 details summary::before{content:"\25B8  ";color:var(--mut)}
@@ -200,14 +202,7 @@ details[open] summary::before{content:"\25BE  "}
     <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
     <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
   </div>
-  <div class="row" style="margin-top:14px;align-items:flex-end;justify-content:space-between">
-    <div class="calans" id="runitBox" style="font-size:16px"></div>
-    <div class="row" style="align-items:flex-end">
-      <div style="min-width:210px"><label for="fhkey">Live marks &mdash; Finnhub key (optional)</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
-      <button class="small" id="refreshBtn">Refresh marks</button>
-    </div>
-  </div>
-  <div class="hint" id="refreshStatus"></div>
+  <div class="calans" id="runitBox" style="font-size:16px;margin-top:14px"></div>
   <div class="hint">
     1R recalculates from AUM, so it scales as you compound. Each trade locks its own R unit at the moment it opens.
     R expresses how much edge is in front of you &mdash; never the size you want. The survival levers (heat cap,
@@ -362,7 +357,12 @@ details[open] summary::before{content:"\25BE  "}
     <button class="small primary" id="importBtn">Import from box</button>
     <button class="small danger" id="wipeBtn" style="margin-left:auto">Clear all data</button>
   </div>
-  <textarea id="io" style="margin-top:9px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON. Export here, keep it somewhere safe, paste it back to restore."></textarea>
+  <div class="row" style="margin-top:14px;align-items:flex-end">
+    <div style="min-width:230px"><label for="fhkey">Live marks &mdash; Finnhub key (optional)</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
+  </div>
+  <div class="hint">With a key set, Refresh marks appears on the Open Positions header and the book also self-refreshes once a minute. Only ticker symbols are sent, and only when a refresh runs.</div>
+
+  <textarea id="io" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON. Export here, keep it somewhere safe, paste it back to restore."></textarea>
   <div class="err" id="io_err"></div>
   <div class="hint">
     Everything lives in this browser's localStorage. Clearing site data wipes it. Nothing leaves this
@@ -848,10 +848,15 @@ function openTrade(){
 /* ========================= trade card ========================= */
 const getTrade = id => state.trades.find(t=>t.id===id);
 
+// A mark is the last price you told the app about. It goes stale after a day of wall-clock time,
+// because every number on an open card — heat, open P/L, the ADR check — is only as current as it.
+const STALE_HOURS = 24;
+const markAgeH = t => t.lastMarkTs ? (Date.now()-t.lastMarkTs)/36e5 : null;
+const isStale = t => { const h = markAgeH(t); return h!=null && h > STALE_HOURS; };
+
 function markAgeHtml(t){
-  if(!t.lastMarkTs) return "";
-  const h = (Date.now()-t.lastMarkTs)/36e5;
-  if(h<24) return "";
+  const h = markAgeH(t);
+  if(h==null || h<=STALE_HOURS) return "";
   const s = h<48 ? Math.round(h)+"h" : Math.round(h/24)+"d";
   return ' <span style="color:'+(h>72?"var(--red)":"var(--amber)")+'">&middot; marked '+s+" ago</span>";
 }
@@ -1515,6 +1520,16 @@ function openHead(extra){
     (extra||"") + '</div>';
 }
 
+// The refresh control sits with the positions it updates, and wears the staleness so you can see
+// the book needs marking without reading a number.
+function refreshBtnHtml(staleN, hasKey){
+  const label = staleN ? "Refresh marks &mdash; " + staleN + " stale" : "Refresh marks";
+  const title = hasKey
+    ? (staleN ? staleN+" position(s) last marked over "+STALE_HOURS+"h ago" : "Pull last prices for every open ticker")
+    : "Add a Finnhub key under Data Management to pull prices automatically";
+  return '<button class="small'+(staleN?" warn":"")+'" title="'+title+'" onclick="refreshMarks()">'+label+'</button>';
+}
+
 function renderBook(open){
   const hb = $("bookBar");
   if(!open.length){
@@ -1527,7 +1542,7 @@ function renderBook(open){
   const heatR = heat.reduce((s,h)=>s+Math.max(0,h.seqR), 0);
   const houseN = heat.filter(h=>h.seq<=1e-4 && h.d.Q>0).length;
   const totPL = heat.reduce((s,h)=>s+h.d.realized+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
-  const stale = heat.filter(h=>h.t.lastMarkTs && (Date.now()-h.t.lastMarkTs)>864e5).length;
+  const stale = heat.filter(h=>isStale(h.t)).length;
   const cap = state.settings.heatCap;
   const overCap = heatR > cap;
 
@@ -1540,14 +1555,16 @@ function renderBook(open){
       "R cap. This is a survival lever &mdash; no new trades and no adds until heat comes back under it (trim, tighten, or let stops ratchet).</div>" : "") +
     (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
       " closed trades (threshold &minus;"+state.settings.coldR+"R). The lever here is stepping back and reviewing &mdash; never resizing R to win it back.</div>" : "") +
-    '<div class="card">' + openHead() + '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
+'<div class="card">' + openHead(refreshBtnHtml(stale, !!state.settings.finnhub)) +
+    '<div class="hint" id="refreshStatus"></div>' +
+    '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
       '<div class="statrow" style="flex:1;min-width:280px">' +
         // Gold as the resting colour, matching the R it is denominated in — but a breached cap is a
         // survival lever, so that one state still shouts in red.
         '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
         '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
         '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
-        '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"marked over 24h ago":"all marks fresh")+'</div></div>' +
+        '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
         '<button class="small" onclick="collapseAll(true)">Collapse all</button>' +
@@ -1599,7 +1616,6 @@ function bindSettings(){
   [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
   updateGate();
   $("fhkey").addEventListener("change", e=>{ state.settings.finnhub = e.target.value.trim(); save(); render(); });
-  $("refreshBtn").addEventListener("click", refreshMarks);
 
   $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
   $("downloadBtn").addEventListener("click", ()=>{
@@ -1676,15 +1692,17 @@ function applyImport(){
 /* ========================= live marks ========================= */
 // Optional. Marks only ever move t.last — never a stop, a size, or a decision.
 let refreshing = false;
+window.refreshMarks = refreshMarks;
 async function refreshMarks(){
   if(refreshing) return;
   const key = state.settings.finnhub;
   const open = state.trades.filter(t=>t.status==="open");
-  const st = $("refreshStatus");
-  if(!key){ st.textContent = "Add a free Finnhub key (finnhub.io/register) to pull live marks. Everything else works without one — set prices by hand."; return; }
-  if(!open.length){ st.textContent = "No open trades to refresh."; return; }
+  // The status line lives inside the book bar, which is absent when nothing is open.
+  const say = m => { const st = $("refreshStatus"); if(st) st.textContent = m; };
+  if(!key){ say("No Finnhub key set — add one under Data Management, or keep setting marks by hand."); return; }
+  if(!open.length){ say("No open trades to refresh."); return; }
   refreshing = true;
-  st.textContent = "Refreshing " + open.length + " ticker(s)…";
+  say("Refreshing " + open.length + " ticker(s)…");
   const results = [];
   for(const t of open){
     try{
@@ -1697,8 +1715,8 @@ async function refreshMarks(){
   }
   save(); render();
   const allFailed = results.length && results.every(r=>/failed$/.test(r));
-  $("refreshStatus").textContent = "Marks as of " + new Date().toLocaleTimeString() + " — " + results.join(" · ") +
-    (allFailed ? "  Every request failed. In a sandboxed preview outside connections are blocked — use the hosted page. Otherwise check the key." : "");
+  say("Marks as of " + new Date().toLocaleTimeString() + " — " + results.join(" · ") +
+    (allFailed ? "  Every request failed. In a sandboxed preview outside connections are blocked — use the hosted page. Otherwise check the key." : ""));
   refreshing = false;
 }
 function pollMarks(){

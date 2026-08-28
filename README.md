@@ -64,12 +64,26 @@ The repo has to be public for Pages to serve it on the free plan. What that publ
 itself and nothing else — your trades never enter the repo, and there is no account, key, or
 personal data in the file. Serving from a private repo needs a paid plan.
 
-## Live marks (optional)
+## Marks and staleness
 
-Paste a free [Finnhub](https://finnhub.io/register) API key into the desk to pull last prices for
-open tickers. Refreshes on demand and once a minute, holding off while you have a field focused.
-Without a key everything else works — set marks by hand. A mark only ever moves the last price:
-never a stop, a size, or a decision.
+A **mark** is simply the last price you have given the app for an open position. It is set whenever
+you use Set on Mark / last price, add, trim, or close — and by a live refresh if you have a key.
+
+A mark goes **stale after 24 hours of wall-clock time**. That threshold exists because everything on
+an open card is derived from it: open P/L, book P/L, open heat, the sequence-at-stop figure and the
+daily volatility check. A day-old price quietly makes all of them wrong. Past 24h the trade card
+labels the age in amber, past 72h in red, and the Refresh marks button on the Open Positions header
+turns amber and counts how many positions are affected.
+
+It is wall-clock, not trading days, so a Friday mark reads stale by Saturday afternoon even though
+nothing has traded. Treat the weekend flag as noise.
+
+### Live marks (optional)
+
+Paste a free [Finnhub](https://finnhub.io/register) API key under **Data Management** to pull last
+prices for open tickers. Refreshes on demand from the Open Positions header and once a minute,
+holding off while you have a field focused. Without a key everything else works — set marks by hand.
+A mark only ever moves the last price: never a stop, a size, or a decision.
 
 ## Your data
 

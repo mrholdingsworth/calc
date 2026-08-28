@@ -52,6 +52,10 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Finnhub key moved to Data Management with the other non-trade settings. The Refresh
+  marks button now sits on the Open Positions header, next to what it updates, and turns amber with a
+  count when any position is stale. Staleness centralised on one STALE_HOURS constant.
+
 - 2026-08-28 — Section labels trimmed to the substantive word and set in Title Case, with the index
   matching: Desk, New Trade, Open Positions, Closed Trades, Charts & Statistics, Data Management.
   "Position size" and "Tally" both restated what the calculator is.
