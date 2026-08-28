@@ -13,8 +13,7 @@
   --bg:#0b0e13; --panel:#11161f; --panel2:#151b26; --line:#212a38; --line2:#2c3646;
   --tx:#e6ebf2; --sub:#9aa6b8; --mut:#697588;
   --blue:#4d9fff; --bluebg:rgba(77,159,255,.10);
-  --gold:#dfbd69;      /* navy ground, metallic gold emphasis */
-  --gold-deep:#b08d3f; /* larger type, where the lighter gold reads washed out */
+  --gold:#dfbd69;      /* one gold everywhere */
   --green:#2fd583; --greenbg:rgba(47,213,131,.10);
   --red:#f4655f; --redbg:rgba(244,101,95,.10);
   --amber:#f0a832; --amberbg:rgba(240,168,50,.10);
@@ -50,10 +49,10 @@ a{color:var(--blue)}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 
 .mast{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
-.gold{color:var(--gold-deep)}
+.gold{color:var(--gold)}
 .mast .logo{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
 .tagline{color:var(--sub);max-width:660px;margin:10px 0 18px;font-size:13.5px}
-.tagline em{color:var(--gold);font-weight:600;font-style:normal}
+.tagline em{color:var(--gold);font-weight:700;font-style:normal}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:14px}
 .head{font-size:10.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
@@ -103,7 +102,7 @@ button.small{padding:4px 10px;font-size:12px}
 .calbox{background:var(--bluebg);border:1px solid rgba(77,159,255,.28);border-radius:11px;padding:12px 15px;margin:12px 0}
 .calans{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--blue)}
 .calsub{font-size:12.5px;color:var(--sub);margin-top:4px}
-.calsub b{color:var(--gold)}
+.calsub b{color:var(--gold);font-weight:700}
 .calrule{margin-top:7px;padding-top:7px;border-top:1px solid rgba(77,159,255,.2)}
 
 .tradehead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}
@@ -113,10 +112,15 @@ button.small{padding:4px 10px;font-size:12px}
 .action .t{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
 .sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
 .sublbl .muted{font-size:11px}
+.action .row{align-items:stretch}
 .action .row input{width:auto;flex:1;min-width:64px}
+/* Buttons sit beside fields constantly here; a shorter control next to a taller one reads as a
+   mistake, so every control on a row shares the row height. */
+.action .row button,.sechead button{min-height:33px}
+.action .row>span{display:flex;align-items:center}
 .ladder{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .rung{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--sub)}
-.rung b{color:var(--gold)}
+.rung b{color:var(--gold);font-weight:700}
 .rung.hit{border-color:var(--green);background:var(--greenbg)}
 .rung.hit b{color:var(--green)}
 
@@ -124,6 +128,8 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{text-align:left;font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;
    padding:6px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+/* The toggle and the ticker are one unit — never let a narrow screen break them apart. */
+td.tickcell{white-space:nowrap}
 td.num,th.num{text-align:right;font-family:var(--mono)}
 .scroll{overflow-x:auto}
 
@@ -149,7 +155,7 @@ details[open] summary::before{content:"\25BE  "}
 .four .d{font-size:11px;color:var(--mut)}
 .chk{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--sub);margin-bottom:5px;cursor:pointer}
 .chk input{width:auto;margin:3px 0 0;accent-color:var(--blue);cursor:pointer}
-.chk b{color:var(--gold);font-weight:600}
+.chk b{color:var(--gold);font-weight:700}
 </style>
 </head>
 <body>
@@ -234,7 +240,13 @@ details[open] summary::before{content:"\25BE  "}
     <div class="calsub calrule" id="nt_vol"></div>
   </div>
 
-  <details id="nt_plan">
+  <div class="row" style="margin-top:13px;align-items:center">
+    <button class="primary" id="nt_open">Open trade</button>
+    <span class="muted" id="nt_gate"></span>
+  </div>
+  <div class="err" id="nt_err"></div>
+
+  <details id="nt_plan" open>
     <summary>Plan &amp; hinges &mdash; the commitment (decided now, not later)</summary>
     <div class="split" style="margin-top:10px">
       <div><label for="nt_add_if">If X happens &rarr; add</label><input id="nt_add_if" type="text" placeholder="reclaims the halt gap on volume"></div>
@@ -250,20 +262,12 @@ details[open] summary::before{content:"\25BE  "}
       <label class="chk"><input type="checkbox" id="nt_c3"><span>Exits and hinges are <b>defined before entry</b>.</span></label>
     </div>
   </details>
-
-  <div class="row" style="margin-top:13px"><button class="primary" id="nt_open">Open trade</button></div>
-  <div class="err" id="nt_err"></div>
   </div><!-- /body_new -->
 </div>
 
 <div id="sec-open"></div>
-<div class="sechead bare">
-  <button class="small" id="tg_open" onclick="toggleSection('open')">&#9662;</button>
-  <div class="head" style="margin-bottom:0">03 &middot; Open positions</div>
-  <span class="muted" style="margin-left:auto" id="openSummary"></span>
-</div>
-<div id="body_open">
 <div id="bookBar"></div>
+<div id="body_open">
 <div id="openTrades"></div>
 </div>
 
@@ -356,6 +360,7 @@ details[open] summary::before{content:"\25BE  "}
     <button class="small" id="uploadBtn">Load .json file</button>
     <input type="file" id="fileInput" accept="application/json,.json" style="display:none;width:auto">
     <button class="small primary" id="importBtn">Import from box</button>
+    <button class="small danger" id="wipeBtn" style="margin-left:auto">Clear all data</button>
   </div>
   <textarea id="io" style="margin-top:9px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON. Export here, keep it somewhere safe, paste it back to restore."></textarea>
   <div class="err" id="io_err"></div>
@@ -554,7 +559,7 @@ function stats(t){
 
   // MAE / MFE in R-multiples of the per-share risk taken at entry — size-independent, so trades of
   // different sizes compare directly.
-  let mfe = null, mae = null;
+  let mfe = null, mae = null;   // retained: the hi/lo envelope keeps accruing for a future rebuild
   if(riskPS>0){
     const fav = t.side>0 ? t.hi : t.lo;
     const adv = t.side>0 ? t.lo : t.hi;
@@ -791,7 +796,24 @@ function newTradeCal(){
   return q;
 }
 
+// The four pre-trade checks are the gate, not a suggestion. The button reports what is still
+// missing — a disabled control with no stated reason is a dead end.
+function checksDone(){ return [0,1,2,3].filter(i=>$("nt_c"+i).checked).length; }
+function updateGate(){
+  const done = checksDone(), btn = $("nt_open"), note = $("nt_gate");
+  const ok = done===4;
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? "" : ".45";
+  btn.style.cursor = ok ? "" : "not-allowed";
+  note.textContent = ok ? "" : (4-done) + " of 4 pre-trade checks left, below";
+}
+
 function openTrade(){
+  if(checksDone()<4){
+    $("nt_err").textContent = "All four pre-trade checks have to be ticked before this opens.";
+    const p = $("nt_plan"); if(p) p.open = true;
+    return;
+  }
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
   const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
@@ -818,6 +840,7 @@ function openTrade(){
   ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
     .forEach(id=>{ $(id).value = ""; });
   [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
+  updateGate();
   $("nt_calbox").style.display = "none";
   save(); render();
 }
@@ -1202,23 +1225,6 @@ window.editEventDate = (id, i) => {
   }
 };
 
-window.saveExtremes = id => {
-  const t = getTrade(id), errEl = $("hierr_"+id);
-  if(!t) return;
-  errEl.textContent = "";
-  const hi = parseFloat($("hi_"+id).value), lo = parseFloat($("lo_"+id).value);
-  if(isNaN(hi) || isNaN(lo)){ errEl.textContent = "Both a high and a low are needed."; return; }
-  if(hi < lo){ errEl.textContent = "The high can't be below the low."; return; }
-  const seen = t.events.filter(e=>e.price!=null).map(e=>e.price);
-  if(seen.length && (hi < Math.max.apply(null,seen) || lo > Math.min.apply(null,seen))){
-    errEl.textContent = "The range has to contain every price already logged on this trade (" +
-      fmtP(Math.min.apply(null,seen)) + "–" + fmtP(Math.max.apply(null,seen)) + ").";
-    return;
-  }
-  t.hi = hi; t.lo = lo;
-  save(); render(); reopenLog(id);
-};
-
 window.cancelEventDate = (id,i) => {
   const span = $("dspan_"+id+"_"+i), t = getTrade(id);
   if(!span || !t) return;
@@ -1338,7 +1344,7 @@ function renderClosed(){
       : '<span class="muted">&mdash;</span>';
 
     return "<tr>" +
-      "<td><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
+      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
         (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
       "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
@@ -1347,31 +1353,17 @@ function renderClosed(){
       "<td class='num'>"+S.days+"</td>" +
       "<td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
       "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
-      "<td class='num "+cls(S.ann)+"' title='"+(S.days<7?"Annualised from only "+S.days+" day(s) — extrapolation, not a forecast":"Annualised over "+S.days+" days")+"'>" +
+      "<td class='num "+cls(S.ann)+"'>" +
         (S.ann==null?"&mdash;":(S.ann>0?"+":"")+(Math.abs(S.ann)>=1000?Math.round(S.ann).toLocaleString():S.ann.toFixed(0))+"%"+(S.days<7?"<span style='color:var(--amber)'>*</span>":"")) + "</td>" +
-      "<td class='num'>"+(S.mae==null&&S.mfe==null ? "<span class='muted'>&mdash;</span>"
-        : "<span class='neg'>"+(S.mae==null?"—":S.mae.toFixed(1))+"</span> / <span class='pos'>"+(S.mfe==null?"—":"+"+S.mfe.toFixed(1))+"</span>")+"</td>" +
       "<td>"+tagSel+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
         "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
-    "<tr id='log_"+t.id+"' style='display:none'><td colspan='14' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+    "<tr id='log_"+t.id+"' style='display:none'><td colspan='13' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
       "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
-      "<div style='margin-top:12px'><div class='lbl'>Excursion — how far it actually travelled</div>" +
-      "<div class='row' style='align-items:flex-end'>" +
-        "<div style='max-width:130px'><div class='sublbl'>High reached</div><input type='number' step='any' id='hi_"+t.id+"' value='"+(t.hi!=null?t.hi:"")+"' placeholder='high'></div>" +
-        "<div style='max-width:130px'><div class='sublbl'>Low reached</div><input type='number' step='any' id='lo_"+t.id+"' value='"+(t.lo!=null?t.lo:"")+"' placeholder='low'></div>" +
-        "<button class='small' onclick=\"saveExtremes('"+t.id+"')\">Save</button>" +
-        "<span class='muted' style='align-self:center'>" +
-          "MAE <b class='neg'>"+(S.mae==null?"—":S.mae.toFixed(2)+"R")+"</b> &nbsp; MFE <b class='pos'>"+(S.mfe==null?"—":"+"+S.mfe.toFixed(2)+"R")+"</b>" +
-          (S.capture!=null?" &nbsp; captured <b>"+Math.round(S.capture*100)+"%</b> of the favourable move":"") +
-        "</span>" +
-      "</div>" +
-      "<div class='err' id='hierr_"+t.id+"'></div>" +
-      "<div class='muted' style='margin-top:5px'>Seeded from the prices this app saw, which are only the ones you entered or marked — type the real intraday high and low for a true reading. Measured in multiples of the per-share risk you took at entry.</div></div>" +
       "<div style='margin-top:12px'><div class='lbl'>Re-trade review</div>" +
       "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did Cal say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
       "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
@@ -1379,7 +1371,7 @@ function renderClosed(){
   }).join("");
 
   tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
-    "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num'>% equity</th><th class='num'>Annual.</th><th class='num' title='How far price ran against you and in your favour, in multiples of the per-share risk you took at entry'>MAE/MFE</th><th>Loss audit</th><th></th></tr>" + rows;
+    "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num'>% equity</th><th class='num' title='Annualised from the actual holding period. Rows marked * were held under a week, where this is extrapolation rather than a forecast.'>Annual.*</th><th>Loss audit</th><th></th></tr>" + rows;
 
   const exp = tot/closed.length;
   const payoff = (wn && ln) ? (wr/wn)/Math.abs(lr/ln) : null;
@@ -1418,11 +1410,19 @@ function renderCharts(chrono){
   const pls = S.map(s=>s.d.realized);
   if(sum) sum.textContent = chrono.length + " closed trades";
 
-  // --- distribution: losses left, gains right
-  const labels = ["≤−2","−2:−1","−1:0","0:1","1:2","2:3","3:5","5+"];
-  const counts = [0,0,0,0,0,0,0,0];
-  rms.forEach(r=>{ counts[ r<=-2?0 : r<=-1?1 : r<0?2 : r<1?3 : r<2?4 : r<3?5 : r<5?6 : 7 ]++; });
-  $("histChart").innerHTML = svgBars(counts, labels, labels.map((l,i)=> i<3 ? "#f4655f" : "#2fd583"));
+  // --- distribution. Buckets span only the range actually traded, so the worst loss is the leftmost
+  // column and the best win the rightmost — no dead space at either end.
+  // floor+1 on the top end, so a trade landing exactly on a boundary (+2.00R) gets its own bucket
+  // instead of being folded back into the one below it.
+  const from = Math.min(Math.floor(Math.min(...rms)), 0);
+  const to   = Math.max(Math.floor(Math.max(...rms)) + 1, 1);
+  const labels = [], counts = [], colors = [];
+  for(let b=from; b<to; b++){
+    labels.push(b<0 ? b+":"+(b+1) : b+":"+(b+1));
+    counts.push(rms.filter(r=> r>=b && r<b+1 ).length);
+    colors.push(b<0 ? "#f4655f" : "#2fd583");
+  }
+  $("histChart").innerHTML = svgBars(counts, labels, colors);
 
   // --- cumulative R over trades
   let run = 0;
@@ -1464,10 +1464,6 @@ function renderCharts(chrono){
   const totDays = S.reduce((a,s)=>a+s.days, 0);
   const rpd = totDays ? S.reduce((a,s)=>a+s.rm, 0)/totDays : null;
 
-  // Capture only means something where there was a favourable move to capture, and reads clearest
-  // on the trades that worked — mixing losers in produces a negative "capture", which says nothing.
-  const capt = S.filter(s=>s.rm>0 && s.capture!=null && s.mfe>0.25).map(s=>s.capture);
-
   // Holding winners longer than losers is the healthy direction; the reverse is the disposition
   // effect showing up in your own record.
   const holdOk = (avgDaysWin!=null && avgDaysLoss!=null) ? avgDaysWin >= avgDaysLoss : null;
@@ -1475,16 +1471,13 @@ function renderCharts(chrono){
   $("deepStats").innerHTML =
     '<div class="metric"><div class="k">Avg days held</div><div class="v">'+
       (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+" / "+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
-      '<div class="r" style="color:'+(holdOk===null?"var(--mut)":(holdOk?"var(--green)":"var(--red)"))+'">winners / losers' +
-      (holdOk===false?" &mdash; losers held longer":"")+'</div></div>' +
+      '<div class="r"><span class="pos">winners</span> <span style="color:var(--tx)">/</span> <span class="neg">losers</span>' +
+      (holdOk===false?'<span class="neg"> &mdash; losers held longer</span>':"")+'</div></div>' +
     '<div class="metric"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
     '<div class="metric"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
     '<div class="metric"><div class="k">Long / short</div><div class="v">'+
       (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+" / "+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
-      '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>' +
-    '<div class="metric"><div class="k">MFE captured</div><div class="v">'+
-      (capt.length ? Math.round(avg(capt)*100)+"%" : "&mdash;") +
-      '</div><div class="r">'+(capt.length ? "of the favourable move, on "+capt.length+" winner"+(capt.length>1?"s":"") : "needs a winner with a logged high")+'</div></div>';
+      '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
 
   $("tierTbl").innerHTML = groupTable(chrono, S, t=>TIERS[t.tier], "Tier");
   $("conceptTbl").innerHTML = groupTable(chrono, S, t=>(t.concept||"").trim() || "(none)", "Concept");
@@ -1512,9 +1505,23 @@ function groupTable(trades, S, keyOf, label){
 }
 
 /* ========================= book bar ========================= */
+// The section header lives inside this card rather than floating above it, so section 03 lines up
+// with every other section's card edge.
+function openHead(extra){
+  return '<div class="sechead">' +
+    '<button class="small" id="tg_open" onclick="toggleSection(\'open\')">&#9662;</button>' +
+    '<div class="head" style="margin-bottom:0">03 &middot; Open positions</div>' +
+    '<span class="muted" style="margin-left:auto" id="openSummary"></span>' +
+    (extra||"") + '</div>';
+}
+
 function renderBook(open){
   const hb = $("bookBar");
-  if(!open.length){ hb.innerHTML = ""; return; }
+  if(!open.length){
+    hb.innerHTML = '<div class="card">' + openHead() +
+      '<div class="muted" style="margin-top:10px">Nothing open. Size one in section 02 and it appears here.</div></div>';
+    return;
+  }
   const heat = open.map(t=>{ const d = derive(t); const seq = riskAtStop(t,d)-d.realized; return {t,d,seq,seqR:seq/t.rUnit}; });
   const heat$ = heat.reduce((s,h)=>s+Math.max(0,h.seq), 0);
   const heatR = heat.reduce((s,h)=>s+Math.max(0,h.seqR), 0);
@@ -1533,9 +1540,11 @@ function renderBook(open){
       "R cap. This is a survival lever &mdash; no new trades and no adds until heat comes back under it (trim, tighten, or let stops ratchet).</div>" : "") +
     (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
       " closed trades (threshold &minus;"+state.settings.coldR+"R). The lever here is stepping back and reviewing &mdash; never resizing R to win it back.</div>" : "") +
-    '<div class="card"><div class="row" style="justify-content:space-between;align-items:center">' +
+    '<div class="card">' + openHead() + '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
       '<div class="statrow" style="flex:1;min-width:280px">' +
-        '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":(heatR>0?"var(--amber)":"var(--green)"))+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
+        // Gold as the resting colour, matching the R it is denominated in — but a breached cap is a
+        // survival lever, so that one state still shouts in red.
+        '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
         '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
         '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
         '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"marked over 24h ago":"all marks fresh")+'</div></div>' +
@@ -1587,6 +1596,8 @@ function bindSettings(){
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ state.settings.coldR = v; save(); render(); } });
   ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
+  [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
+  updateGate();
   $("fhkey").addEventListener("change", e=>{ state.settings.finnhub = e.target.value.trim(); save(); render(); });
   $("refreshBtn").addEventListener("click", refreshMarks);
 
@@ -1632,6 +1643,20 @@ function bindSettings(){
     e.target.value = "";
   });
   $("importBtn").addEventListener("click", applyImport);
+
+  // Irreversible and there is no server-side copy, so it asks twice and puts the book in the box
+  // first — if the second answer was a mistake, the export is still sitting there to paste back.
+  $("wipeBtn").addEventListener("click", ()=>{
+    const nTrades = Object.values(root.portfolios).reduce((n,p)=>n+p.trades.length, 0);
+    const nBooks = Object.keys(root.portfolios).length;
+    if(!confirm("Delete everything: "+nTrades+" trade(s) across "+nBooks+" portfolio(s), plus all settings.\n\nThis cannot be undone. Continue?")) return;
+    $("io").value = JSON.stringify(root,null,1);
+    if(!confirm("Last check.\n\nYour current book has been placed in the box below — copy it out now if there is any chance you want it back.\n\nErase everything?")) return;
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    root = newRoot(); normalize(); save(); render();
+    $("io_err").className = "okmsg";
+    $("io_err").textContent = "Everything cleared. The box above still holds your old book until you leave this page.";
+  });
 }
 function applyImport(){
   try{

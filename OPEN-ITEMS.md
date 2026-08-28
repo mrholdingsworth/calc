@@ -4,10 +4,10 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Gate the Open trade button.** Disabled until all four pre-trade checkboxes are ticked. Worth
-  deciding at build time whether the checks stay collapsed inside "Plan & hinges" — a disabled
-  button whose reason is hidden inside a closed panel is a dead end, so the gate probably has to
-  surface the unmet checks, or the panel has to open by default.
+- **MAE / MFE — re-add if a live data feed arrives.** Pulled 2026-08-28: without intraday data the
+  app only sees prices you typed, so the excursion envelope understates and the numbers flatter you.
+  The hi/lo envelope still accrues quietly in the background, and `_parked/mae-mfe.md` holds the
+  definitions and the basis caveat for a rebuild.
 
 - **Account group calculations.** Several accounts running the same ruleset should take a trade
   once, not once each. Enter ticker, side, tier, entry, stop, ADR and concept a single time; each
@@ -52,16 +52,29 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — R distribution buckets now span only the range actually traded, worst loss leftmost and
+  best win rightmost, with the top bucket opened out so a trade landing exactly on a boundary gets
+  its own column.
+- 2026-08-28 — Open trade is gated on all four pre-trade checks, and moved above the plan panel, which
+  now opens by default. The button states how many checks remain rather than sitting dead.
+- 2026-08-28 — Section 03 header moved inside the book-bar card so every section shares a card edge.
+- 2026-08-28 — Controls and buttons share a row height. Ticker and its toggle no longer split across
+  lines on narrow screens.
+- 2026-08-28 — One gold (#dfbd69) everywhere, prose gold bolded. Open heat is gold at rest and red
+  only when the cap is breached.
+- 2026-08-28 — Annualised caveat moved off every row onto the column header.
+- 2026-08-28 — Clear all data, behind two confirmations, exporting the book to the box before it goes.
+
 - 2026-08-27 — Closed-trade metrics: days held, R per day, % of equity at open, annualised return,
   and MAE/MFE. Annualised figures under a week carry an amber asterisk — extrapolation, not a
   forecast. MAE/MFE is measured in multiples of the per-share risk taken at entry, so it compares
   across trades of different size; note it is a different R basis from the account-level R multiple
   column beside it. Highs and lows are seeded from prices the app has seen and overridable by hand,
-  since it cannot know the true intraday range.
+  since it cannot know the true intraday range. (MAE/MFE removed again 2026-08-28.)
 - 2026-08-27 — Charts & statistics section (05), added to the index: R distribution, cumulative R,
-  P/L per trade, cumulative P/L over trades and over time, P/L %% over time, equity curve. Plus a
+  P/L per trade, cumulative P/L over trades and over time, P/L % over time, equity curve. Plus a
   statistics panel — days held winners vs losers, R per day, max drawdown on the R curve, long/short
-  expectancy, MFE captured — and expectancy tables by tier and by concept.
+  expectancy — and expectancy tables by tier and by concept.
 - 2026-08-27 — Every section collapses, on one shared mechanism; the tally's bespoke toggle folded
   into it, migrating the old flag.
 - 2026-08-27 — Date fixes: Escape backs out of an edit, saving with nothing changed just closes the
