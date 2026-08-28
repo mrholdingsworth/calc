@@ -52,6 +52,9 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Section 02 header is just "New trade"; "Position size" was implied by the calculator's
+  existence. The Open trade button stays above the plan panel.
+
 - 2026-08-28 — R distribution buckets now span only the range actually traded, worst loss leftmost and
   best win rightmost, with the top bucket opened out so a trade landing exactly on a boundary gets
   its own column.
