@@ -4,6 +4,32 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Closed-trade metrics.** Confirmed wanted: days open, annualised return for the position, return
+  on total equity. Further candidates were put to Steve on 2026-08-27 and are awaiting his pick —
+  do not build until he chooses. Two caveats to carry into the build: annualising a one-day trade
+  produces a meaningless six-figure percentage, so it needs a floor or a flag; and return on equity
+  should divide by the AUM locked at open, matching how the R unit is locked, not by today's AUM.
+
+- **Graphics section.** A charts section of its own, added to the section index:
+  - R distribution as a bar chart, losses to the left and gains to the right, to see at a glance
+    whether winners are bigger than losers. (A version of this exists in the tally today; it moves
+    and grows up here.)
+  - Cumulative R over trades — normalised return, independent of account size. (Also exists today.)
+  - P/L over trade, and P/L over time — the same series on two different x-axes.
+  - P/L % over time.
+  - Equity curve over time.
+
+  Note: "over trades" and "over time" are genuinely different axes and both are wanted. Time-based
+  series need real dates on every trade, which is why the editable dates went in first.
+
+- **Collapsible sections.** Every section gets the collapse control that the tally (section 04)
+  already has, so the page can be folded down to what you're using.
+
+- **Gate the Open trade button.** Disabled until all four pre-trade checkboxes are ticked. Worth
+  deciding at build time whether the checks stay collapsed inside "Plan & hinges" — a disabled
+  button whose reason is hidden inside a closed panel is a dead end, so the gate probably has to
+  surface the unmet checks, or the panel has to open by default.
+
 - **Account group calculations.** Several accounts running the same ruleset should take a trade
   once, not once each. Enter ticker, side, tier, entry, stop, ADR and concept a single time; each
   account in the group sizes it off its *own* equity, so each gets its own 1R and its own share
@@ -47,9 +73,13 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
-- 2026-08-27 — Editable entry and close dates on closed trades. Moving the entry date shifts every
-  event with it, preserving spacing; the close date then pins where the trade sits in the tally, the
-  cumulative-R curve and the cold-streak brake. Rejects a close earlier than the entry.
+- 2026-08-27 — Dates are now edited inline: click any date in a closed trade's event log to swap it
+  for a picker, and a Save dates button appears beside the delete control. Per-event rather than a
+  pair of summary fields, so each event can be corrected on its own. Rejects an edit that would put
+  events out of order, rolling every date back rather than half-applying.
+- 2026-08-27 — Navy-and-gold palette: gold on the masthead R and on emphasis through the body
+  (#c9a227, 7.5:1 on card ground). The blue accent on buttons, the Cal-says panel and the rail is
+  untouched — say the word if that should shift to navy/gold too.
 - 2026-08-27 — Sticky section index on the left, wide screens only, with the current section marked.
   Needed trailing scroll room below the last card: without it the final two sections share the
   closing viewport and neither can be isolated or highlighted correctly.

@@ -13,6 +13,7 @@
   --bg:#0b0e13; --panel:#11161f; --panel2:#151b26; --line:#212a38; --line2:#2c3646;
   --tx:#e6ebf2; --sub:#9aa6b8; --mut:#697588;
   --blue:#4d9fff; --bluebg:rgba(77,159,255,.10);
+  --gold:#c9a227;   /* navy ground, gold emphasis */
   --green:#2fd583; --greenbg:rgba(47,213,131,.10);
   --red:#f4655f; --redbg:rgba(244,101,95,.10);
   --amber:#f0a832; --amberbg:rgba(240,168,50,.10);
@@ -48,10 +49,10 @@ a{color:var(--blue)}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 
 .mast{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.gold{color:var(--gold)}
 .mast .logo{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
-.mast .logo span{color:var(--blue)}
 .tagline{color:var(--sub);max-width:660px;margin:10px 0 18px;font-size:13.5px}
-.tagline em{color:var(--tx);font-style:normal}
+.tagline em{color:var(--gold);font-weight:600;font-style:normal}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:14px}
 .head{font-size:10.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
@@ -101,7 +102,7 @@ button.small{padding:4px 10px;font-size:12px}
 .calbox{background:var(--bluebg);border:1px solid rgba(77,159,255,.28);border-radius:11px;padding:12px 15px;margin:12px 0}
 .calans{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--blue)}
 .calsub{font-size:12.5px;color:var(--sub);margin-top:4px}
-.calsub b{color:var(--tx)}
+.calsub b{color:var(--gold)}
 .calrule{margin-top:7px;padding-top:7px;border-top:1px solid rgba(77,159,255,.2)}
 
 .tradehead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}
@@ -114,7 +115,7 @@ button.small{padding:4px 10px;font-size:12px}
 .action .row input{width:auto;flex:1;min-width:64px}
 .ladder{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .rung{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--sub)}
-.rung b{color:var(--tx)}
+.rung b{color:var(--gold)}
 .rung.hit{border-color:var(--green);background:var(--greenbg)}
 .rung.hit b{color:var(--green)}
 
@@ -128,6 +129,8 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 details{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
 details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600;list-style:none}
 details summary::-webkit-details-marker{display:none}
+.dedit{cursor:pointer;border-bottom:1px dotted var(--line2);padding-bottom:1px}
+.dedit:hover{color:var(--gold);border-bottom-color:var(--gold)}
 details summary::before{content:"\25B8  ";color:var(--mut)}
 details[open] summary::before{content:"\25BE  "}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -143,7 +146,7 @@ details[open] summary::before{content:"\25BE  "}
 .four .d{font-size:11px;color:var(--mut)}
 .chk{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--sub);margin-bottom:5px;cursor:pointer}
 .chk input{width:auto;margin:3px 0 0;accent-color:var(--blue);cursor:pointer}
-.chk b{color:var(--tx);font-weight:600}
+.chk b{color:var(--gold);font-weight:600}
 </style>
 </head>
 <body>
@@ -160,7 +163,7 @@ details[open] summary::before{content:"\25BE  "}
 <div class="main">
 
 <div class="mast">
-  <div class="logo">R Calculator</div>
+  <div class="logo"><span class="gold">R</span> Calculator</div>
 </div>
 <p class="tagline">
   R is the center of the universe. <em>Method units, not dollars.</em> You set the risk unit before you enter;
@@ -956,30 +959,58 @@ const dateVal = ts => { const d = new Date(ts);
 const tsFromDateVal = s => { const p = String(s).split("-").map(Number);
   return (p.length===3 && p.every(n=>!isNaN(n))) ? new Date(p[0], p[1]-1, p[2], 12, 0, 0, 0).getTime() : null; };
 
-window.saveDates = id => {
-  const t = getTrade(id), errEl = $("daterr_"+id), okEl = $("datest_"+id);
-  errEl.textContent = "";
-  const ent = tsFromDateVal($("dent_"+id).value), cls = tsFromDateVal($("dcls_"+id).value);
-  if(ent==null || cls==null){ errEl.textContent = "Both dates are needed."; return; }
-  if(cls < ent){ errEl.textContent = "The close can't be earlier than the entry."; return; }
+// Click a date in the event log to swap it for a picker. The Save button only appears once
+// something is actually being edited, so the row stays quiet until you touch it.
+window.editEventDate = (id, i) => {
+  const span = $("dspan_"+id+"_"+i);
+  const t = getTrade(id);
+  if(!span || !t || span.dataset.editing) return;
+  span.dataset.editing = "1";
+  span.innerHTML = "<input type='date' id='dinp_"+id+"_"+i+"' value='"+dateVal(t.events[i].ts)+"' style='max-width:150px'>";
+  const btn = $("dsave_"+id);
+  if(btn) btn.style.display = "";
+  const inp = $("dinp_"+id+"_"+i);
+  if(inp) inp.focus();
+};
 
-  // Shift the whole trade by the entry delta so adds, trims and stop moves keep their spacing,
-  // then pin the close. Editing only the close date leaves the delta at zero and shifts nothing.
-  const delta = ent - entryTs(t);
-  if(delta !== 0) t.events.forEach(e=>{ e.ts += delta; });
+window.saveEventDates = id => {
+  const t = getTrade(id), errEl = $("daterr_"+id);
+  if(!t) return;
+  if(errEl) errEl.textContent = "";
 
-  const last = t.events[t.events.length-1];
-  if(last && last.type==="close") last.ts = cls;
-  t.closedAt = cls;
-  if(t.createdAt!=null) t.createdAt += delta;
+  const before = t.events.map(e=>e.ts);          // so a rejected edit changes nothing
+  let touched = false, bad = false;
+  t.events.forEach((e,i)=>{
+    const inp = $("dinp_"+id+"_"+i);
+    if(!inp) return;
+    const ts = tsFromDateVal(inp.value);
+    if(ts==null){ bad = true; return; }
+    if(ts !== e.ts){ e.ts = ts; touched = true; }
+  });
+  if(bad){
+    t.events.forEach((e,i)=>{ e.ts = before[i]; });
+    if(errEl) errEl.textContent = "A date was left empty.";
+    return;
+  }
+  // The log is a sequence: an event can't be dated before the one above it.
+  for(let i=1;i<t.events.length;i++){
+    if(t.events[i].ts < t.events[i-1].ts){
+      t.events.forEach((e,j)=>{ e.ts = before[j]; });
+      if(errEl) errEl.textContent = "Events have to stay in order — " + t.events[i].type +
+        " can't be dated before the " + t.events[i-1].type + " above it.";
+      return;
+    }
+  }
+  if(!touched){ if(errEl) errEl.textContent = "Nothing changed."; return; }
+
+  // Keep the fields the rest of the app sorts and groups by in step with the log.
+  t.createdAt = t.events[0].ts;
+  if(t.status==="closed") t.closedAt = t.events[t.events.length-1].ts;
 
   save(); render();
-
-  // render() rebuilds the table, which collapses this row — put it back so you can see the result.
+  // render() rebuilds the table and collapses this row — reopen it so the result is visible.
   const row = $("log_"+id);
   if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;"; }
-  const el = $("datest_"+id);
-  if(el){ el.textContent = "Saved."; setTimeout(()=>{ const e2 = $("datest_"+id); if(e2) e2.textContent = ""; }, 3000); }
 };
 
 /* ========================= tally ========================= */
@@ -1016,7 +1047,7 @@ function renderClosed(){
 
     // replay for the per-event detail table
     let Q2=0, avg2=0, real2=0;
-    const evRows = t.events.map(e=>{
+    const evRows = t.events.map((e,i)=>{
       let det = "";
       if(e.type==="entry"||e.type==="add"){
         avg2 = (Q2+e.qty)>0 ? (avg2*Q2+e.price*e.qty)/(Q2+e.qty) : e.price; Q2 += e.qty;
@@ -1031,7 +1062,8 @@ function renderClosed(){
         det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
                e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
       }
-      return "<tr><td>"+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td><td>"+e.type+
+      return "<tr><td><span class='dedit' id='dspan_"+t.id+"_"+i+"' onclick=\"editEventDate('"+t.id+"',"+i+")\" title='Click to change this date'>"+
+             new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</span></td><td>"+e.type+
              "</td><td>"+det+"</td><td class='num'>"+fmtQ(Q2)+"</td><td class='num'>"+(Q2>0?fmtP(avg2):"&mdash;")+
              "</td><td class='num "+cls(real2)+"'>"+fmtR(real2/t.rUnit)+"</td></tr>";
     }).join("");
@@ -1058,21 +1090,14 @@ function renderClosed(){
       "<td class='num "+cls(rm)+"'>"+fmtR(rm)+(rm<-1.5?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Loss well beyond 1R'>breach</span>":"")+"</td>" +
       "<td>"+tagSel+"</td>" +
       "<td class='num'>"+t.events.length+"</td>" +
-      "<td class='num'><button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
+      "<td class='num' style='white-space:nowrap'>" +
+        "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
+        "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
     "<tr id='log_"+t.id+"' style='display:none'><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
-      "<div style='margin-top:12px'><div class='lbl'>Dates</div>" +
-      "<div class='row' style='align-items:flex-end'>" +
-        "<div style='max-width:170px'><div class='sublbl'>Entered</div>" +
-          "<input type='date' id='dent_"+t.id+"' value='"+dateVal(entryTs(t))+"'></div>" +
-        "<div style='max-width:170px'><div class='sublbl'>Closed</div>" +
-          "<input type='date' id='dcls_"+t.id+"' value='"+dateVal(t.closedAt||entryTs(t))+"'></div>" +
-        "<button class='small' onclick=\"saveDates('"+t.id+"')\">Save dates</button>" +
-        "<span class='muted' id='datest_"+t.id+"'></span>" +
-      "</div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
-      "<div class='muted' style='margin-top:5px'>Logged a day late? Move the entry date and every event shifts with it, keeping their spacing. The close date then sets where this trade sits in the tally, the curve, and the cold-streak brake.</div></div>" +
+      "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
       "<div style='margin-top:12px'><div class='lbl'>Re-trade review</div>" +
       "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did Cal say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
       "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
