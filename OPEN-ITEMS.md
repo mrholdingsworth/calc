@@ -52,8 +52,10 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
-- 2026-08-28 — Section 02 header is just "New trade"; "Position size" was implied by the calculator's
-  existence. The Open trade button stays above the plan panel.
+- 2026-08-28 — Section labels trimmed to the substantive word and set in Title Case, with the index
+  matching: Desk, New Trade, Open Positions, Closed Trades, Charts & Statistics, Data Management.
+  "Position size" and "Tally" both restated what the calculator is; the index rail widened to 152px
+  so the longer names sit on one line.
 
 - 2026-08-28 — R distribution buckets now span only the range actually traded, worst loss leftmost and
   best win rightmost, with the top bucket opened out so a trade landing exactly on a boundary gets
