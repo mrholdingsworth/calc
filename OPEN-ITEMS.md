@@ -54,8 +54,9 @@ Running list. Newest at the top of each section.
 
 - 2026-08-28 — Section labels trimmed to the substantive word and set in Title Case, with the index
   matching: Desk, New Trade, Open Positions, Closed Trades, Charts & Statistics, Data Management.
-  "Position size" and "Tally" both restated what the calculator is; the index rail widened to 152px
-  so the longer names sit on one line.
+  "Position size" and "Tally" both restated what the calculator is.
+- 2026-08-28 — Index rail uses its own shorter labels (Open Trades, Statistics, Data) so it can sit at
+  118px; that also let the rail appear from 1120px wide instead of 1180px.
 
 - 2026-08-28 — R distribution buckets now span only the range actually traded, worst loss leftmost and
   best win rightmost, with the top bucket opened out so a trade landing exactly on a boundary gets

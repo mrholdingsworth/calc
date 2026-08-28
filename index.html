@@ -30,11 +30,11 @@ body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px
    so on a narrow screen the content keeps the whole column. */
 .rail{display:none}
 [id^="sec-"]{scroll-margin-top:22px}
-@media(min-width:1180px){
+@media(min-width:1120px){
   /* Trailing scroll room. The last sections are short and sit at the end of the document, so
      without this they share the closing viewport: no scroll position isolates either one, and
      clicking their rail link lands on the page bottom and highlights the wrong entry. */
-  .wrap{max-width:1360px;display:grid;grid-template-columns:152px minmax(0,1fr);gap:26px;
+  .wrap{max-width:1340px;display:grid;grid-template-columns:118px minmax(0,1fr);gap:24px;
         align-items:start;padding-bottom:66vh}
   .rail{display:flex;flex-direction:column;gap:1px;position:sticky;top:22px}
   .rail a{display:block;padding:6px 10px;border-radius:7px;font-size:12.5px;line-height:1.35;color:var(--mut);
@@ -164,10 +164,10 @@ details[open] summary::before{content:"\25BE  "}
 <nav class="rail" id="rail" aria-label="Sections">
   <a href="#sec-desk">Desk</a>
   <a href="#sec-new">New Trade</a>
-  <a href="#sec-open">Open Positions</a>
+  <a href="#sec-open">Open Trades</a>
   <a href="#sec-tally">Closed Trades</a>
-  <a href="#sec-charts">Charts &amp; Statistics</a>
-  <a href="#sec-data">Data Management</a>
+  <a href="#sec-charts">Statistics</a>
+  <a href="#sec-data">Data</a>
 </nav>
 
 <div class="main">
