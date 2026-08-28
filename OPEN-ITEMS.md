@@ -4,6 +4,15 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Editable dates on closed trades.** For when a trade can't be logged until the next day. Needs to
+  cover the entry and close dates, not just one: every event carries its own `ts`, and `closedAt`
+  separately drives close ordering, the cumulative-R curve, and the cold-streak brake's "last five".
+  Backdating a close has to move both or the tally and the brake disagree.
+
+- **Sticky section index.** A nav rail down the left that scrolls with the page, with quick links
+  to each section (desk, new trade, open positions, tally). Should collapse or drop away on narrow
+  screens rather than eat the width.
+
 - **Account group calculations.** Several accounts running the same ruleset should take a trade
   once, not once each. Enter ticker, side, tier, entry, stop, ADR and concept a single time; each
   account in the group sizes it off its *own* equity, so each gets its own 1R and its own share
