@@ -12,21 +12,31 @@ Running list. Newest at the top of each section.
   Distinct from today's portfolio tabs, which are independent books entered separately. A group is
   one ruleset fanned out across member accounts.
 
-  Settled by the request: the ruleset (R%, tiers, and the survival levers) is shared across the
-  group; equity is per account; share counts are floored per account.
+  **Design settled 2026-08-27:**
+  - **Shared:** the ruleset — R%, tier budgets, and the survival levers. **Per account:** equity,
+    positions, share counts, and all performance statistics.
+  - **The whole lifecycle fans out**, not just the opening size. Open, mark, move stops, add, trim,
+    close — a group action broadcasts to every member. (This is load-bearing: a stop move recomputes
+    the constant-risk add for each account, so if only the entry fanned out the group would
+    desynchronise at the first add.)
+  - **Any account can also be driven on its own.** Drill into a single member and act on just that
+    one — close a position to raise cash for a withdrawal, take a different fill, update equity for a
+    deposit. Group actions are a convenience, never a cage.
+  - **Model: N linked records, one per account** — not one record with per-account legs. Falls out of
+    the two decisions above: no group-level performance rollup is wanted, and members must be free to
+    diverge. A group action is a broadcast that writes each account's own record; from then on each
+    record lives its own life. Per-account fills need no special field — divergence is just the
+    normal per-account path.
+  - **No group performance tracking.** Statistics stay per account. A group is a mechanism for
+    entering and managing trades, not a reporting unit.
+  - **Heat cap is per account only.** Consistent with R already being a percentage of each account's
+    own equity.
+  - **An account that floors to 0 shares is skipped with a note**, in the same spirit as the current
+    entry form's inline feedback — surfaced in the sizing preview before you commit, not silently.
 
-  Still to decide when this gets built:
-  - Does the whole lifecycle fan out, or only the opening size? A stop move re-sizes the constant-risk
-    add for every member, so adds/trims/stop moves almost certainly have to fan out too — otherwise
-    the group desynchronises after the first add.
-  - One trade record with per-account legs, or N linked records? Legs keep the tally aggregatable in
-    R (every member should post the same R multiple if it scales cleanly); linked records are simpler
-    but make group-level stats a join.
-  - Fills differ per account in practice. Allow a per-account actual fill price, or assume one price
-    and let the override field handle exceptions?
-  - Is the heat cap per account or across the group? Per account is the consistent reading, since R
-    is already a percentage of each account's own equity.
-  - Small accounts will floor to 0 shares on wide stops. Flag it, or silently skip that member?
+  Implementation note: accounts map onto today's portfolio tabs. Grouping hoists the ruleset from the
+  portfolio up to the group, leaving the portfolio holding equity and trades. Ungrouped portfolios
+  must keep their own settings, so this needs a migration path rather than a straight move.
 
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
   point these change together: the masthead, the `<title>`, the "CAL SAYS" panel heading, and the
