@@ -88,6 +88,8 @@ button.small{padding:4px 10px;font-size:12px}
 .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:10px;margin-top:12px}
 .action{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
 .action .t{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.action .sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
+.action .sublbl .muted{font-size:11px}
 .action .row input{width:auto;flex:1;min-width:64px}
 .ladder{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .rung{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--sub)}
@@ -255,6 +257,14 @@ details[open] summary::before{content:"\25BE  "}
 
 /* ========================= state ========================= */
 const TIERS = ["A+","A","B"];
+
+// Why a loss happened. Three causes that call for three different responses: nothing, a wider stop,
+// or a word with yourself. A tag no longer on this list still shows on its trade, marked retired.
+const LOSS_TAGS = [
+  { v:"invalidation", t:"Thesis broken — the stop did its job" },
+  { v:"noise",        t:"Stopped by noise — it worked after I was out" },
+  { v:"violation",    t:"Rule violation — I broke my own process" }
+];
 const KEY = "cal.v1";
 let root = null, state = null;
 
@@ -321,6 +331,9 @@ const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{max
 const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
 const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
 const fmtP = v => "$" + Number(v).toLocaleString(undefined,{maximumFractionDigits:4});
+// Snap a computed stop to a price you could actually enter as an order, so the button's
+// label and the level it applies are the same number.
+const roundPx = v => Math.abs(v)>=1 ? Math.round(v*100)/100 : Math.round(v*10000)/10000;
 const cls  = v => v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : "");
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
@@ -725,14 +738,23 @@ function tradeCard(t){
         '<div class="err" id="trerr_'+t.id+'"></div>' +
         '<div class="muted" style="margin-top:5px">The wiggle rule: will this be here at this price or better later?</div></div>' +
 
-      '<div class="action"><div class="t">Stop &amp; volatility</div><div class="row">' +
-        '<input type="number" step="any" id="stp_'+t.id+'" placeholder="'+(d.stop!=null?d.stop:"stop")+'" onkeydown="if(event.key===\'Enter\')moveStop(\''+t.id+'\')">' +
-        '<button class="small" onclick="moveStop(\''+t.id+'\')">Move</button>' +
-        (be!=null ? '<button class="small" onclick="stopTo(\''+t.id+'\','+be.toFixed(4)+')">B/E</button>' : "") +
-        ((trail!=null && (d.stop==null || t.side*(trail-d.stop)>0)) ? '<button class="small" title="Trail 1R behind the last price" onclick="stopTo(\''+t.id+'\','+trail.toFixed(4)+')">1R trail</button>' : "") +
-        '<input type="number" step="0.1" id="adr_'+t.id+'" placeholder="'+(t.adr!=null?t.adr+"%":"ADR %")+'" style="max-width:78px">' +
-        '<button class="small" onclick="setAdr(\''+t.id+'\')">Set</button></div>' +
-        '<div class="muted" style="margin-top:5px">Signal &rarr; move stop &rarr; the max add above updates.</div></div>' +
+      '<div class="action"><div class="t">Stop</div>' +
+        '<div class="sublbl">Move stop to <span class="muted">'+(d.stop!=null?"now "+fmtP(d.stop):"none set")+'</span></div>' +
+        '<div class="row">' +
+          '<input type="number" step="any" id="stp_'+t.id+'" placeholder="price" onkeydown="if(event.key===\'Enter\')moveStop(\''+t.id+'\')">' +
+          '<button class="small primary" onclick="moveStop(\''+t.id+'\')">Move</button>' +
+        '</div>' +
+        ((be!=null || trail!=null) ? '<div class="row" style="margin-top:6px">' +
+          '<span class="muted" style="align-self:center">jump to:</span>' +
+          (be!=null ? '<button class="small" title="The stop that makes this whole sequence net zero" onclick="stopTo(\''+t.id+'\','+roundPx(be)+')">breakeven '+fmtP(roundPx(be))+'</button>' : "") +
+          ((trail!=null && (d.stop==null || t.side*(trail-d.stop)>0)) ? '<button class="small" title="Trail one unit of your entry risk behind the last price" onclick="stopTo(\''+t.id+'\','+roundPx(trail)+')">1R trail '+fmtP(roundPx(trail))+'</button>' : "") +
+        '</div>' : "") +
+        '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(t.adr!=null?"now "+t.adr+"%":"not set")+'</span></div>' +
+        '<div class="row">' +
+          '<input type="number" step="0.1" id="adr_'+t.id+'" placeholder="% of price" style="max-width:110px" onkeydown="if(event.key===\'Enter\')setAdr(\''+t.id+'\')">' +
+          '<button class="small" onclick="setAdr(\''+t.id+'\')">Set</button>' +
+        '</div>' +
+        '<div class="muted" style="margin-top:7px">Signal &rarr; move the stop &rarr; "Max add right now" recomputes. ADR feeds the daily vol check above.</div></div>' +
 
       '<div class="action"><div class="t">Risk budget (R)</div><div class="row">' +
         '<input type="number" step="0.05" id="rb_'+t.id+'" placeholder="'+d.mult+'R now" style="max-width:86px" onkeydown="if(event.key===\'Enter\')setBudget(\''+t.id+'\')">' +
@@ -752,9 +774,9 @@ function tradeCard(t){
       '<div class="action"><div class="t">Adjust (override)</div><div class="row">' +
         '<input type="number" step="any" id="ajq_'+t.id+'" placeholder="'+fmtQ(d.Q)+' sh" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
         '<input type="number" step="any" id="aja_'+t.id+'" placeholder="avg '+fmtP(d.avg)+'" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
-        '<input type="number" step="any" id="ajs_'+t.id+'" placeholder="'+(d.stop!=null?"stop "+fmtP(d.stop):"stop")+'" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
         '<button class="small" onclick="doAdjust(\''+t.id+'\')">Apply</button></div>' +
-        '<div class="err" id="ajerr_'+t.id+'"></div></div>' +
+        '<div class="err" id="ajerr_'+t.id+'"></div>' +
+        '<div class="muted" style="margin-top:5px">Force the position or average price to match your broker. The stop is set above.</div></div>' +
     '</div>' +
 
     '<svg class="spark" viewBox="0 0 560 120">'+svgLine(d.series.map(s=>s.val), {labels:d.series.map(s=>s.label)})+'</svg>' +
@@ -833,10 +855,10 @@ window.setBudget = id => {
 };
 window.doAdjust = id => {
   const t = getTrade(id), errEl = $("ajerr_"+id);
-  const q = parseFloat($("ajq_"+id).value), a = parseFloat($("aja_"+id).value), s = parseFloat($("ajs_"+id).value);
-  if(isNaN(q) && isNaN(a) && isNaN(s)){ errEl.textContent = "Enter at least one value &mdash; blank fields keep their current value."; return; }
+  const q = parseFloat($("ajq_"+id).value), a = parseFloat($("aja_"+id).value);
+  if(isNaN(q) && isNaN(a)){ errEl.textContent = "Enter a position size or an average price — a blank field keeps its current value."; return; }
   if(!isNaN(q) && q<0){ errEl.textContent = "Position size can't be negative (side is fixed on the trade)."; return; }
-  t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:isNaN(s)?null:s, ts:Date.now()});
+  t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
   save(); render();
 };
 window.undoEvent = id => {
@@ -904,7 +926,7 @@ function renderClosed(){
     return;
   }
 
-  let tot=0, wins=0, wr=0, lr=0, wn=0, ln=0, worst=0, discOK=0, noise=0, tagged=0, planned=0;
+  let tot=0, wins=0, wr=0, lr=0, wn=0, ln=0, worst=0, discOK=0, noise=0, violations=0, tagged=0, planned=0;
   const rms = [];
   const chrono = closed.slice().sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
 
@@ -913,7 +935,7 @@ function renderClosed(){
     tot += rm; rms.push(rm);
     if(rm>0){ wins++; wr += rm; wn++; }
     else { lr += rm; ln++; if(rm<worst) worst = rm; if(rm>=-1.2) discOK++;
-           if(t.lossTag){ tagged++; if(t.lossTag==="noise") noise++; } }
+           if(t.lossTag){ tagged++; if(t.lossTag==="noise") noise++; if(t.lossTag==="violation") violations++; } }
     if(Array.isArray(t.checks) && t.checks.every(Boolean)) planned++;
 
     // replay for the per-event detail table
@@ -942,12 +964,13 @@ function renderClosed(){
     const planRow = [p.addIf?"<b>add if</b> "+esc(p.addIf):null, p.cutIf?"<b>cut if</b> "+esc(p.cutIf):null,
                      p.waitIf?"<b>wait if</b> "+esc(p.waitIf):null, p.exit?"<b>exit</b> "+esc(p.exit):null].filter(Boolean).join(" &nbsp;&middot;&nbsp; ");
 
+    const legacy = t.lossTag && !LOSS_TAGS.some(o=>o.v===t.lossTag);
     const tagSel = rm<0
-      ? '<select onchange="setLossTag(\''+t.id+'\',this.value)" style="max-width:170px">' +
-        ['<option value="">tag this loss…</option>',
-         '<option value="invalidation"'+(t.lossTag==="invalidation"?" selected":"")+'>invalidation — thesis broke</option>',
-         '<option value="noise"'+(t.lossTag==="noise"?" selected":"")+'>noise stopout — it resolved without me</option>',
-         '<option value="breach"'+(t.lossTag==="breach"?" selected":"")+'>breach — I let it run past the stop</option>'].join("") + '</select>'
+      ? '<select onchange="setLossTag(\''+t.id+'\',this.value)" style="max-width:230px">' +
+        '<option value="">tag this loss…</option>' +
+        LOSS_TAGS.map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
+        (legacy ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired tag)</option>' : "") +
+        '</select>'
       : '<span class="muted">&mdash;</span>';
 
     return "<tr>" +
@@ -986,7 +1009,8 @@ function renderClosed(){
     '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade &mdash; the number that matters</div></div>' +
     '<div class="metric"><div class="k">Avg win / avg loss</div><div class="v">'+(wn?fmtR(wr/wn).replace("+",""):"&mdash;")+" / "+(ln?fmtR(lr/ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(rms.length?fmtR(Math.max.apply(null,rms)):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under 1.2R &middot; worst '+(worst<0?fmtR(worst):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(tagged?noise+" of "+tagged+" tagged losses":"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(tagged?noise+" of "+tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(violations?"var(--red)":"var(--green)")+'">'+(tagged?violations:"&mdash;")+'</div><div class="r">'+(tagged?(violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">full pre-trade check on open</div></div>';
 
   // charts

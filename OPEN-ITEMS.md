@@ -50,6 +50,17 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-27 — Stop panel rebuilt: labelled "Move stop to" and "Average daily range" rows with the
+  current value shown beside each, real placeholders instead of values masquerading as them, and the
+  breakeven / 1R-trail shortcuts moved to their own "jump to" row showing the price they apply.
+  Those shortcuts now snap to a price you could actually enter as an order, so the button label and
+  the level it sets are the same number.
+- 2026-08-27 — Dropped the stop field from Adjust (override). Duplicated the Stop panel.
+- 2026-08-27 — Loss audit reworked to three causes that call for three different responses:
+  *Thesis broken* (nothing to fix), *Stopped by noise* (the stop was too tight), *Rule violation*
+  (a word with yourself). Retired "breach": a stop that gaps through shows up as a worse R multiple
+  anyway. Added a **Rule violations** stat. A retired tag still on an old trade is kept and labelled.
+
 - 2026-08-27 — Removed the four-button explainer strip at the top: descriptive only, wired to nothing.
 - 2026-08-27 — Default portfolios reduced to a single `Trading`.
 - 2026-08-27 — Default tier budgets set to A+ 1R / A 0.5R / B 0.25R.
