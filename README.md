@@ -64,6 +64,13 @@ The repo has to be public for Pages to serve it on the free plan. What that publ
 itself and nothing else — your trades never enter the repo, and there is no account, key, or
 personal data in the file. Serving from a private repo needs a paid plan.
 
+## Live marks (optional)
+
+Paste a free [Finnhub](https://finnhub.io/register) API key into the desk to pull last prices for
+open tickers. Refreshes on demand and once a minute, holding off while you have a field focused.
+Without a key everything else works — set marks by hand. A mark only ever moves the last price:
+never a stop, a size, or a decision.
+
 ## Your data
 
 `localStorage`, this browser, this origin. Clearing site data wipes it, and a different browser or

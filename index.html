@@ -23,6 +23,27 @@
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 80px}
+.main{min-width:0}
+
+/* Section index. Hidden by default and only introduced once there is width to spare for it,
+   so on a narrow screen the content keeps the whole column. */
+.rail{display:none}
+[id^="sec-"]{scroll-margin-top:22px}
+@media(min-width:1180px){
+  /* Trailing scroll room. The last sections are short and sit at the end of the document, so
+     without this they share the closing viewport: no scroll position isolates either one, and
+     clicking their rail link lands on the page bottom and highlights the wrong entry. */
+  .wrap{max-width:1340px;display:grid;grid-template-columns:132px minmax(0,1fr);gap:28px;
+        align-items:start;padding-bottom:66vh}
+  .rail{display:flex;flex-direction:column;gap:1px;position:sticky;top:22px}
+  .rail a{display:block;padding:6px 10px;border-radius:7px;font-size:12.5px;color:var(--mut);
+          text-decoration:none;border-left:2px solid transparent}
+  .rail a:hover{color:var(--tx);background:var(--panel)}
+  .rail a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .rail a.on{color:var(--blue);background:var(--bluebg);border-left-color:var(--blue);font-weight:600}
+}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 a{color:var(--blue)}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 
@@ -88,8 +109,8 @@ button.small{padding:4px 10px;font-size:12px}
 .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:10px;margin-top:12px}
 .action{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
 .action .t{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-.action .sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
-.action .sublbl .muted{font-size:11px}
+.sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
+.sublbl .muted{font-size:11px}
 .action .row input{width:auto;flex:1;min-width:64px}
 .ladder{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .rung{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--sub)}
@@ -128,6 +149,16 @@ details[open] summary::before{content:"\25BE  "}
 <body>
 <div class="wrap">
 
+<nav class="rail" id="rail" aria-label="Sections">
+  <a href="#sec-desk">Desk</a>
+  <a href="#sec-new">New trade</a>
+  <a href="#sec-open">Open</a>
+  <a href="#sec-tally">Tally</a>
+  <a href="#sec-data">Data</a>
+</nav>
+
+<div class="main">
+
 <div class="mast">
   <div class="logo">R Calculator</div>
 </div>
@@ -137,7 +168,7 @@ details[open] summary::before{content:"\25BE  "}
   caffeination, or your sense of what is or isn't a large amount of money.
 </p>
 
-<div class="card">
+<div class="card" id="sec-desk">
   <div class="tabs" id="tabs"></div>
   <div class="fields">
     <div><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
@@ -150,7 +181,14 @@ details[open] summary::before{content:"\25BE  "}
     <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
     <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
   </div>
-  <div class="calans" id="runitBox" style="font-size:16px;margin-top:14px"></div>
+  <div class="row" style="margin-top:14px;align-items:flex-end;justify-content:space-between">
+    <div class="calans" id="runitBox" style="font-size:16px"></div>
+    <div class="row" style="align-items:flex-end">
+      <div style="min-width:210px"><label for="fhkey">Live marks &mdash; Finnhub key (optional)</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
+      <button class="small" id="refreshBtn">Refresh marks</button>
+    </div>
+  </div>
+  <div class="hint" id="refreshStatus"></div>
   <div class="hint">
     1R recalculates from AUM, so it scales as you compound. Each trade locks its own R unit at the moment it opens.
     R expresses how much edge is in front of you &mdash; never the size you want. The survival levers (heat cap,
@@ -160,7 +198,7 @@ details[open] summary::before{content:"\25BE  "}
 
 <div id="bookBar"></div>
 
-<div class="card">
+<div class="card" id="sec-new">
   <div class="head">01 &middot; Position size &mdash; new trade</div>
   <div class="fields">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
@@ -201,9 +239,10 @@ details[open] summary::before{content:"\25BE  "}
   <div class="err" id="nt_err"></div>
 </div>
 
+<div id="sec-open"></div>
 <div id="openTrades"></div>
 
-<div class="card">
+<div class="card" id="sec-tally">
   <div class="row" style="justify-content:space-between;align-items:center">
     <div class="head" style="margin-bottom:0">04 &middot; Tally &mdash; closed trades</div>
     <div class="row" style="align-items:center">
@@ -228,7 +267,7 @@ details[open] summary::before{content:"\25BE  "}
 </div>
 
 
-<div class="card">
+<div class="card" id="sec-data">
   <div class="head">Export / import</div>
   <div class="row">
     <button class="small" id="exportBtn">Export to box</button>
@@ -241,8 +280,8 @@ details[open] summary::before{content:"\25BE  "}
   <textarea id="io" style="margin-top:9px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON. Export here, keep it somewhere safe, paste it back to restore."></textarea>
   <div class="err" id="io_err"></div>
   <div class="hint">
-    Everything lives in this browser's localStorage. Clearing site data wipes it.
-    Nothing is ever sent anywhere.
+    Everything lives in this browser's localStorage. Clearing site data wipes it. Nothing leaves this
+    machine except the ticker symbols you send to Finnhub yourself, if you set a key for live marks.
   </div>
 </div>
 
@@ -250,6 +289,7 @@ details[open] summary::before{content:"\25BE  "}
   Not financial advice &mdash; a calculator.
 </p>
 
+</div><!-- /.main -->
 </div>
 
 <script>
@@ -269,7 +309,7 @@ const KEY = "cal.v1";
 let root = null, state = null;
 
 function defaults(){
-  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true,
+  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
                       heatCap:5, coldR:3, sizeMode:"r", closedCollapsed:false }, trades:[] };
 }
 function newRoot(){
@@ -501,6 +541,7 @@ function renderSettings(){
   $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
   $("compound").value = s.compound ? "1" : "0";
   $("heatcap").value = s.heatCap; $("coldr").value = s.coldR;
+  $("fhkey").value = s.finnhub || "";
   $("runitBox").innerHTML = "1R = " + fmt$(rUnitNow()) +
     ' <span class="muted">(' + s.rPct + "% of " + fmt$(s.aum) + ")</span>";
   const sel = $("nt_tier").value !== "" ? $("nt_tier").value : "1";
@@ -906,6 +947,41 @@ window.saveNote = id => {
 };
 window.setLossTag = (id,v) => { const t = getTrade(id); if(t){ t.lossTag = v||null; save(); render(); } };
 
+/* ---- dates on a closed trade ---- */
+const entryTs = t => { const e = t.events.find(e=>e.type==="entry"); return e ? e.ts : t.createdAt; };
+// <input type="date"> speaks YYYY-MM-DD in local time. Build both directions off local parts and
+// anchor at midday, so a timezone offset can never nudge a date onto the day before.
+const dateVal = ts => { const d = new Date(ts);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const tsFromDateVal = s => { const p = String(s).split("-").map(Number);
+  return (p.length===3 && p.every(n=>!isNaN(n))) ? new Date(p[0], p[1]-1, p[2], 12, 0, 0, 0).getTime() : null; };
+
+window.saveDates = id => {
+  const t = getTrade(id), errEl = $("daterr_"+id), okEl = $("datest_"+id);
+  errEl.textContent = "";
+  const ent = tsFromDateVal($("dent_"+id).value), cls = tsFromDateVal($("dcls_"+id).value);
+  if(ent==null || cls==null){ errEl.textContent = "Both dates are needed."; return; }
+  if(cls < ent){ errEl.textContent = "The close can't be earlier than the entry."; return; }
+
+  // Shift the whole trade by the entry delta so adds, trims and stop moves keep their spacing,
+  // then pin the close. Editing only the close date leaves the delta at zero and shifts nothing.
+  const delta = ent - entryTs(t);
+  if(delta !== 0) t.events.forEach(e=>{ e.ts += delta; });
+
+  const last = t.events[t.events.length-1];
+  if(last && last.type==="close") last.ts = cls;
+  t.closedAt = cls;
+  if(t.createdAt!=null) t.createdAt += delta;
+
+  save(); render();
+
+  // render() rebuilds the table, which collapses this row — put it back so you can see the result.
+  const row = $("log_"+id);
+  if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;"; }
+  const el = $("datest_"+id);
+  if(el){ el.textContent = "Saved."; setTimeout(()=>{ const e2 = $("datest_"+id); if(e2) e2.textContent = ""; }, 3000); }
+};
+
 /* ========================= tally ========================= */
 function renderClosed(){
   const closed = state.trades.filter(t=>t.status==="closed");
@@ -986,6 +1062,17 @@ function renderClosed(){
     "<tr id='log_"+t.id+"' style='display:none'><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
+      "<div style='margin-top:12px'><div class='lbl'>Dates</div>" +
+      "<div class='row' style='align-items:flex-end'>" +
+        "<div style='max-width:170px'><div class='sublbl'>Entered</div>" +
+          "<input type='date' id='dent_"+t.id+"' value='"+dateVal(entryTs(t))+"'></div>" +
+        "<div style='max-width:170px'><div class='sublbl'>Closed</div>" +
+          "<input type='date' id='dcls_"+t.id+"' value='"+dateVal(t.closedAt||entryTs(t))+"'></div>" +
+        "<button class='small' onclick=\"saveDates('"+t.id+"')\">Save dates</button>" +
+        "<span class='muted' id='datest_"+t.id+"'></span>" +
+      "</div>" +
+      "<div class='err' id='daterr_"+t.id+"'></div>" +
+      "<div class='muted' style='margin-top:5px'>Logged a day late? Move the entry date and every event shifts with it, keeping their spacing. The close date then sets where this trade sits in the tally, the curve, and the cold-streak brake.</div></div>" +
       "<div style='margin-top:12px'><div class='lbl'>Re-trade review</div>" +
       "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did Cal say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
       "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
@@ -1097,6 +1184,8 @@ function bindSettings(){
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ state.settings.coldR = v; save(); render(); } });
   ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
+  $("fhkey").addEventListener("change", e=>{ state.settings.finnhub = e.target.value.trim(); save(); render(); });
+  $("refreshBtn").addEventListener("click", refreshMarks);
 
   $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
   $("downloadBtn").addEventListener("click", ()=>{
@@ -1156,8 +1245,74 @@ function applyImport(){
 
 /* ========================= live marks ========================= */
 
+/* ========================= live marks ========================= */
+// Optional. Marks only ever move t.last — never a stop, a size, or a decision.
+let refreshing = false;
+async function refreshMarks(){
+  if(refreshing) return;
+  const key = state.settings.finnhub;
+  const open = state.trades.filter(t=>t.status==="open");
+  const st = $("refreshStatus");
+  if(!key){ st.textContent = "Add a free Finnhub key (finnhub.io/register) to pull live marks. Everything else works without one — set prices by hand."; return; }
+  if(!open.length){ st.textContent = "No open trades to refresh."; return; }
+  refreshing = true;
+  st.textContent = "Refreshing " + open.length + " ticker(s)…";
+  const results = [];
+  for(const t of open){
+    try{
+      const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(t.ticker)+"&token="+encodeURIComponent(key));
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const j = await res.json();
+      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); results.push(t.ticker+" "+fmtP(j.c)); }
+      else results.push(t.ticker+": no quote");
+    }catch(err){ results.push(t.ticker+": failed"); }
+  }
+  save(); render();
+  const allFailed = results.length && results.every(r=>/failed$/.test(r));
+  $("refreshStatus").textContent = "Marks as of " + new Date().toLocaleTimeString() + " — " + results.join(" · ") +
+    (allFailed ? "  Every request failed. In a sandboxed preview outside connections are blocked — use the hosted page. Otherwise check the key." : "");
+  refreshing = false;
+}
+function pollMarks(){
+  if(!state.settings.finnhub) return;
+  if(!state.trades.some(t=>t.status==="open")) return;
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA")) return;  // don't re-render under the cursor
+  refreshMarks();
+}
+
+/* ========================= section index ========================= */
+// Mark the rail link for whichever section is currently nearest the top of the viewport.
+// Position-based rather than IntersectionObserver: sections here change height constantly as
+// trades open and close, and "nearest the top" stays correct through all of it.
+function initRail(){
+  const links = [...document.querySelectorAll("#rail a")];
+  if(!links.length) return;
+  const targets = links.map(a=>({ a, el:document.getElementById(a.getAttribute("href").slice(1)) }))
+                       .filter(x=>x.el);
+  let queued = false;
+  const mark = () => {
+    queued = false;
+    // A tight line, so two short sections close together still resolve to whichever one you
+    // actually scrolled to. The trailing padding on .wrap is what lets the final section reach it.
+    const line = 96;
+    let active = targets[0];
+    for(const t of targets){ if(t.el.getBoundingClientRect().top <= line) active = t; }
+    // Bottom of the document: the final section wins outright, since nothing can scroll past it.
+    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+    if(maxScroll > 0 && window.scrollY >= maxScroll - 2) active = targets[targets.length-1];
+    targets.forEach(t=>t.a.classList.toggle("on", t===active));
+  };
+  const onScroll = () => { if(!queued){ queued = true; requestAnimationFrame(mark); } };
+  window.addEventListener("scroll", onScroll, {passive:true});
+  window.addEventListener("resize", onScroll, {passive:true});
+  mark();
+}
+
 /* ========================= boot ========================= */
-load(); bindSettings(); render();
+load(); bindSettings(); render(); initRail();
+if(state.settings.finnhub && state.trades.some(t=>t.status==="open")) refreshMarks();
+setInterval(pollMarks, 60000);
 </script>
 </body>
 </html>

@@ -4,15 +4,6 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Editable dates on closed trades.** For when a trade can't be logged until the next day. Needs to
-  cover the entry and close dates, not just one: every event carries its own `ts`, and `closedAt`
-  separately drives close ordering, the cumulative-R curve, and the cold-streak brake's "last five".
-  Backdating a close has to move both or the tally and the brake disagree.
-
-- **Sticky section index.** A nav rail down the left that scrolls with the page, with quick links
-  to each section (desk, new trade, open positions, tally). Should collapse or drop away on narrow
-  screens rather than eat the width.
-
 - **Account group calculations.** Several accounts running the same ruleset should take a trade
   once, not once each. Enter ticker, side, tier, entry, stop, ADR and concept a single time; each
   account in the group sizes it off its *own* equity, so each gets its own 1R and its own share
@@ -53,12 +44,17 @@ Running list. Newest at the top of each section.
 - **Rules panel — rebuild around your own system.** The paraphrased seven-part "bible" was pulled
   out of the page. The original markup is parked in `_parked/bible.html` so nothing is lost.
   Re-add later, rewritten to your own rules rather than the memoir's.
-- **Live marks — possible re-add.** Finnhub quote polling was removed. It only ever worked on the
-  hosted page (sandboxed previews block outbound requests). The removed implementation is parked
-  in `_parked/live-marks.js` if it comes back.
 
 ## Decided / done
 
+- 2026-08-27 — Editable entry and close dates on closed trades. Moving the entry date shifts every
+  event with it, preserving spacing; the close date then pins where the trade sits in the tally, the
+  cumulative-R curve and the cold-streak brake. Rejects a close earlier than the entry.
+- 2026-08-27 — Sticky section index on the left, wide screens only, with the current section marked.
+  Needed trailing scroll room below the last card: without it the final two sections share the
+  closing viewport and neither can be isolated or highlighted correctly.
+- 2026-08-27 — Live marks re-added: optional Finnhub key, manual refresh, and a one-minute poll that
+  holds off while a field is focused. Marks only ever move the last price, never a stop or a size.
 - 2026-08-27 — Stop panel rebuilt: labelled "Move stop to" and "Average daily range" rows with the
   current value shown beside each, real placeholders instead of values masquerading as them, and the
   breakeven / 1R-trail shortcuts moved to their own "jump to" row showing the price they apply.
@@ -69,7 +65,6 @@ Running list. Newest at the top of each section.
   *Thesis broken* (nothing to fix), *Stopped by noise* (the stop was too tight), *Rule violation*
   (a word with yourself). Retired "breach": a stop that gaps through shows up as a worse R multiple
   anyway. Added a **Rule violations** stat. A retired tag still on an old trade is kept and labelled.
-
 - 2026-08-27 — Removed the four-button explainer strip at the top: descriptive only, wired to nothing.
 - 2026-08-27 — Default portfolios reduced to a single `Trading`.
 - 2026-08-27 — Default tier budgets set to A+ 1R / A 0.5R / B 0.25R.
