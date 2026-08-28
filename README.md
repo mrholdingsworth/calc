@@ -76,6 +76,21 @@ never a stop, a size, or a decision.
 `localStorage`, this browser, this origin. Clearing site data wipes it, and a different browser or
 machine will not see it. Use **Export / Download .json** to back up and to move between machines.
 
+## What the tally and charts measure
+
+**R multiple** is realised P/L over the R unit the trade locked at open. **MAE / MFE** is a different
+basis on purpose: how far price ran against you and in your favour, in multiples of the *per-share*
+risk you accepted at entry. That makes excursion comparable across trades of any size, but it means
+the two columns are not on the same scale — do not read one against the other.
+
+Highs and lows are seeded from prices the app has actually seen: entries, adds, trims, marks. It has
+no market data feed, so it cannot know the true intraday range. Type the real high and low into the
+excursion fields on a closed trade for an honest reading.
+
+**Annualised return** extrapolates the holding period out to a year. On a hold of under a week the
+number is marked with an amber asterisk, because it says more about the calendar than about the
+trade. **%% of equity** divides by the AUM the trade was sized against, not today's AUM.
+
 ## Multiple books
 
 Tabs at the top of the desk are separate portfolios — separate AUM, separate R unit, separate trade

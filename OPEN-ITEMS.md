@@ -4,27 +4,6 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Closed-trade metrics.** Confirmed wanted: days open, annualised return for the position, return
-  on total equity. Further candidates were put to Steve on 2026-08-27 and are awaiting his pick —
-  do not build until he chooses. Two caveats to carry into the build: annualising a one-day trade
-  produces a meaningless six-figure percentage, so it needs a floor or a flag; and return on equity
-  should divide by the AUM locked at open, matching how the R unit is locked, not by today's AUM.
-
-- **Graphics section.** A charts section of its own, added to the section index:
-  - R distribution as a bar chart, losses to the left and gains to the right, to see at a glance
-    whether winners are bigger than losers. (A version of this exists in the tally today; it moves
-    and grows up here.)
-  - Cumulative R over trades — normalised return, independent of account size. (Also exists today.)
-  - P/L over trade, and P/L over time — the same series on two different x-axes.
-  - P/L % over time.
-  - Equity curve over time.
-
-  Note: "over trades" and "over time" are genuinely different axes and both are wanted. Time-based
-  series need real dates on every trade, which is why the editable dates went in first.
-
-- **Collapsible sections.** Every section gets the collapse control that the tally (section 04)
-  already has, so the page can be folded down to what you're using.
-
 - **Gate the Open trade button.** Disabled until all four pre-trade checkboxes are ticked. Worth
   deciding at build time whether the checks stay collapsed inside "Plan & hinges" — a disabled
   button whose reason is hidden inside a closed panel is a dead end, so the gate probably has to
@@ -72,6 +51,23 @@ Running list. Newest at the top of each section.
   Re-add later, rewritten to your own rules rather than the memoir's.
 
 ## Decided / done
+
+- 2026-08-27 — Closed-trade metrics: days held, R per day, % of equity at open, annualised return,
+  and MAE/MFE. Annualised figures under a week carry an amber asterisk — extrapolation, not a
+  forecast. MAE/MFE is measured in multiples of the per-share risk taken at entry, so it compares
+  across trades of different size; note it is a different R basis from the account-level R multiple
+  column beside it. Highs and lows are seeded from prices the app has seen and overridable by hand,
+  since it cannot know the true intraday range.
+- 2026-08-27 — Charts & statistics section (05), added to the index: R distribution, cumulative R,
+  P/L per trade, cumulative P/L over trades and over time, P/L %% over time, equity curve. Plus a
+  statistics panel — days held winners vs losers, R per day, max drawdown on the R curve, long/short
+  expectancy, MFE captured — and expectancy tables by tier and by concept.
+- 2026-08-27 — Every section collapses, on one shared mechanism; the tally's bespoke toggle folded
+  into it, migrating the old flag.
+- 2026-08-27 — Date fixes: Escape backs out of an edit, saving with nothing changed just closes the
+  pickers instead of erroring, future dates are refused, and same-day events are allowed so a day
+  trade stops being an ordering error. Edits keep each event's clock time, so intraday order holds.
+- 2026-08-27 — Gold deepened to #dfbd69 with #b08d3f for larger type.
 
 - 2026-08-27 — Dates are now edited inline: click any date in a closed trade's event log to swap it
   for a picker, and a Save dates button appears beside the delete control. Per-event rather than a

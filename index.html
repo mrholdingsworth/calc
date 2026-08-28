@@ -13,7 +13,8 @@
   --bg:#0b0e13; --panel:#11161f; --panel2:#151b26; --line:#212a38; --line2:#2c3646;
   --tx:#e6ebf2; --sub:#9aa6b8; --mut:#697588;
   --blue:#4d9fff; --bluebg:rgba(77,159,255,.10);
-  --gold:#c9a227;   /* navy ground, gold emphasis */
+  --gold:#dfbd69;      /* navy ground, metallic gold emphasis */
+  --gold-deep:#b08d3f; /* larger type, where the lighter gold reads washed out */
   --green:#2fd583; --greenbg:rgba(47,213,131,.10);
   --red:#f4655f; --redbg:rgba(244,101,95,.10);
   --amber:#f0a832; --amberbg:rgba(240,168,50,.10);
@@ -49,7 +50,7 @@ a{color:var(--blue)}
 h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 
 .mast{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
-.gold{color:var(--gold)}
+.gold{color:var(--gold-deep)}
 .mast .logo{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
 .tagline{color:var(--sub);max-width:660px;margin:10px 0 18px;font-size:13.5px}
 .tagline em{color:var(--gold);font-weight:600;font-style:normal}
@@ -129,6 +130,8 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 details{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
 details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600;list-style:none}
 details summary::-webkit-details-marker{display:none}
+.sechead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.sechead.bare{margin:18px 0 10px;padding:0 4px}
 .dedit{cursor:pointer;border-bottom:1px dotted var(--line2);padding-bottom:1px}
 .dedit:hover{color:var(--gold);border-bottom-color:var(--gold)}
 details summary::before{content:"\25B8  ";color:var(--mut)}
@@ -157,6 +160,7 @@ details[open] summary::before{content:"\25BE  "}
   <a href="#sec-new">New trade</a>
   <a href="#sec-open">Open</a>
   <a href="#sec-tally">Tally</a>
+  <a href="#sec-charts">Charts</a>
   <a href="#sec-data">Data</a>
 </nav>
 
@@ -172,7 +176,13 @@ details[open] summary::before{content:"\25BE  "}
 </p>
 
 <div class="card" id="sec-desk">
-  <div class="tabs" id="tabs"></div>
+  <div class="sechead">
+    <button class="small" id="tg_desk" onclick="toggleSection('desk')">&#9662;</button>
+    <div class="head" style="margin-bottom:0">01 &middot; Desk</div>
+    <span class="muted" style="margin-left:auto" id="deskSummary"></span>
+  </div>
+  <div id="body_desk">
+  <div class="tabs" id="tabs" style="margin-top:10px"></div>
   <div class="fields">
     <div><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
     <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
@@ -197,13 +207,16 @@ details[open] summary::before{content:"\25BE  "}
     R expresses how much edge is in front of you &mdash; never the size you want. The survival levers (heat cap,
     cold-streak brake) sit outside per-trade sizing on purpose. Data lives in this browser only: use Export at the bottom to back it up.
   </div>
+  </div><!-- /body_desk -->
 </div>
 
-<div id="bookBar"></div>
-
 <div class="card" id="sec-new">
-  <div class="head">01 &middot; Position size &mdash; new trade</div>
-  <div class="fields">
+  <div class="sechead">
+    <button class="small" id="tg_new" onclick="toggleSection('new')">&#9662;</button>
+    <div class="head" style="margin-bottom:0">02 &middot; Position size &mdash; new trade</div>
+  </div>
+  <div id="body_new">
+  <div class="fields" style="margin-top:10px">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
     <div><label for="nt_side">Side</label><select id="nt_side"><option value="1">Long</option><option value="-1">Short</option></select></div>
     <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
@@ -240,39 +253,103 @@ details[open] summary::before{content:"\25BE  "}
 
   <div class="row" style="margin-top:13px"><button class="primary" id="nt_open">Open trade</button></div>
   <div class="err" id="nt_err"></div>
+  </div><!-- /body_new -->
 </div>
 
 <div id="sec-open"></div>
+<div class="sechead bare">
+  <button class="small" id="tg_open" onclick="toggleSection('open')">&#9662;</button>
+  <div class="head" style="margin-bottom:0">03 &middot; Open positions</div>
+  <span class="muted" style="margin-left:auto" id="openSummary"></span>
+</div>
+<div id="body_open">
+<div id="bookBar"></div>
 <div id="openTrades"></div>
+</div>
 
 <div class="card" id="sec-tally">
-  <div class="row" style="justify-content:space-between;align-items:center">
+  <div class="sechead">
+    <button class="small" id="tg_tally" onclick="toggleSection('tally')">&#9662;</button>
     <div class="head" style="margin-bottom:0">04 &middot; Tally &mdash; closed trades</div>
-    <div class="row" style="align-items:center">
-      <span class="muted" id="closedSummary"></span>
-      <button class="small" id="closedTgl" onclick="toggleClosed()">&#9662;</button>
-    </div>
+    <span class="muted" style="margin-left:auto" id="closedSummary"></span>
   </div>
-  <div id="closedBody">
+  <div id="body_tally">
     <div class="statrow" id="stats" style="margin:12px 0"></div>
-    <div class="split" id="chartsBox" style="margin-bottom:12px;display:none">
-      <div class="metric" style="padding:10px 12px">
-        <div class="k">R multiple distribution &mdash; the right tail pays for everything</div>
-        <svg class="chart" id="histChart" viewBox="0 0 560 120"></svg>
-      </div>
-      <div class="metric" style="padding:10px 12px">
-        <div class="k">Cumulative R &mdash; the only currency in the cathedral</div>
-        <svg class="chart" id="curveChart" viewBox="0 0 560 120"></svg>
-      </div>
-    </div>
     <div class="scroll"><table id="closedTbl"></table></div>
   </div>
 </div>
 
 
+<div class="card" id="sec-charts">
+  <div class="sechead">
+    <button class="small" id="tg_charts" onclick="toggleSection('charts')">&#9662;</button>
+    <div class="head" style="margin-bottom:0">05 &middot; Charts &amp; statistics</div>
+    <span class="muted" style="margin-left:auto" id="chartsSummary"></span>
+  </div>
+  <div id="body_charts">
+    <div id="chartsEmpty" class="muted" style="margin-top:10px">Close a few trades and the picture builds itself.</div>
+    <div id="chartsBox" style="display:none">
+      <div class="lbl" style="margin-top:14px">Distribution &amp; normalised return</div>
+      <div class="split">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">R multiples &mdash; losses left, gains right</div>
+          <svg class="chart" id="histChart" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">Cumulative R over trades</div>
+          <svg class="chart" id="curveChart" viewBox="0 0 560 130"></svg>
+        </div>
+      </div>
+
+      <div class="lbl" style="margin-top:16px">Profit &amp; loss</div>
+      <div class="split">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">P/L per trade, in order closed</div>
+          <svg class="chart" id="plBars" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">Cumulative P/L over trades</div>
+          <svg class="chart" id="plTrades" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">Cumulative P/L over time</div>
+          <svg class="chart" id="plTime" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">P/L % of starting equity, over time</div>
+          <svg class="chart" id="plPct" viewBox="0 0 560 130"></svg>
+        </div>
+      </div>
+
+      <div class="lbl" style="margin-top:16px">Equity</div>
+      <div class="metric" style="padding:10px 12px">
+        <div class="k">Equity curve over time</div>
+        <svg class="chart" id="eqCurve" viewBox="0 0 560 130" style="height:150px"></svg>
+      </div>
+
+      <div class="lbl" style="margin-top:18px">Statistics</div>
+      <div class="statrow" id="deepStats"></div>
+      <div class="split" style="margin-top:10px">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">By tier &mdash; do your conviction grades actually separate?</div>
+          <div class="scroll"><table id="tierTbl"></table></div>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">By concept &mdash; which setups pay</div>
+          <div class="scroll"><table id="conceptTbl"></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="card" id="sec-data">
-  <div class="head">Export / import</div>
-  <div class="row">
+  <div class="sechead">
+    <button class="small" id="tg_data" onclick="toggleSection('data')">&#9662;</button>
+    <div class="head" style="margin-bottom:0">06 &middot; Export / import</div>
+  </div>
+  <div id="body_data">
+  <div class="row" style="margin-top:10px">
     <button class="small" id="exportBtn">Export to box</button>
     <button class="small" id="copyBtn">Copy to clipboard</button>
     <button class="small" id="downloadBtn">Download .json</button>
@@ -286,6 +363,7 @@ details[open] summary::before{content:"\25BE  "}
     Everything lives in this browser's localStorage. Clearing site data wipes it. Nothing leaves this
     machine except the ticker symbols you send to Finnhub yourself, if you set a key for live marks.
   </div>
+  </div><!-- /body_data -->
 </div>
 
 <p class="muted" style="text-align:center;margin-top:26px">
@@ -313,7 +391,8 @@ let root = null, state = null;
 
 function defaults(){
   return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
-                      heatCap:5, coldR:3, sizeMode:"r", closedCollapsed:false }, trades:[] };
+                      heatCap:5, coldR:3, sizeMode:"r",
+                      collapsed:{desk:false,new:false,open:false,tally:false,charts:false,data:false} }, trades:[] };
 }
 function newRoot(){
   return { active:"Trading", order:["Trading"], portfolios:{ Trading:defaults() } };
@@ -357,11 +436,20 @@ function normalize(){
     if(!pf.settings) pf.settings = defaults().settings;
     Object.keys(d).forEach(k=>{ if(pf.settings[k]==null) pf.settings[k] = d[k]; });
     if(!Array.isArray(pf.settings.tiers) || pf.settings.tiers.length!==3) pf.settings.tiers = [1,0.5,0.25];
+    if(!pf.settings.collapsed || typeof pf.settings.collapsed !== "object") pf.settings.collapsed = {};
+    // The tally used to own the only collapse flag; fold it into the general one.
+    if(pf.settings.closedCollapsed!=null){ pf.settings.collapsed.tally = !!pf.settings.closedCollapsed; delete pf.settings.closedCollapsed; }
     if(!Array.isArray(pf.trades)) pf.trades = [];
     pf.trades.forEach(t=>{
       if(!t.lastMarkTs) t.lastMarkTs = t.createdAt || Date.now();
       if(!t.plan) t.plan = {};
       if(!Array.isArray(t.checks)) t.checks = [false,false,false,false];
+      // Backfill for trades opened before these were recorded.
+      if(t.aumAtOpen==null && t.rUnit>0 && pf.settings.rPct>0) t.aumAtOpen = t.rUnit*100/pf.settings.rPct;
+      if(t.hi==null || t.lo==null){
+        const px = t.events.filter(e=>e.price!=null).map(e=>e.price);
+        if(px.length){ if(t.hi==null) t.hi = Math.max.apply(null,px); if(t.lo==null) t.lo = Math.min.apply(null,px); }
+      }
     });
   });
   if(!root.portfolios[root.active]) root.active = root.order[0];
@@ -436,6 +524,58 @@ function freshSize(t,d,P,S){
 // The stop that makes the whole sequence net zero.
 function beStop(t,d){ return d.Q>0 ? d.avg - t.side*d.realized/d.Q : null; }
 
+// Every price the app is ever shown for a trade widens its high/low envelope. This only sees prices
+// you actually entered or marked, never the true intraday extremes — hence the manual override.
+function touchExtremes(t, price){
+  if(!(price>0)) return;
+  if(t.hi==null || price>t.hi) t.hi = price;
+  if(t.lo==null || price<t.lo) t.lo = price;
+}
+
+// Per-trade analytics, all derived — nothing here is stored except hi/lo and the dates.
+function stats(t){
+  const d = derive(t);
+  const e0 = t.events.find(e=>e.type==="entry");
+  const entryPx = e0 ? e0.price : d.avg;
+  const riskPS = (e0 && e0.stop!=null) ? t.side*(e0.price-e0.stop) : null;   // 1R per share, at entry
+  const openTs = t.events.length ? t.events[0].ts : t.createdAt;
+  const endTs = t.status==="closed" ? (t.closedAt || t.events[t.events.length-1].ts) : Date.now();
+
+  // A same-day round trip is one day held, not zero — otherwise R/day divides by nothing.
+  const days = Math.max(1, daysBetween(openTs, endTs));
+  const rm = d.realized / t.rUnit;
+  const rPerDay = rm / days;
+
+  const aum0 = t.aumAtOpen || (state.settings.rPct>0 ? t.rUnit*100/state.settings.rPct : null);
+  const roe = aum0 ? d.realized/aum0*100 : null;                    // return on equity at open, %
+  // Annualised from the actual holding period. On very short holds this number gets silly, so it
+  // is flagged rather than hidden: under a week it says more about the calendar than the trade.
+  const ann = roe!=null ? (Math.pow(1 + roe/100, 365/days) - 1) * 100 : null;
+
+  // MAE / MFE in R-multiples of the per-share risk taken at entry — size-independent, so trades of
+  // different sizes compare directly.
+  let mfe = null, mae = null;
+  if(riskPS>0){
+    const fav = t.side>0 ? t.hi : t.lo;
+    const adv = t.side>0 ? t.lo : t.hi;
+    if(fav!=null) mfe = Math.max(0, t.side*(fav-entryPx)/riskPS);
+    if(adv!=null) mae = Math.min(0, t.side*(adv-entryPx)/riskPS);
+  }
+  // Capture has to be measured on the same basis as MFE — price path, per share — not against the
+  // account-level R multiple, which is scaled by position size and would not be comparable.
+  let exitR = null, capture = null;
+  if(riskPS>0){
+    let q = 0, v = 0;
+    t.events.forEach(e=>{ if(e.type==="trim"||e.type==="close"){ q += e.qty; v += e.price*e.qty; } });
+    if(q>0){
+      exitR = t.side*(v/q - entryPx)/riskPS;
+      if(mfe && mfe>0.05) capture = exitR/mfe;
+    }
+  }
+
+  return {d, rm, days, rPerDay, aum0, roe, ann, mfe, mae, exitR, capture, riskPS, entryPx, openTs, endTs};
+}
+
 function modeLabel(t,d){ return state.settings.sizeMode==="be" ? "breakeven (0R)" : (d && d.mult!=null ? d.mult : t.mult)+"R"; }
 window.setSizeMode = m => { state.settings.sizeMode = m; save(); render(); };
 
@@ -477,6 +617,60 @@ function svgBars(counts, labels, colors){
   out += '<text x="4" y="'+(padT+8)+'" fill="#697588" font-size="9" font-family="monospace">'+max+'</text>';
   return out;
 }
+// Bars that hang below the axis when negative — for per-trade P/L, where the sign is the point.
+function svgSignedBars(values, labels, fmt){
+  const W=560,H=130, padL=46, padB=18, padT=10;
+  if(!values.length) return "";
+  const hi = Math.max(0, ...values), lo = Math.min(0, ...values);
+  const span = (hi-lo) || 1;
+  const y = v => padT + (H-padT-padB) * (1-(v-lo)/span);
+  const zero = y(0);
+  const bw = (W-padL-8)/values.length;
+  let out = '<line x1="'+padL+'" y1="'+zero.toFixed(1)+'" x2="'+(W-4)+'" y2="'+zero.toFixed(1)+'" stroke="#2c3646"/>';
+  values.forEach((v,i)=>{
+    const x = padL + i*bw + bw*0.18, w = Math.max(1.5, bw*0.64);
+    const top = v>=0 ? y(v) : zero, h = Math.max(1, Math.abs(y(v)-zero));
+    out += '<rect x="'+x.toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
+           '" rx="2" fill="'+(v>=0?"#2fd583":"#f4655f")+'"><title>'+esc(labels[i]||"")+" "+esc(fmt(v))+'</title></rect>';
+  });
+  out += '<text x="3" y="'+(padT+8)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi))+'</text>';
+  out += '<text x="3" y="'+(H-padB+4)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo))+'</text>';
+  return out;
+}
+
+// Line plotted against a real numeric x (timestamps), so gaps between trades show as gaps.
+function svgTimeLine(points, fmt, opts){
+  opts = opts || {};
+  const W=560,H=130, padL=52, padB=18, padT=10;
+  if(!points.length) return "";
+  const pts = points.length===1 ? [{x:points[0].x-864e5, y:0}, points[0]] : points;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  // Equity never crosses zero, so anchoring its axis there flattens the whole curve into a line.
+  // P/L and P/L% do cross, and there zero is the reference the eye needs.
+  let lo = opts.zeroBase===false ? Math.min(...ys) : Math.min(0, ...ys);
+  let hi = opts.zeroBase===false ? Math.max(...ys) : Math.max(0, ...ys);
+  if(hi-lo < 1e-9) hi = lo + Math.max(1, Math.abs(lo)*0.01);
+  const pad = (hi-lo)*0.12; lo -= pad; hi += pad;
+  const X = v => padL + (W-padL-8) * (x1===x0 ? 1 : (v-x0)/(x1-x0));
+  const Y = v => padT + (H-padT-padB) * (1-(v-lo)/(hi-lo));
+  // Fill down to zero where zero is on the chart, otherwise to the floor of the range.
+  const zero = Y(opts.zeroBase===false ? lo : 0);
+  let out = opts.zeroBase===false ? ""
+    : '<line x1="'+padL+'" y1="'+zero.toFixed(1)+'" x2="'+(W-4)+'" y2="'+zero.toFixed(1)+'" stroke="#2c3646" stroke-dasharray="3 3"/>';
+  const d = pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" ");
+  out += '<path d="'+d+' L'+X(pts[pts.length-1].x).toFixed(1)+" "+zero.toFixed(1)+" L"+X(pts[0].x).toFixed(1)+" "+zero.toFixed(1)+
+         ' Z" fill="rgba(223,189,105,.12)"/>';
+  out += '<path d="'+d+'" fill="none" stroke="#dfbd69" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  pts.forEach(p=>{ out += '<circle cx="'+X(p.x).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="2.4" fill="'+(p.y<0?"#f4655f":"#dfbd69")+'"><title>'+
+    new Date(p.x).toLocaleDateString()+" "+esc(fmt(p.y))+'</title></circle>'; });
+  out += '<text x="3" y="'+(Y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi-pad))+'</text>';
+  out += '<text x="3" y="'+(Y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo+pad))+'</text>';
+  out += '<text x="'+padL+'" y="'+(H-3)+'" fill="#697588" font-size="8.5" font-family="monospace">'+new Date(x0).toLocaleDateString()+'</text>';
+  out += '<text x="'+(W-6)+'" y="'+(H-3)+'" fill="#697588" font-size="8.5" text-anchor="end" font-family="monospace">'+new Date(x1).toLocaleDateString()+'</text>';
+  return out;
+}
+
 function svgLine(values, opts){
   opts = opts || {};
   const W=560,H=120, padL=34, padB=16, padT=10;
@@ -613,7 +807,7 @@ function openTrade(){
     ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
     mult: state.settings.tiers[ti],
     adr: (!isNaN(adr)&&adr>0) ? adr : null,
-    rUnit: rUnitNow(), status:"open", last:P,
+    rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P, hi:P, lo:P,
     plan: { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
             waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
     checks: [0,1,2,3].map(i=>$("nt_c"+i).checked),
@@ -832,7 +1026,7 @@ function tradeCard(t){
 /* ========================= trade actions ========================= */
 window.setLast = id => {
   const t = getTrade(id), v = parseFloat($("px_"+id).value);
-  if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); save(); render(); }
+  if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); touchExtremes(t, v); save(); render(); }
 };
 window.liveAdd = id => {
   const t = getTrade(id), d = derive(t);
@@ -866,6 +1060,7 @@ window.doAdd = id => {
   }
   if(q<=0){ errEl.textContent = "Quantity must be positive."; return; }
   t.events.push({type:"add", qty:q, price:Pa, stop:(S==null||isNaN(S))?null:S, ts:Date.now()});
+  touchExtremes(t, Pa);
   t.last = Pa; t.lastMarkTs = Date.now(); save(); render();
 };
 window.doTrim = (id, frac) => {
@@ -876,6 +1071,7 @@ window.doTrim = (id, frac) => {
   if(isNaN(q) || q<=0){ errEl.textContent = "Enter a quantity (or use 25% / 50%)."; return; }
   if(q>d.Q) q = d.Q;
   t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
+  touchExtremes(t, P);
   t.last = P; t.lastMarkTs = Date.now(); save(); render();
 };
 window.moveStop = id => {
@@ -926,6 +1122,7 @@ window.closeTrade = id => {
   const P = parseFloat($("clp_"+id).value);
   if(isNaN(P)){ errEl.textContent = "Enter the exit price."; return; }
   if(d.Q>0) t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
+  touchExtremes(t, P);
   t.status = "closed"; t.closedAt = Date.now(); t.last = P; t.lastMarkTs = Date.now();
   const fin = derive(t);
   if(state.settings.compound) state.settings.aum = Math.round((state.settings.aum + fin.realized)*100)/100;
@@ -933,7 +1130,20 @@ window.closeTrade = id => {
 };
 window.toggleCard = id => { const t = getTrade(id); if(t){ t.collapsed = !t.collapsed; save(); render(); } };
 window.collapseAll = v => { state.trades.forEach(t=>{ if(t.status==="open") t.collapsed = v; }); save(); render(); };
-window.toggleClosed = () => { state.settings.closedCollapsed = !state.settings.closedCollapsed; save(); render(); };
+const SECTIONS = ["desk","new","open","tally","charts","data"];
+window.toggleSection = key => {
+  const c = state.settings.collapsed || (state.settings.collapsed = {});
+  c[key] = !c[key];
+  save(); renderSections();
+};
+function renderSections(){
+  const c = state.settings.collapsed || {};
+  SECTIONS.forEach(k=>{
+    const body = $("body_"+k), tg = $("tg_"+k);
+    if(body) body.style.display = c[k] ? "none" : "";
+    if(tg) tg.innerHTML = c[k] ? "&#9656;" : "&#9662;";
+  });
+}
 window.toggleLog = id => {
   const row = $("log_"+id), btn = $("tgl_"+id);
   if(!row) return;
@@ -956,8 +1166,19 @@ const entryTs = t => { const e = t.events.find(e=>e.type==="entry"); return e ? 
 // anchor at midday, so a timezone offset can never nudge a date onto the day before.
 const dateVal = ts => { const d = new Date(ts);
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
-const tsFromDateVal = s => { const p = String(s).split("-").map(Number);
-  return (p.length===3 && p.every(n=>!isNaN(n))) ? new Date(p[0], p[1]-1, p[2], 12, 0, 0, 0).getTime() : null; };
+// Re-date an event without disturbing its clock time, so two events on the same day keep the
+// order they happened in.
+const tsFromDateVal = (s, keepTimeOf) => {
+  const p = String(s).split("-").map(Number);
+  if(p.length!==3 || p.some(n=>isNaN(n))) return null;
+  const old = keepTimeOf!=null ? new Date(keepTimeOf) : null;
+  return new Date(p[0], p[1]-1, p[2],
+    old?old.getHours():12, old?old.getMinutes():0, old?old.getSeconds():0, old?old.getMilliseconds():0).getTime();
+};
+// Compare by calendar day, never by timestamp: a same-day round trip is a day trade, not an error.
+const dayOf = ts => { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+const today0 = () => dayOf(Date.now());
+const daysBetween = (a,b) => Math.round((dayOf(b)-dayOf(a))/864e5);
 
 // Click a date in the event log to swap it for a picker. The Save button only appears once
 // something is actually being edited, so the row stays quiet until you touch it.
@@ -966,11 +1187,47 @@ window.editEventDate = (id, i) => {
   const t = getTrade(id);
   if(!span || !t || span.dataset.editing) return;
   span.dataset.editing = "1";
-  span.innerHTML = "<input type='date' id='dinp_"+id+"_"+i+"' value='"+dateVal(t.events[i].ts)+"' style='max-width:150px'>";
+  span.innerHTML = "<input type='date' id='dinp_"+id+"_"+i+"' value='"+dateVal(t.events[i].ts)+
+                   "' max='"+dateVal(Date.now())+"' style='max-width:150px'>";
   const btn = $("dsave_"+id);
   if(btn) btn.style.display = "";
   const inp = $("dinp_"+id+"_"+i);
-  if(inp) inp.focus();
+  if(inp){
+    inp.focus();
+    // Escape backs out of an edit you didn't need — opening a picker shouldn't trap you in it.
+    inp.addEventListener("keydown", ev=>{
+      if(ev.key==="Escape"){ ev.preventDefault(); cancelEventDate(id,i); }
+      if(ev.key==="Enter"){ ev.preventDefault(); saveEventDates(id); }
+    });
+  }
+};
+
+window.saveExtremes = id => {
+  const t = getTrade(id), errEl = $("hierr_"+id);
+  if(!t) return;
+  errEl.textContent = "";
+  const hi = parseFloat($("hi_"+id).value), lo = parseFloat($("lo_"+id).value);
+  if(isNaN(hi) || isNaN(lo)){ errEl.textContent = "Both a high and a low are needed."; return; }
+  if(hi < lo){ errEl.textContent = "The high can't be below the low."; return; }
+  const seen = t.events.filter(e=>e.price!=null).map(e=>e.price);
+  if(seen.length && (hi < Math.max.apply(null,seen) || lo > Math.min.apply(null,seen))){
+    errEl.textContent = "The range has to contain every price already logged on this trade (" +
+      fmtP(Math.min.apply(null,seen)) + "–" + fmtP(Math.max.apply(null,seen)) + ").";
+    return;
+  }
+  t.hi = hi; t.lo = lo;
+  save(); render(); reopenLog(id);
+};
+
+window.cancelEventDate = (id,i) => {
+  const span = $("dspan_"+id+"_"+i), t = getTrade(id);
+  if(!span || !t) return;
+  delete span.dataset.editing;
+  span.textContent = new Date(t.events[i].ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});
+  if(!document.querySelector("#log_"+id+" input[type=date]")){
+    const btn = $("dsave_"+id); if(btn) btn.style.display = "none";
+    const err = $("daterr_"+id); if(err) err.textContent = "";
+  }
 };
 
 window.saveEventDates = id => {
@@ -979,57 +1236,56 @@ window.saveEventDates = id => {
   if(errEl) errEl.textContent = "";
 
   const before = t.events.map(e=>e.ts);          // so a rejected edit changes nothing
-  let touched = false, bad = false;
+  const revert = () => t.events.forEach((e,j)=>{ e.ts = before[j]; });
+  let touched = false, bad = false, future = false;
   t.events.forEach((e,i)=>{
     const inp = $("dinp_"+id+"_"+i);
     if(!inp) return;
-    const ts = tsFromDateVal(inp.value);
+    const ts = tsFromDateVal(inp.value, e.ts);
     if(ts==null){ bad = true; return; }
+    if(dayOf(ts) > today0()){ future = true; return; }
     if(ts !== e.ts){ e.ts = ts; touched = true; }
   });
-  if(bad){
-    t.events.forEach((e,i)=>{ e.ts = before[i]; });
-    if(errEl) errEl.textContent = "A date was left empty.";
-    return;
-  }
-  // The log is a sequence: an event can't be dated before the one above it.
+  if(bad){ revert(); if(errEl) errEl.textContent = "A date was left empty."; return; }
+  if(future){ revert(); if(errEl) errEl.textContent = "A trade can't be dated in the future."; return; }
+
+  // The log is a sequence, compared by day: same-day events are fine (a day trade), earlier is not.
   for(let i=1;i<t.events.length;i++){
-    if(t.events[i].ts < t.events[i-1].ts){
-      t.events.forEach((e,j)=>{ e.ts = before[j]; });
+    if(dayOf(t.events[i].ts) < dayOf(t.events[i-1].ts)){
+      revert();
       if(errEl) errEl.textContent = "Events have to stay in order — " + t.events[i].type +
         " can't be dated before the " + t.events[i-1].type + " above it.";
       return;
     }
   }
-  if(!touched){ if(errEl) errEl.textContent = "Nothing changed."; return; }
+  // Nothing to save is not an error: close the pickers and leave the trade alone.
+  if(!touched){ save(); render(); reopenLog(id); return; }
 
   // Keep the fields the rest of the app sorts and groups by in step with the log.
   t.createdAt = t.events[0].ts;
   if(t.status==="closed") t.closedAt = t.events[t.events.length-1].ts;
 
-  save(); render();
-  // render() rebuilds the table and collapses this row — reopen it so the result is visible.
+  save(); render(); reopenLog(id);
+};
+// render() rebuilds the table and collapses this row — put it back so the result stays in view.
+function reopenLog(id){
   const row = $("log_"+id);
   if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;"; }
-};
+}
 
 /* ========================= tally ========================= */
 function renderClosed(){
   const closed = state.trades.filter(t=>t.status==="closed");
-  const collapsed = !!state.settings.closedCollapsed;
-  $("closedBody").style.display = collapsed ? "none" : "block";
-  $("closedTgl").innerHTML = collapsed ? "&#9656;" : "&#9662;";
   const sum = $("closedSummary");
-  if(collapsed && closed.length){
+  if(closed.length){
     const totR = closed.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
     sum.innerHTML = closed.length+" trades &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>";
   } else sum.textContent = "";
-  if(collapsed) return;
 
   const tbl = $("closedTbl");
   if(!closed.length){
     tbl.innerHTML = "<tr><td class='muted'>No closed trades yet. The tally is where the craft argues back.</td></tr>";
-    $("stats").innerHTML = ""; $("chartsBox").style.display = "none";
+    $("stats").innerHTML = "";
     return;
   }
 
@@ -1038,7 +1294,7 @@ function renderClosed(){
   const chrono = closed.slice().sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
 
   const rows = closed.map(t=>{
-    const d = derive(t), rm = d.realized/t.rUnit;
+    const S = stats(t), d = S.d, rm = S.rm;
     tot += rm; rms.push(rm);
     if(rm>0){ wins++; wr += rm; wn++; }
     else { lr += rm; ln++; if(rm<worst) worst = rm; if(rm>=-1.2) discOK++;
@@ -1088,16 +1344,34 @@ function renderClosed(){
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
       "<td class='num "+cls(d.realized)+"'>"+fmt$(d.realized)+"</td>" +
       "<td class='num "+cls(rm)+"'>"+fmtR(rm)+(rm<-1.5?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Loss well beyond 1R'>breach</span>":"")+"</td>" +
+      "<td class='num'>"+S.days+"</td>" +
+      "<td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
+      "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
+      "<td class='num "+cls(S.ann)+"' title='"+(S.days<7?"Annualised from only "+S.days+" day(s) — extrapolation, not a forecast":"Annualised over "+S.days+" days")+"'>" +
+        (S.ann==null?"&mdash;":(S.ann>0?"+":"")+(Math.abs(S.ann)>=1000?Math.round(S.ann).toLocaleString():S.ann.toFixed(0))+"%"+(S.days<7?"<span style='color:var(--amber)'>*</span>":"")) + "</td>" +
+      "<td class='num'>"+(S.mae==null&&S.mfe==null ? "<span class='muted'>&mdash;</span>"
+        : "<span class='neg'>"+(S.mae==null?"—":S.mae.toFixed(1))+"</span> / <span class='pos'>"+(S.mfe==null?"—":"+"+S.mfe.toFixed(1))+"</span>")+"</td>" +
       "<td>"+tagSel+"</td>" +
-      "<td class='num'>"+t.events.length+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
         "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
-    "<tr id='log_"+t.id+"' style='display:none'><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+    "<tr id='log_"+t.id+"' style='display:none'><td colspan='14' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
       "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
+      "<div style='margin-top:12px'><div class='lbl'>Excursion — how far it actually travelled</div>" +
+      "<div class='row' style='align-items:flex-end'>" +
+        "<div style='max-width:130px'><div class='sublbl'>High reached</div><input type='number' step='any' id='hi_"+t.id+"' value='"+(t.hi!=null?t.hi:"")+"' placeholder='high'></div>" +
+        "<div style='max-width:130px'><div class='sublbl'>Low reached</div><input type='number' step='any' id='lo_"+t.id+"' value='"+(t.lo!=null?t.lo:"")+"' placeholder='low'></div>" +
+        "<button class='small' onclick=\"saveExtremes('"+t.id+"')\">Save</button>" +
+        "<span class='muted' style='align-self:center'>" +
+          "MAE <b class='neg'>"+(S.mae==null?"—":S.mae.toFixed(2)+"R")+"</b> &nbsp; MFE <b class='pos'>"+(S.mfe==null?"—":"+"+S.mfe.toFixed(2)+"R")+"</b>" +
+          (S.capture!=null?" &nbsp; captured <b>"+Math.round(S.capture*100)+"%</b> of the favourable move":"") +
+        "</span>" +
+      "</div>" +
+      "<div class='err' id='hierr_"+t.id+"'></div>" +
+      "<div class='muted' style='margin-top:5px'>Seeded from the prices this app saw, which are only the ones you entered or marked — type the real intraday high and low for a true reading. Measured in multiples of the per-share risk you took at entry.</div></div>" +
       "<div style='margin-top:12px'><div class='lbl'>Re-trade review</div>" +
       "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did Cal say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
       "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
@@ -1105,7 +1379,7 @@ function renderClosed(){
   }).join("");
 
   tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
-    "<th class='num'>Realized</th><th class='num'>R multiple</th><th>Loss audit</th><th class='num'>Events</th><th></th></tr>" + rows;
+    "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num'>% equity</th><th class='num'>Annual.</th><th class='num' title='How far price ran against you and in your favour, in multiples of the per-share risk you took at entry'>MAE/MFE</th><th>Loss audit</th><th></th></tr>" + rows;
 
   const exp = tot/closed.length;
   const payoff = (wn && ln) ? (wr/wn)/Math.abs(lr/ln) : null;
@@ -1125,18 +1399,116 @@ function renderClosed(){
     '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(violations?"var(--red)":"var(--green)")+'">'+(tagged?violations:"&mdash;")+'</div><div class="r">'+(tagged?(violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">full pre-trade check on open</div></div>';
 
-  // charts
-  if(closed.length>=3){
-    $("chartsBox").style.display = "";
-    const labels = ["≤−2","−2:−1","−1:0","0:1","1:2","2:3","3:5","5+"];
-    const counts = [0,0,0,0,0,0,0,0];
-    rms.forEach(r=>{ counts[ r<=-2?0 : r<=-1?1 : r<0?2 : r<1?3 : r<2?4 : r<3?5 : r<5?6 : 7 ]++; });
-    const colors = labels.map((l,i)=> i<3 ? "#f4655f" : "#2fd583");
-    $("histChart").innerHTML = svgBars(counts, labels, colors);
-    let run = 0;
-    const curve = chrono.map(t=>{ run += derive(t).realized/t.rUnit; return run; });
-    $("curveChart").innerHTML = svgLine(curve, {labels:chrono.map(t=>t.ticker)});
-  } else $("chartsBox").style.display = "none";
+}
+
+/* ========================= charts & statistics ========================= */
+function renderCharts(chrono){
+  const sum = $("chartsSummary");
+  if(!chrono || chrono.length < 2){
+    $("chartsBox").style.display = "none";
+    $("chartsEmpty").style.display = "";
+    if(sum) sum.textContent = chrono && chrono.length ? "needs at least 2 closed trades" : "";
+    return;
+  }
+  $("chartsBox").style.display = "";
+  $("chartsEmpty").style.display = "none";
+
+  const S = chrono.map(t=>stats(t));
+  const rms = S.map(s=>s.rm);
+  const pls = S.map(s=>s.d.realized);
+  if(sum) sum.textContent = chrono.length + " closed trades";
+
+  // --- distribution: losses left, gains right
+  const labels = ["≤−2","−2:−1","−1:0","0:1","1:2","2:3","3:5","5+"];
+  const counts = [0,0,0,0,0,0,0,0];
+  rms.forEach(r=>{ counts[ r<=-2?0 : r<=-1?1 : r<0?2 : r<1?3 : r<2?4 : r<3?5 : r<5?6 : 7 ]++; });
+  $("histChart").innerHTML = svgBars(counts, labels, labels.map((l,i)=> i<3 ? "#f4655f" : "#2fd583"));
+
+  // --- cumulative R over trades
+  let run = 0;
+  $("curveChart").innerHTML = svgLine(rms.map(r=>(run+=r)), {labels:chrono.map(t=>t.ticker)});
+
+  // --- P/L per trade, and cumulative by trade
+  $("plBars").innerHTML = svgSignedBars(pls, chrono.map(t=>t.ticker), fmt$);
+  let runPl = 0;
+  const cumPl = pls.map(p=>(runPl+=p));
+  $("plTrades").innerHTML = svgSignedBars(cumPl, chrono.map(t=>t.ticker), fmt$);
+
+  // --- time series. Several trades can close on one day, so collapse to one point per day.
+  const byDay = new Map();
+  S.forEach(s=>{ const k = dayOf(s.endTs); byDay.set(k, (byDay.get(k)||0) + s.d.realized); });
+  const days = [...byDay.keys()].sort((a,b)=>a-b);
+  let acc = 0;
+  const cumByDay = days.map(k=>({ x:k, y:(acc += byDay.get(k)) }));
+  $("plTime").innerHTML = svgTimeLine(cumByDay, fmt$);
+
+  // Baseline is the equity the first trade was sized against — the same anchor the R unit used.
+  const startEquity = S[0].aum0 || state.settings.aum;
+  $("plPct").innerHTML = svgTimeLine(cumByDay.map(p=>({x:p.x, y:p.y/startEquity*100})), v=>v.toFixed(1)+"%");
+  $("eqCurve").innerHTML = svgTimeLine(
+    [{x: days[0]-864e5, y: startEquity}].concat(cumByDay.map(p=>({x:p.x, y:startEquity+p.y}))), fmt$, {zeroBase:false});
+
+  // --- statistics
+  const wins = S.filter(s=>s.rm>0), losses = S.filter(s=>s.rm<=0);
+  const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+  const avgDaysWin = avg(wins.map(s=>s.days)), avgDaysLoss = avg(losses.map(s=>s.days));
+
+  // Max drawdown of the R curve: worst peak-to-trough, the stretch you actually had to sit through.
+  let peak = 0, cum = 0, maxDD = 0;
+  rms.forEach(r=>{ cum += r; if(cum>peak) peak = cum; if(peak-cum > maxDD) maxDD = peak-cum; });
+
+  const longs = S.filter((s,i)=>chrono[i].side>0), shorts = S.filter((s,i)=>chrono[i].side<0);
+  const expOf = a => a.length ? avg(a.map(s=>s.rm)) : null;
+  // Total R over total days of exposure, not the mean of per-trade rates: averaging rates lets a
+  // one-day loser count as heavily as a month-long winner and drags the figure to nonsense.
+  const totDays = S.reduce((a,s)=>a+s.days, 0);
+  const rpd = totDays ? S.reduce((a,s)=>a+s.rm, 0)/totDays : null;
+
+  // Capture only means something where there was a favourable move to capture, and reads clearest
+  // on the trades that worked — mixing losers in produces a negative "capture", which says nothing.
+  const capt = S.filter(s=>s.rm>0 && s.capture!=null && s.mfe>0.25).map(s=>s.capture);
+
+  // Holding winners longer than losers is the healthy direction; the reverse is the disposition
+  // effect showing up in your own record.
+  const holdOk = (avgDaysWin!=null && avgDaysLoss!=null) ? avgDaysWin >= avgDaysLoss : null;
+
+  $("deepStats").innerHTML =
+    '<div class="metric"><div class="k">Avg days held</div><div class="v">'+
+      (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+" / "+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
+      '<div class="r" style="color:'+(holdOk===null?"var(--mut)":(holdOk?"var(--green)":"var(--red)"))+'">winners / losers' +
+      (holdOk===false?" &mdash; losers held longer":"")+'</div></div>' +
+    '<div class="metric"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
+    '<div class="metric"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
+    '<div class="metric"><div class="k">Long / short</div><div class="v">'+
+      (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+" / "+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
+      '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>' +
+    '<div class="metric"><div class="k">MFE captured</div><div class="v">'+
+      (capt.length ? Math.round(avg(capt)*100)+"%" : "&mdash;") +
+      '</div><div class="r">'+(capt.length ? "of the favourable move, on "+capt.length+" winner"+(capt.length>1?"s":"") : "needs a winner with a logged high")+'</div></div>';
+
+  $("tierTbl").innerHTML = groupTable(chrono, S, t=>TIERS[t.tier], "Tier");
+  $("conceptTbl").innerHTML = groupTable(chrono, S, t=>(t.concept||"").trim() || "(none)", "Concept");
+}
+
+// Expectancy grouped by any key. Small samples are marked rather than hidden — you need to see the
+// n before you read anything into the number.
+function groupTable(trades, S, keyOf, label){
+  const g = new Map();
+  trades.forEach((t,i)=>{
+    const k = keyOf(t);
+    if(!g.has(k)) g.set(k, []);
+    g.get(k).push(S[i]);
+  });
+  const rows = [...g.entries()].map(([k,arr])=>{
+    const tot = arr.reduce((s,x)=>s+x.rm, 0);
+    const exp = tot/arr.length;
+    const wins = arr.filter(x=>x.rm>0).length;
+    return {k, n:arr.length, tot, exp, wr:Math.round(100*wins/arr.length)};
+  }).sort((a,b)=>b.exp-a.exp);
+  return "<tr><th>"+label+"</th><th class='num'>n</th><th class='num'>Win %</th><th class='num'>Total R</th><th class='num'>Expectancy</th></tr>" +
+    rows.map(r=>"<tr><td>"+esc(r.k)+(r.n<5?" <span class='muted' title='Too few trades to read much into'>small n</span>":"")+
+      "</td><td class='num'>"+r.n+"</td><td class='num'>"+r.wr+"%</td><td class='num "+cls(r.tot)+"'>"+fmtR(r.tot)+
+      "</td><td class='num "+cls(r.exp)+"'>"+fmtR(r.exp)+"</td></tr>").join("");
 }
 
 /* ========================= book bar ========================= */
@@ -1180,6 +1552,7 @@ function renderBook(open){
 function render(){
   renderTabs();
   renderSettings();
+  renderSections();
   const open = state.trades.filter(t=>t.status==="open");
   const heat = renderBook(open) || [];
   heat.sort((a,b)=> b.seqR - a.seqR);
@@ -1187,6 +1560,11 @@ function render(){
     ? heat.map(h=>tradeCard(h.t)).join("")
     : '<div class="card muted">No open trades. Open one above &mdash; Cal sizes it from your R unit and tier.</div>';
   renderClosed();
+  const closedChrono = state.trades.filter(t=>t.status==="closed")
+    .sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
+  renderCharts(closedChrono);
+  const os = $("openSummary");
+  if(os) os.textContent = open.length ? open.length+" open" : "none open";
 }
 
 /* ========================= bindings ========================= */
@@ -1288,7 +1666,7 @@ async function refreshMarks(){
       const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(t.ticker)+"&token="+encodeURIComponent(key));
       if(!res.ok) throw new Error("HTTP "+res.status);
       const j = await res.json();
-      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); results.push(t.ticker+" "+fmtP(j.c)); }
+      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); touchExtremes(t, j.c); results.push(t.ticker+" "+fmtP(j.c)); }
       else results.push(t.ticker+": no quote");
     }catch(err){ results.push(t.ticker+": failed"); }
   }
