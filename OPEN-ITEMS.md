@@ -47,6 +47,9 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Reviews-due badge mirrored onto the Desk header, so the queue is visible from the top
+  of the page whatever is collapsed. Both badges render from one function and cannot disagree.
+
 - 2026-08-28 — 30-day review built. Every closed trade has its own field beside the re-trade review;
   the row takes a gold left rail, a gold dot and a faint gold wash once 30 days have passed with it
   empty, and clears the moment anything is written. The count sits in the section header so it is

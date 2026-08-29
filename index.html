@@ -1238,6 +1238,12 @@ const reviewDue = t => t.status==="closed" &&
   !(t.review30 && t.review30.trim()) &&
   daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS;
 const reviewDueIn = t => REVIEW_DAYS - daysBetween(t.closedAt || t.createdAt, Date.now());
+const reviewsDueCount = () => state.trades.filter(reviewDue).length;
+// One renderer for the badge, so the desk and the Closed Trades header can never disagree.
+function reviewsDueHtml(){
+  const n = reviewsDueCount();
+  return n ? '<span style="color:var(--gold);font-weight:600">'+n+" 30-day review"+(n>1?"s":"")+" due</span>" : "";
+}
 
 window.saveReview30 = id => {
   const t = getTrade(id), ta = $("rev_"+id);
@@ -1349,9 +1355,9 @@ function renderClosed(){
   if(closed.length){
     const totR = closed.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
     // The due count sits in the header so it is still visible with the section collapsed.
-    const dueN = closed.filter(reviewDue).length;
+    const badge = reviewsDueHtml();
     sum.innerHTML = closed.length+" trades &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" +
-      (dueN ? " &middot; <span style=\"color:var(--gold);font-weight:600\">"+dueN+" 30-day review"+(dueN>1?"s":"")+" due</span>" : "");
+      (badge ? " &middot; " + badge : "");
   } else sum.textContent = "";
 
   const tbl = $("closedTbl");
@@ -1644,6 +1650,8 @@ function render(){
   renderTabs();
   renderSettings();
   renderSections();
+  // Mirrored on the desk so the queue is visible from the top of the page, whatever is collapsed.
+  $("deskSummary").innerHTML = reviewsDueHtml();
   const open = state.trades.filter(t=>t.status==="open");
   const heat = renderBook(open) || [];
   heat.sort((a,b)=> b.seqR - a.seqR);

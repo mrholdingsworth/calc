@@ -107,8 +107,9 @@ beside the immediate re-trade note.
 
 Once 30 days have passed with the field still empty the row takes a gold rail and a gold dot, and the
 count appears in the section header — visible even with the section collapsed. Writing anything
-clears it. The two failures this is built to surface are cutting winners early and being shaken out
-of something that went on to work; neither is visible on the day you close.
+clears it. The same badge is mirrored on the Desk header, so the queue is visible from the top of the
+page whatever else is folded away. The two failures this is built to surface are cutting winners
+early and being shaken out of something that went on to work; neither is visible on the day you close.
 
 ## Wash-sale flag
 
