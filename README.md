@@ -94,9 +94,6 @@ machine will not see it. Use **Export / Download .json** to back up and to move 
 
 **R multiple** is realised P/L over the R unit the trade locked at open.
 
-**Annualised return** extrapolates the holding period out to a year. Holds under a week carry an
-amber asterisk, because there the figure says more about the calendar than about the trade.
-
 **% of equity** divides by the AUM the trade was sized against, not today's AUM.
 
 **Clearing data** asks twice and dumps your whole book into the export box first, so a mis-click is

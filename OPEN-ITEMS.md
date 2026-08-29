@@ -4,6 +4,35 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **30-day review on closed trades.** Every closed trade gets a `30 day review` field for notes
+  written a month after the close — did it keep going without you, or did the exit hold up? The
+  point is catching two specific failures the immediate post-trade note cannot see: cutting winners
+  early, and being shaken out of something that went on to work.
+
+  Highlight the row in a brighter blue once `closedAt + 30 days` has passed and the field is still
+  empty; clear the highlight as soon as it has content. That way the queue is visible rather than
+  remembered.
+
+  To settle at build time: the blue has to out-signal the existing accents without reading as an
+  error — the palette already spends blue on buttons and the Cal-says panel, so this may want its
+  own tone rather than the accent. Also worth a count in the section header ("3 reviews due") so it
+  is visible while section 04 is collapsed.
+
+- **Wash sales / adjusted tax basis — decide whether it is worth doing at all.** Raised 2026-08-28,
+  explicitly as a question rather than a decision.
+
+  The case against: this is a process tool denominated in R, not a tax ledger. It has no concept of
+  lots, cost basis carried between trades, or "substantially identical" securities, and your broker's
+  1099-B already computes wash sales properly. Half-implementing it produces numbers that look
+  authoritative and are wrong, which is worse than not having them.
+
+  The case for: the *flag* is useful even if the accounting is not. Re-entering a name within 30 days
+  of taking a loss in it is a process signal — often revenge re-entry — and this app already has the
+  dates and tickers needed to spot it. That version costs little and stays inside what the tool
+  claims to measure.
+
+  Suggested split when we get to it: build the flag, skip the basis maths.
+
 - **MAE / MFE — re-add if a live data feed arrives.** Pulled 2026-08-28: without intraday data the
   app only sees prices you typed, so the excursion envelope understates and the numbers flatter you.
   The hi/lo envelope still accrues quietly in the background, and `_parked/mae-mfe.md` holds the
@@ -51,6 +80,15 @@ Running list. Newest at the top of each section.
   Re-add later, rewritten to your own rules rather than the memoir's.
 
 ## Decided / done
+
+- 2026-08-28 — Annualised return removed: on short holds it produced six-figure percentages wide
+  enough to force horizontal scrolling, and the number was never load-bearing.
+- 2026-08-28 — R distribution axis carries at most five ticks (worst R, zero, two through the winning
+  side, best R) instead of one label per bucket.
+- 2026-08-28 — Open positions show position cost, current value and allocation as a percentage of the
+  equity the trade was sized against.
+- 2026-08-28 — Empty Open Positions message moved inside the collapsible body; it was sitting in the
+  header card and stayed visible when the section was shut. Also removed a duplicate of it.
 
 - 2026-08-28 — Collapsed trade row sits at the same height as the expanded one, and is centred in its
   card: the header keeps the card's own padding and loses only the trailing margin it needs when

@@ -556,9 +556,6 @@ function stats(t){
 
   const aum0 = t.aumAtOpen || (state.settings.rPct>0 ? t.rUnit*100/state.settings.rPct : null);
   const roe = aum0 ? d.realized/aum0*100 : null;                    // return on equity at open, %
-  // Annualised from the actual holding period. On very short holds this number gets silly, so it
-  // is flagged rather than hidden: under a week it says more about the calendar than the trade.
-  const ann = roe!=null ? (Math.pow(1 + roe/100, 365/days) - 1) * 100 : null;
 
   // MAE / MFE in R-multiples of the per-share risk taken at entry — size-independent, so trades of
   // different sizes compare directly.
@@ -581,7 +578,7 @@ function stats(t){
     }
   }
 
-  return {d, rm, days, rPerDay, aum0, roe, ann, mfe, mae, exitR, capture, riskPS, entryPx, openTs, endTs};
+  return {d, rm, days, rPerDay, aum0, roe, mfe, mae, exitR, capture, riskPS, entryPx, openTs, endTs};
 }
 
 function modeLabel(t,d){ return state.settings.sizeMode==="be" ? "breakeven (0R)" : (d && d.mult!=null ? d.mult : t.mult)+"R"; }
@@ -610,6 +607,40 @@ function adrAudit(price, adrPct, stopDist){
 }
 
 /* ========================= tiny SVG charts ========================= */
+// R-multiple histogram. One bar per whole-R bucket from `from` to `to`, but the axis carries at most
+// five ticks — the extremes, zero, and two evenly spaced through the winning side — so a wide range
+// stays readable instead of crowding into unreadable range labels.
+function svgRHist(counts, from, to){
+  const W=560,H=130, padL=26, padB=22, padT=12;
+  const max = Math.max(1, ...counts);
+  const n = counts.length, bw = (W-padL-8)/n;
+  const xOf = v => padL + (v-from)*bw;                       // left edge of the bucket starting at v
+  let out = '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-4)+'" y2="'+(H-padB)+'" stroke="#2c3646"/>';
+
+  counts.forEach((c,i)=>{
+    const h = (H-padB-padT) * c/max;
+    const x = padL + i*bw + bw*0.16, w = bw*0.68, y = H-padB-h;
+    const neg = (from+i) < 0;
+    if(c>0){
+      out += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
+             '" rx="3" fill="'+(neg?"#f4655f":"#2fd583")+'"><title>'+(from+i)+"R to "+(from+i+1)+"R: "+c+" trade(s)</title></rect>";
+      out += '<text x="'+(x+w/2).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="#9aa6b8" font-size="9" text-anchor="middle" font-family="monospace">'+c+'</text>';
+    }
+  });
+
+  // Ticks: worst R, zero, two spread across the winning side, best R. Deduped and kept in order.
+  const ticks = [...new Set([from, 0, Math.round(to/3), Math.round(2*to/3), to])]
+    .filter(v=>v>=from && v<=to).sort((a,b)=>a-b);
+  ticks.forEach(v=>{
+    const x = xOf(v);
+    out += '<line x1="'+x.toFixed(1)+'" y1="'+(H-padB)+'" x2="'+x.toFixed(1)+'" y2="'+(H-padB+4)+'" stroke="#2c3646"/>';
+    out += '<text x="'+x.toFixed(1)+'" y="'+(H-6)+'" fill="#697588" font-size="9.5" text-anchor="middle" font-family="monospace">'+
+           (v>0?"+":"")+v+'R</text>';
+  });
+  out += '<text x="3" y="'+(padT+6)+'" fill="#697588" font-size="9" font-family="monospace">'+max+'</text>';
+  return out;
+}
+
 function svgBars(counts, labels, colors){
   const W=560,H=120, padL=26, padB=20, padT=8;
   const max = Math.max(1, ...counts);
@@ -967,6 +998,17 @@ function tradeCard(t){
       '<div class="metric"><div class="k">Loss if stopped</div><div class="v '+cls(-ras)+'">'+fmt$(-ras)+'</div><div class="r">'+fmtR(-ras/R)+' open</div></div>' +
       '<div class="metric"><div class="k">Sequence at stop</div><div class="v '+cls(-seq)+'">'+fmt$(-seq)+'</div><div class="r">realized &minus; stop risk</div></div>' +
       '<div class="metric"><div class="k">Total (mark)</div><div class="v '+cls(d.realized+openPL)+'">'+fmt$(d.realized+openPL)+'</div><div class="r">'+fmtR(totR)+'</div></div>' +
+      // Capital committed, what it is worth now, and how much of the book it is standing on. Sizing
+      // never looks at these — they answer "how concentrated am I", which R alone does not.
+      '<div class="metric"><div class="k">Position cost</div><div class="v">'+fmt$(d.avg*d.Q)+'</div><div class="r">'+fmtQ(d.Q)+' &times; '+fmtP(d.avg)+(t.side<0?" (proceeds)":"")+'</div></div>' +
+      '<div class="metric"><div class="k">Current value</div><div class="v">'+fmt$(t.last*d.Q)+'</div><div class="r">at last mark '+fmtP(t.last)+'</div></div>' +
+      (function(){
+        const aum0 = t.aumAtOpen;
+        if(!(aum0>0)) return '<div class="metric"><div class="k">Allocation</div><div class="v" style="color:var(--mut)">&mdash;</div><div class="r">no equity recorded at open</div></div>';
+        const pct = t.last*d.Q/aum0*100;
+        return '<div class="metric"><div class="k">Allocation</div><div class="v">'+pct.toFixed(1)+'%</div>' +
+               '<div class="r">of '+fmt$(aum0)+' equity at open</div></div>';
+      })() +
       adrHtml +
     '</div>' +
 
@@ -1361,13 +1403,11 @@ function renderClosed(){
       "<td class='num'>"+S.days+"</td>" +
       "<td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
       "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
-      "<td class='num "+cls(S.ann)+"'>" +
-        (S.ann==null?"&mdash;":(S.ann>0?"+":"")+(Math.abs(S.ann)>=1000?Math.round(S.ann).toLocaleString():S.ann.toFixed(0))+"%"+(S.days<7?"<span style='color:var(--amber)'>*</span>":"")) + "</td>" +
       "<td>"+tagSel+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
         "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
-    "<tr id='log_"+t.id+"' style='display:none'><td colspan='13' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+    "<tr id='log_"+t.id+"' style='display:none'><td colspan='12' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
@@ -1379,7 +1419,7 @@ function renderClosed(){
   }).join("");
 
   tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
-    "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num'>% equity</th><th class='num' title='Annualised from the actual holding period. Rows marked * were held under a week, where this is extrapolation rather than a forecast.'>Annual.*</th><th>Loss audit</th><th></th></tr>" + rows;
+    "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
 
   const exp = tot/closed.length;
   const payoff = (wn && ln) ? (wr/wn)/Math.abs(lr/ln) : null;
@@ -1424,13 +1464,9 @@ function renderCharts(chrono){
   // instead of being folded back into the one below it.
   const from = Math.min(Math.floor(Math.min(...rms)), 0);
   const to   = Math.max(Math.floor(Math.max(...rms)) + 1, 1);
-  const labels = [], counts = [], colors = [];
-  for(let b=from; b<to; b++){
-    labels.push(b<0 ? b+":"+(b+1) : b+":"+(b+1));
-    counts.push(rms.filter(r=> r>=b && r<b+1 ).length);
-    colors.push(b<0 ? "#f4655f" : "#2fd583");
-  }
-  $("histChart").innerHTML = svgBars(counts, labels, colors);
+  const counts = [];
+  for(let b=from; b<to; b++) counts.push(rms.filter(r=> r>=b && r<b+1 ).length);
+  $("histChart").innerHTML = svgRHist(counts, from, to);
 
   // --- cumulative R over trades
   let run = 0;
@@ -1537,7 +1573,7 @@ function renderBook(open){
   const hb = $("bookBar");
   if(!open.length){
     hb.innerHTML = '<div class="card">' + openHead() +
-      '<div class="muted" style="margin-top:10px">Nothing open. Size one in section 02 and it appears here.</div></div>';
+'</div>';   // the empty-state line lives in #openTrades, inside the collapsible body
     return;
   }
   const heat = open.map(t=>{ const d = derive(t); const seq = riskAtStop(t,d)-d.realized; return {t,d,seq,seqR:seq/t.rUnit}; });
@@ -1587,7 +1623,7 @@ function render(){
   heat.sort((a,b)=> b.seqR - a.seqR);
   $("openTrades").innerHTML = open.length
     ? heat.map(h=>tradeCard(h.t)).join("")
-    : '<div class="card muted">No open trades. Open one above &mdash; Cal sizes it from your R unit and tier.</div>';
+    : '<div class="card muted">Nothing open. Size one in section 02 and it appears here.</div>';
   renderClosed();
   const closedChrono = state.trades.filter(t=>t.status==="closed")
     .sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
