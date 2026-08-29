@@ -17,6 +17,9 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Gold divider in the tab strip, separating what you select (accounts, groups) from what
+  you do (new account, new group, members, delete).
+
 - 2026-08-28 — Group box is a bordered container with real padding, height-cancelled by a negative
   vertical margin, so the tab row does not grow when a group opens. (An outline was tried first and
   collided with the pill edges — it paints with no padding of its own.) 5px clearance all round,

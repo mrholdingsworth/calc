@@ -163,6 +163,9 @@ details[open] summary::before{content:"\25BE  "}
 /* A real border with real padding, and a negative vertical margin of exactly the height it adds
    (1px border + 4px padding, top and bottom). The box paints outside the row without growing it,
    so opening a group cannot shove the desk down. */
+/* Separates what you select (accounts, groups) from what you do (create, edit, delete). */
+.tabsep{display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--gold);
+        opacity:.7;margin:0 6px;flex:none}
 .gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
       border:1px solid var(--blue);border-radius:13px;background:var(--bluebg);
       margin:-5px 3px}
@@ -840,6 +843,7 @@ function renderTabs(){
   }).join("");
 
   $("tabs").innerHTML = html +
+    '<span class="tabsep" aria-hidden="true"></span>' +
     '<button class="small" title="New account" onclick="addPortfolio()">+</button>' +
     '<button class="small" title="New group" onclick="addGroup()">+ group</button>' +
     (isGroup(root.active) ? '<button class="small" title="Choose which accounts belong to this group" onclick="editGroupMembers()">Members</button>' : '') +
