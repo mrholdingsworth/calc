@@ -17,11 +17,15 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
-- 2026-08-28 — Group box uses an outline rather than a border, so opening a group no longer changes
-  the tab row height and shoves the desk down. Measured: zero shift.
+- 2026-08-28 — Group box is a bordered container with real padding, height-cancelled by a negative
+  vertical margin, so the tab row does not grow when a group opens. (An outline was tried first and
+  collided with the pill edges — it paints with no padding of its own.) 5px clearance all round,
+  zero desk shift.
 - 2026-08-28 — Members picker is a dialog with a checkbox per account (showing equity and open count,
   and naming the group when one is already spoken for) plus a group dropdown once more than one
-  group exists. The comma-separated prompt is gone.
+  group exists. Edits are held as a draft across every group, so you can move an account out of one
+  and into another and save once; the picker marks which groups have unsaved edits. Cancel discards
+  the lot. The comma-separated prompt is gone.
 - 2026-08-28 — New Trade puts Shares first and in gold: it is the number you act on.
 - 2026-08-28 — Position P/L %% added beside %% equity in Closed Trades, account and group views alike.
   Realized over capital deployed (every entry and add), against realized over equity at open.

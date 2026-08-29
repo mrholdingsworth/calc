@@ -152,7 +152,7 @@ button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(
 .dedit:hover{color:var(--gold);border-bottom-color:var(--gold)}
 details summary::before{content:"\25B8  ";color:var(--mut)}
 details[open] summary::before{content:"\25BE  "}
-.tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.tabs{display:flex;gap:6px;row-gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 /* A group is marked by a dot, and when open it holds its members inside a bordered box so the
    nesting is visible rather than implied by order. */
 .modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);
@@ -160,10 +160,12 @@ details[open] summary::before{content:"\25BE  "}
 .modalcard{background:var(--panel);border:1px solid var(--line2);border-radius:14px;
            padding:18px 22px;max-width:460px;width:100%;max-height:80vh;overflow:auto}
 .gdot{color:#fff;font-size:8px;vertical-align:middle;margin-right:5px}
-/* outline, not border: it paints outside the box model, so opening a group cannot change the
-   height of the tab row and shove everything below it down. */
-.gbox{display:inline-flex;gap:6px;align-items:center;padding:0 5px;border-radius:10px;
-      background:var(--bluebg);outline:1px solid var(--blue);outline-offset:3px;margin:0 3px}
+/* A real border with real padding, and a negative vertical margin of exactly the height it adds
+   (1px border + 4px padding, top and bottom). The box paints outside the row without growing it,
+   so opening a group cannot shove the desk down. */
+.gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
+      border:1px solid var(--blue);border-radius:13px;background:var(--bluebg);
+      margin:-5px 3px}
 .chart{width:100%;height:120px;display:block}
 .spark{width:100%;height:86px;display:block;margin-top:10px}
 .hint{font-size:11.5px;color:var(--mut);margin-top:6px}
@@ -873,19 +875,33 @@ window.addGroup = () => {
 
 
 /* ---- membership dialog ---- */
-// A checkbox per account, and a group picker when there is more than one, rather than asking you to
-// retype names into a prompt.
+// Edits are held as a draft across every group, so switching groups in the picker keeps what you
+// have already ticked. Nothing touches stored data until Save, and Save applies the whole draft.
+let mDraft = null, mCur = null;
+function captureDraft(){
+  if(!mDraft || !mCur) return;
+  const boxes = [...document.querySelectorAll("#modalBody input[data-acct]")];
+  if(!boxes.length) return;
+  mDraft[mCur] = boxes.filter(c=>c.checked).map(c=>c.getAttribute("data-acct"));
+}
+const draftOwner = a => Object.keys(mDraft).find(g=>mDraft[g].indexOf(a)>=0) || null;
+
 window.editGroupMembers = (g) => {
-  g = g || (isGroup(root.active) ? root.active : Object.keys(root.groups)[0]);
-  if(!g || !root.groups[g]) return;
+  const groups = root.order.filter(isGroup);
+  if(!groups.length) return;
   const accounts = root.order.filter(isAccount);
   if(!accounts.length){ alert("Create some accounts first — a group is a ruleset laid over accounts you already have."); return; }
-  const groups = root.order.filter(isGroup);
+
+  if(!mDraft){ mDraft = {}; groups.forEach(x=>{ mDraft[x] = groupMembers(x).slice(); }); }
+  else captureDraft();
+
+  g = g || (isGroup(root.active) ? root.active : groups[0]);
+  if(!mDraft[g]) mDraft[g] = groupMembers(g).slice();
+  mCur = g;
 
   const rows = accounts.map(a=>{
-    const owner = groupOf(a);
-    const mine = owner===g;
-    const taken = owner && !mine;
+    const owner = draftOwner(a);
+    const mine = owner===g, taken = owner && !mine;
     return '<label class="chk" style="'+(taken?"opacity:.5;cursor:not-allowed":"")+'">' +
       '<input type="checkbox" data-acct="'+esc(a)+'"'+(mine?" checked":"")+(taken?" disabled":"")+'>' +
       '<span><b>'+esc(a)+'</b> <span class="muted">'+fmt$(root.portfolios[a].settings.aum)+
@@ -893,35 +909,46 @@ window.editGroupMembers = (g) => {
       (taken?' <span style="color:var(--amber)">already in '+esc(owner)+'</span>':"") + '</span></label>';
   }).join("");
 
+  const dirty = groups.some(x=>{
+    const a = (mDraft[x]||[]).slice().sort().join(","), b = groupMembers(x).slice().sort().join(",");
+    return a!==b;
+  });
+
   $("modalBody").innerHTML =
     (groups.length>1
       ? '<div style="margin-bottom:12px"><div class="lbl">Group</div>' +
         '<select id="mdlGroup" style="max-width:260px" onchange="editGroupMembers(this.value)">' +
-        groups.map(x=>'<option value="'+esc(x)+'"'+(x===g?" selected":"")+'>'+esc(x)+'</option>').join("") +
+        groups.map(x=>'<option value="'+esc(x)+'"'+(x===g?" selected":"")+'>'+esc(x)+
+          ((mDraft[x]||[]).slice().sort().join(",")!==groupMembers(x).slice().sort().join(",") ? " — edited" : "")+'</option>').join("") +
         '</select></div>'
       : '<div class="lbl">Group</div><div style="margin-bottom:12px;font-weight:600">'+esc(g)+'</div>') +
     '<div class="lbl">Accounts</div>' + rows +
-    '<div class="muted" style="margin-top:8px">An account belongs to one group at a time. Removing one hands it a copy of the group\u2019s ruleset, so its open trades keep sizing against the numbers they were opened under.</div>' +
+    '<div class="muted" style="margin-top:8px">An account belongs to one group at a time. Removing one hands it a copy of the group’s ruleset, so its open trades keep sizing against the numbers they were opened under.</div>' +
+    (groups.length>1 ? '<div class="muted" style="margin-top:6px">Changes are held across every group &mdash; switch groups freely and save once.</div>' : "") +
     '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
       '<button class="small" onclick="closeModal()">Cancel</button>' +
-      '<button class="small primary" onclick="saveGroupMembers(\''+esc(g).replace(/'/g,"\\'")+'\')">Save members</button></div>';
+      '<button class="small'+(dirty?" primary":"")+'" onclick="saveGroupMembers()">Save'+(dirty?" changes":"")+'</button></div>';
   $("modalTitle").textContent = "Group members";
   $("modal").style.display = "flex";
 };
-window.closeModal = () => { $("modal").style.display = "none"; };
-window.saveGroupMembers = g => {
-  const picked = [...document.querySelectorAll("#modalBody input[data-acct]")]
-    .filter(c=>c.checked && !c.disabled).map(c=>c.getAttribute("data-acct"));
-  const mine = groupMembers(g);
-  // Leaving takes a copy of the ruleset, so nothing silently resizes.
-  mine.filter(m=>picked.indexOf(m)<0).forEach(m=>{
-    GROUP_KEYS.forEach(k=>{
-      const v = root.groups[g].settings[k];
-      root.portfolios[m].settings[k] = Array.isArray(v) ? v.slice() : v;
+
+window.closeModal = () => { $("modal").style.display = "none"; mDraft = null; mCur = null; };
+
+window.saveGroupMembers = () => {
+  captureDraft();
+  Object.keys(mDraft).forEach(g=>{
+    if(!root.groups[g]) return;
+    const picked = mDraft[g], mine = groupMembers(g);
+    // Leaving takes a copy of the ruleset, so nothing silently resizes.
+    mine.filter(m=>picked.indexOf(m)<0).forEach(m=>{
+      GROUP_KEYS.forEach(k=>{
+        const v = root.groups[g].settings[k];
+        root.portfolios[m].settings[k] = Array.isArray(v) ? v.slice() : v;
+      });
     });
+    root.groups[g].members = picked.slice();
   });
-  root.groups[g].members = picked;
-  if(root.focus && picked.indexOf(root.focus)<0) root.focus = null;
+  if(root.focus && !(isGroup(root.active) && groupMembers(root.active).indexOf(root.focus)>=0)) root.focus = null;
   closeModal(); normalize(); save(); render();
 };
 
