@@ -35,6 +35,12 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-29 — Targets back, informational only and trimmed to +1R and +2R, in both New Trade and
+  Open Positions and in both account and group mode. A target price does not depend on account size
+  (shares scale with R, so k·R/shares reduces to k·risk-per-share/mult), so one row serves a whole
+  group; the open-position line weights across the legs. Nothing is pre-placed and nothing acts on
+  them. A rung goes green once the last mark has passed it.
+
 - 2026-08-28 — Gold divider in the tab strip, separating what you select (accounts, groups) from what
   you do (new account, new group, members, delete).
 

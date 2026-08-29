@@ -264,6 +264,7 @@ details[open] summary::before{content:"\25BE  "}
     <div class="calans" id="nt_calans"></div>
     <div class="calsub" id="nt_calsub"></div>
     <div class="ladder" id="nt_ladder"></div>
+    <div class="ladder" id="nt_targets"></div>
     <div class="calsub calrule" id="nt_vol"></div>
   </div>
 
@@ -667,6 +668,8 @@ function stats(t){
 function modeLabel(t,d){ return state.settings.sizeMode==="be" ? "breakeven (0R)" : (d && d.mult!=null ? d.mult : t.mult)+"R"; }
 window.setSizeMode = m => { state.settings.sizeMode = m; save(); render(); };
 
+// Informational only: the app never acts on these, and nothing is pre-placed.
+const TARGETS = [1,2];
 // Price levels at whole R multiples of the locked risk unit.
 function ladder(side, avg, Q, rUnit, last, mults){
   if(!(Q>0)) return [];
@@ -1064,7 +1067,9 @@ function newTradeCal(){
     "Risk per share <b>" + fmt$(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
     " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)";
 
-  $("nt_ladder").innerHTML = "";   // targets removed 2026-08-28; a reworked version is on the list
+  $("nt_targets").innerHTML = q>0
+    ? '<span class="muted" style="align-self:center">targets:</span>' + ladderHtml(ladder(side,P,q,R,null,TARGETS))
+    : "";
 
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
@@ -1318,6 +1323,8 @@ function tradeCard(t){
       (trailNote ? '<div class="calsub calrule">'+trailNote+'</div>' : "") +
     '</div>' +
 
+    (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">targets from avg '+fmtP(d.avg)+':</span>' +
+      ladderHtml(ladder(t.side, d.avg, d.Q, R, t.last, TARGETS))+'</div>' : "") +
     (planBits.length ? '<div class="calsub" style="margin-top:9px">'+planBits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "") +
 
     '<div class="actions">' +
@@ -2022,6 +2029,12 @@ function renderGroupNewTrade(){
         "<td class='num'>"+fmt$(r.cost)+"</td><td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>";
     }).join("") + "</table></div>";
 
+  // A target price does not depend on account size: shares scale with R, so k*R/shares reduces to
+  // k*risk-per-share/mult for every member alike.
+  const mult0 = rows.length ? rows[0].mult : 1;
+  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">targets:</span>' +
+    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den/mult0, hit:false})));
+
   const skipped = rows.filter(r=>r.on && r.skipped);
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
@@ -2217,6 +2230,16 @@ function groupTradeCard(gid, legs){
     '<th class="num">Equity P/L %</th><th class="num">Realized</th><th class="num">Seq at stop</th>' +
     '<th class="num">Total</th><th class="num">Cost</th><th class="num">Value</th><th class="num">Allocation</th><th></th></tr>' +
     rows + totalRow + '</table></div>' +
+    (function(){
+      // Weighted across the legs, which move together — one line rather than a near-identical
+      // number repeated per account.
+      const Qall = agg.reduce((a,s)=>a+s.d.Q, 0);
+      if(!(Qall>0)) return "";
+      const avgAll = legs.reduce((a,x,i)=>a+agg[i].d.avg*agg[i].d.Q, 0)/Qall;
+      const Rall = legs.reduce((a,x)=>a+x.t.rUnit, 0);
+      return '<div class="ladder"><span class="muted" style="align-self:center">targets from avg '+fmtP(avgAll)+':</span>' +
+        ladderHtml(ladder(first.side, avgAll, Qall, Rall, first.last, TARGETS))+'</div>';
+    })() +
     '<div class="calsub" style="margin-top:8px">Mean R across the legs: <b>'+fmtR(totR)+
       '</b>. Every control below is one decision applied to all '+legs.length+
       ' accounts, each computed on its own equity. Open an account to act on it alone.</div>' +
