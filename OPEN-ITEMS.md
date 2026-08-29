@@ -4,8 +4,26 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Clock and market status in the masthead** *(exploratory — "possibly", raised 2026-08-28)*.
+  Date and time right-justified opposite the masthead, with a sub-line reading a green **market
+  open** or a red **market closed**.
+
+  The clock is trivial. The status line is where the work is, and it is worth deciding how far to
+  take it before starting:
+  - Regular US equity hours are 09:30–16:00 **Eastern**, so the browser clock has to be converted to
+    ET — including US daylight saving, which does not move in step with other regions.
+  - Weekends are easy. **Holidays need a calendar**, and it changes every year. Half-days (the day
+    after Thanksgiving, Christmas Eve) close at 13:00 and would read wrong without it.
+  - Decide whether pre-market and after-hours get their own state, or fold into "closed".
+  - A wrong "market open" on a holiday is worse than no indicator at all, so if the calendar is out
+    of scope, the honest version is weekday-plus-hours with the limitation stated in the tooltip.
+
+  Worth noting this is the **same calendar problem** as the stale-mark weekend noise: a Friday mark
+  reads stale by Saturday because staleness counts wall-clock hours, not trading days. If a market
+  calendar gets built, one implementation should serve both.
+
 - **Targets, reworked.** The R-multiple target ladder was pulled from both the new-trade preview and
-  the open-position card on 2026-08-28. Rebuild it as something that earns its space � the old
+  the open-position card on 2026-08-28. Rebuild it as something that earns its space � the old
   version was a static row of +1R/+2R/+3R/+5R prices that never fed a decision.
 
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
