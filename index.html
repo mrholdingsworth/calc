@@ -1014,7 +1014,7 @@ function tradeCard(t){
 
     '<div class="calbox">' +
       '<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px">' +
-        '<div class="head" style="margin-bottom:0">Cal says</div>' +
+        '<div class="head" style="margin-bottom:0">Max add</div>' +
         '<div class="row" style="align-items:center">' +
           '<span class="muted">worst case:</span>' +
           '<button class="small'+(state.settings.sizeMode!=="be"?" primary":"")+'" onclick="setSizeMode(\'r\')" title="Adds sized so the sequence worst case is your full R budget">1R</button>' +
@@ -1036,7 +1036,7 @@ function tradeCard(t){
       '<div class="action"><div class="t">Add (constant risk)</div><div class="row">' +
         '<input type="number" step="any" id="addp_'+t.id+'" placeholder="price" oninput="liveAdd(\''+t.id+'\')" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
         '<input type="number" step="any" id="adds_'+t.id+'" placeholder="new stop" oninput="liveAdd(\''+t.id+'\')" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
-        '<input type="number" step="any" id="addq_'+t.id+'" placeholder="qty (Cal)" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
+        '<input type="number" step="any" id="addq_'+t.id+'" placeholder="qty (auto)" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
         '<button class="small primary" onclick="doAdd(\''+t.id+'\')">Add</button></div>' +
         '<div class="err" id="adderr_'+t.id+'"></div></div>' +
 
@@ -1111,10 +1111,10 @@ window.liveAdd = id => {
   const r = maxAdd(t,d,Pa,S);
   if(!r.ok){ errEl.textContent = r.msg; return; }
   errEl.textContent = "";
-  $("addq_"+id).placeholder = r.q+" (Cal max)";
+  $("addq_"+id).placeholder = r.q+" (max)";
   $("calmsg_"+id).innerHTML = "Max add at "+fmtP(Pa)+" with stop "+fmtP(S)+": <b>"+fmtQ(r.q)+" shares</b> &mdash; the sequence worst case at that stop stays at or under "+modeLabel(t,d)+". " +
     (r.q===0 ? "Zero: nothing to spend at this stop in the current mode. Tighten the stop or trim first."
-             : "Leave qty blank and hit Add to take Cal's maximum.");
+             : "Leave qty blank and hit Add to take the maximum.");
 };
 window.doAdd = id => {
   const t = getTrade(id), d = derive(t);
@@ -1128,7 +1128,7 @@ window.doAdd = id => {
     if(S==null){ errEl.textContent = "Enter a stop (there is no current stop to inherit)."; return; }
     const r = maxAdd(t,d,Pa,S);
     if(!r.ok){ errEl.textContent = r.msg; return; }
-    if(r.q<=0){ errEl.textContent = "Cal's max is 0 at this stop. Tighten the stop or trim first."; return; }
+    if(r.q<=0){ errEl.textContent = "The maximum is 0 at this stop. Tighten the stop or trim first."; return; }
     q = r.q;
   }
   if(q<=0){ errEl.textContent = "Quantity must be positive."; return; }
@@ -1413,7 +1413,7 @@ function renderClosed(){
       "<div class='err' id='daterr_"+t.id+"'></div>" +
       "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
       "<div style='margin-top:12px'><div class='lbl'>Re-trade review</div>" +
-      "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did Cal say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
+      "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did the calculator say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
       "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
       "<span class='muted' id='notest_"+t.id+"'></span></div></div></td></tr>";
   }).join("");
@@ -1722,7 +1722,7 @@ function applyImport(){
     normalize(); save(); render();
     $("io_err").className = "okmsg"; $("io_err").textContent = "Imported.";
   }catch(e){
-    $("io_err").className = "err"; $("io_err").textContent = "That isn't a Cal export — nothing was imported.";
+    $("io_err").className = "err"; $("io_err").textContent = "That isn't an export from this app — nothing was imported.";
   }
 }
 

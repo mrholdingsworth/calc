@@ -14,7 +14,7 @@ Running list. Newest at the top of each section.
   remembered.
 
   To settle at build time: the blue has to out-signal the existing accents without reading as an
-  error — the palette already spends blue on buttons and the Cal-says panel, so this may want its
+  error — the palette already spends blue on buttons and the max-add panel, so this may want its
   own tone rather than the accent. Also worth a count in the section header ("3 reviews due") so it
   is visible while section 04 is collapsed.
 
@@ -73,13 +73,17 @@ Running list. Newest at the top of each section.
   must keep their own settings, so this needs a migration path rather than a straight move.
 
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
-  point these change together: the masthead, the `<title>`, the "CAL SAYS" panel heading, and the
-  repo/URL if you want them to match.
+  point the masthead, the `<title>` and (if you want them to match) the repo/URL change together.
+  The in-app "Cal" references are already gone.
 - **Rules panel — rebuild around your own system.** The paraphrased seven-part "bible" was pulled
   out of the page. The original markup is parked in `_parked/bible.html` so nothing is lost.
   Re-add later, rewritten to your own rules rather than the memoir's.
 
 ## Decided / done
+
+- 2026-08-28 — All in-app "Cal" references removed: the panel heading is now "Max add", plus the add
+  qty placeholder, the live max hint, the zero-max error, the re-trade prompt and the failed-import
+  message. Only the README's note about the original cal.xlsx still names it, which is history.
 
 - 2026-08-28 — Annualised return removed: on short holds it produced six-figure percentages wide
   enough to force horizontal scrolling, and the number was never load-bearing.
