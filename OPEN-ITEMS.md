@@ -17,6 +17,15 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Group box uses an outline rather than a border, so opening a group no longer changes
+  the tab row height and shoves the desk down. Measured: zero shift.
+- 2026-08-28 — Members picker is a dialog with a checkbox per account (showing equity and open count,
+  and naming the group when one is already spoken for) plus a group dropdown once more than one
+  group exists. The comma-separated prompt is gone.
+- 2026-08-28 — New Trade puts Shares first and in gold: it is the number you act on.
+- 2026-08-28 — Position P/L %% added beside %% equity in Closed Trades, account and group views alike.
+  Realized over capital deployed (every entry and add), against realized over equity at open.
+
 - 2026-08-28 — **Account groups built.** Groups sit in the tab strip with a leading dot and open out
   into a bordered box holding their member accounts; grouped accounts no longer appear as top-level
   tabs. The desk shows the shared ruleset plus a per-account equity table. New Trade lists one row
