@@ -106,6 +106,9 @@ button.small{padding:4px 10px;font-size:12px}
 .calrule{margin-top:7px;padding-top:7px;border-top:1px solid rgba(77,159,255,.2)}
 
 .tradehead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}
+/* Collapsed, the header is the whole card — drop its trailing margin or the row rides high. */
+.card.tradecollapsed{padding:12px 20px}
+.card.tradecollapsed .tradehead{margin-bottom:0}
 .tradehead .tk{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.02em}
 .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:10px;margin-top:12px}
 .action{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
@@ -917,7 +920,7 @@ function tradeCard(t){
       '<span class="muted" style="margin-left:auto">'+esc(t.concept)+" &middot; 1R = "+fmt$(R)+'</span>' +
     '</div>';
 
-  if(t.collapsed) return '<div class="card" style="padding:12px 20px">'+head+'</div>';
+  if(t.collapsed) return '<div class="card tradecollapsed">'+head+'</div>';
 
   const rungs = ladder(t.side, d.avg, d.Q, R, t.last, [1,2,3,5]);
   const planBits = [

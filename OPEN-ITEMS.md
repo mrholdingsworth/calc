@@ -52,6 +52,9 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Collapsed trade row is vertically centred; the header kept its 12px bottom margin when
+  it was the only thing in the card, so the row sat 12px from the top and 24px from the bottom.
+
 - 2026-08-28 — Finnhub key moved to Data Management with the other non-trade settings. The Refresh
   marks button now sits on the Open Positions header, next to what it updates, and turns amber with a
   count when any position is stale. Staleness centralised on one STALE_HOURS constant.
