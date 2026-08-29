@@ -22,10 +22,6 @@ Running list. Newest at the top of each section.
   reads stale by Saturday because staleness counts wall-clock hours, not trading days. If a market
   calendar gets built, one implementation should serve both.
 
-- **Targets, reworked.** The R-multiple target ladder was pulled from both the new-trade preview and
-  the open-position card on 2026-08-28. Rebuild it as something that earns its space � the old
-  version was a static row of +1R/+2R/+3R/+5R prices that never fed a decision.
-
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
   point the masthead, the `<title>` and (if you want them to match) the repo/URL change together.
   The in-app "Cal" references are already gone.
@@ -54,7 +50,7 @@ Running list. Newest at the top of each section.
   and into another and save once; the picker marks which groups have unsaved edits. Cancel discards
   the lot. The comma-separated prompt is gone.
 - 2026-08-28 — New Trade puts Shares first and in gold: it is the number you act on.
-- 2026-08-28 — Position P/L %% added beside %% equity in Closed Trades, account and group views alike.
+- 2026-08-28 — Position P/L % added beside % equity in Closed Trades, account and group views alike.
   Realized over capital deployed (every entry and add), against realized over equity at open.
 
 - 2026-08-28 — **Account groups built.** Groups sit in the tab strip with a leading dot and open out
@@ -62,7 +58,7 @@ Running list. Newest at the top of each section.
   tabs. The desk shows the shared ruleset plus a per-account equity table. New Trade lists one row
   per account with a tick box, equity, 1R, risk, shares, cost and allocation, and names any account
   that sizes to zero. Open Positions render one card per group trade with a row per account across
-  Stop, Last, Open P/L, Open P/L %%, Equity P/L %%, Realized, Seq at stop, Total, Cost, Value and
+  Stop, Last, Open P/L, Open P/L %, Equity P/L %, Realized, Seq at stop, Total, Cost, Value and
   Allocation, over one set of controls applied to every leg on its own numbers. Closed Trades shows
   the group total on the line and per-account statistics in the expansion. Charts take an account
   picker, since none of those statistics survive pooling across accounts of different size.
