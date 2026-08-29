@@ -13,7 +13,7 @@
   --bg:#0b0e13; --panel:#11161f; --panel2:#151b26; --line:#212a38; --line2:#2c3646;
   --tx:#e6ebf2; --sub:#9aa6b8; --mut:#697588;
   --blue:#4d9fff; --bluebg:rgba(77,159,255,.10);
-  --gold:#dfbd69;      /* one gold everywhere */
+  --gold:#b08d3f;      /* one gold everywhere — the darker, more metallic tone */
   --green:#2fd583; --greenbg:rgba(47,213,131,.10);
   --red:#f4655f; --redbg:rgba(244,101,95,.10);
   --amber:#f0a832; --amberbg:rgba(240,168,50,.10);
@@ -699,9 +699,9 @@ function svgTimeLine(points, fmt, opts){
     : '<line x1="'+padL+'" y1="'+zero.toFixed(1)+'" x2="'+(W-4)+'" y2="'+zero.toFixed(1)+'" stroke="#2c3646" stroke-dasharray="3 3"/>';
   const d = pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" ");
   out += '<path d="'+d+' L'+X(pts[pts.length-1].x).toFixed(1)+" "+zero.toFixed(1)+" L"+X(pts[0].x).toFixed(1)+" "+zero.toFixed(1)+
-         ' Z" fill="rgba(223,189,105,.12)"/>';
-  out += '<path d="'+d+'" fill="none" stroke="#dfbd69" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
-  pts.forEach(p=>{ out += '<circle cx="'+X(p.x).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="2.4" fill="'+(p.y<0?"#f4655f":"#dfbd69")+'"><title>'+
+         ' Z" fill="rgba(176,141,63,.16)"/>';
+  out += '<path d="'+d+'" fill="none" stroke="#b08d3f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  pts.forEach(p=>{ out += '<circle cx="'+X(p.x).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="2.4" fill="'+(p.y<0?"#f4655f":"#b08d3f")+'"><title>'+
     new Date(p.x).toLocaleDateString()+" "+esc(fmt(p.y))+'</title></circle>'; });
   out += '<text x="3" y="'+(Y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi-pad))+'</text>';
   out += '<text x="3" y="'+(Y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo+pad))+'</text>';

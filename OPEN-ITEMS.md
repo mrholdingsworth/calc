@@ -81,6 +81,10 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-28 — Single gold set to the darker metallic #b08d3f, applied to every gold instance:
+  masthead R, prose emphasis, max-add bolds, target rungs, checklist bolds, open heat, and the
+  time-series chart stroke and fill. 5.5-6.2:1 on the grounds it sits on.
+
 - 2026-08-28 — All in-app "Cal" references removed: the panel heading is now "Max add", plus the add
   qty placeholder, the live max hint, the zero-max error, the re-trade prompt and the failed-import
   message. Only the README's note about the original cal.xlsx still names it, which is history.
