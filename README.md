@@ -119,10 +119,27 @@ your broker's 1099-B already does correctly. It does not block the trade. Worth 
 reasons — the disallowed loss, and the fact that a fast re-entry into a name that just beat you is
 often revenge rather than a setup.
 
-## Multiple books
+## Accounts and groups
 
-Tabs at the top of the desk are separate portfolios — separate AUM, separate R unit, separate trade
-log. A single `Trading` book comes as the default; add or delete your own.
+Tabs at the top of the desk are separate **accounts** — separate equity, separate R unit, separate
+trade log. A single `Trading` account comes as the default.
+
+A **group** is one ruleset laid over several accounts. It carries a leading dot in the tab strip and
+opens out into a box holding its members. What the group owns: R %, tier budgets, the heat cap and
+the cold-streak brake. What each account keeps: its equity, its positions, and every statistic.
+
+Enter a trade once in a group and each account sizes it off its **own** equity, so the share counts
+differ while the risk stays one R everywhere. Tick boxes on the entry form let you skip an account
+for a single trade, and any account too small to take one share at that stop is named and skipped
+rather than silently dropped.
+
+Mid-trade, one set of controls drives every leg — marks, stops, adds, trims, closes — each computed
+on that account's own numbers. Adds take each account's own maximum; trims broadcast as a percentage,
+never a share count. Click a member inside the group box to work in it alone: close one leg early to
+raise cash, take a different fill, update equity after a deposit.
+
+Deleting a group keeps every account and trade; each member takes a copy of the ruleset so its open
+trades keep sizing against the numbers they were opened under.
 
 ---
 

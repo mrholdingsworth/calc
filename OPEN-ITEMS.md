@@ -4,39 +4,9 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Account group calculations.** Several accounts running the same ruleset should take a trade
-  once, not once each. Enter ticker, side, tier, entry, stop, ADR and concept a single time; each
-  account in the group sizes it off its *own* equity, so each gets its own 1R and its own share
-  count from the same risk-per-share.
-
-  Distinct from today's portfolio tabs, which are independent books entered separately. A group is
-  one ruleset fanned out across member accounts.
-
-  **Design settled 2026-08-27:**
-  - **Shared:** the ruleset — R%, tier budgets, and the survival levers. **Per account:** equity,
-    positions, share counts, and all performance statistics.
-  - **The whole lifecycle fans out**, not just the opening size. Open, mark, move stops, add, trim,
-    close — a group action broadcasts to every member. (This is load-bearing: a stop move recomputes
-    the constant-risk add for each account, so if only the entry fanned out the group would
-    desynchronise at the first add.)
-  - **Any account can also be driven on its own.** Drill into a single member and act on just that
-    one — close a position to raise cash for a withdrawal, take a different fill, update equity for a
-    deposit. Group actions are a convenience, never a cage.
-  - **Model: N linked records, one per account** — not one record with per-account legs. Falls out of
-    the two decisions above: no group-level performance rollup is wanted, and members must be free to
-    diverge. A group action is a broadcast that writes each account's own record; from then on each
-    record lives its own life. Per-account fills need no special field — divergence is just the
-    normal per-account path.
-  - **No group performance tracking.** Statistics stay per account. A group is a mechanism for
-    entering and managing trades, not a reporting unit.
-  - **Heat cap is per account only.** Consistent with R already being a percentage of each account's
-    own equity.
-  - **An account that floors to 0 shares is skipped with a note**, in the same spirit as the current
-    entry form's inline feedback — surfaced in the sizing preview before you commit, not silently.
-
-  Implementation note: accounts map onto today's portfolio tabs. Grouping hoists the ruleset from the
-  portfolio up to the group, leaving the portfolio holding equity and trades. Ungrouped portfolios
-  must keep their own settings, so this needs a migration path rather than a straight move.
+- **Targets, reworked.** The R-multiple target ladder was pulled from both the new-trade preview and
+  the open-position card on 2026-08-28. Rebuild it as something that earns its space � the old
+  version was a static row of +1R/+2R/+3R/+5R prices that never fed a decision.
 
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
   point the masthead, the `<title>` and (if you want them to match) the repo/URL change together.
@@ -46,6 +16,19 @@ Running list. Newest at the top of each section.
   Re-add later, rewritten to your own rules rather than the memoir's.
 
 ## Decided / done
+
+- 2026-08-28 — **Account groups built.** Groups sit in the tab strip with a leading dot and open out
+  into a bordered box holding their member accounts; grouped accounts no longer appear as top-level
+  tabs. The desk shows the shared ruleset plus a per-account equity table. New Trade lists one row
+  per account with a tick box, equity, 1R, risk, shares, cost and allocation, and names any account
+  that sizes to zero. Open Positions render one card per group trade with a row per account across
+  Stop, Last, Open P/L, Open P/L %%, Equity P/L %%, Realized, Seq at stop, Total, Cost, Value and
+  Allocation, over one set of controls applied to every leg on its own numbers. Closed Trades shows
+  the group total on the line and per-account statistics in the expansion. Charts take an account
+  picker, since none of those statistics survive pooling across accounts of different size.
+  Trims broadcast as a percentage, never a share count. Deleting a group hands each member a copy of
+  the ruleset so open trades keep sizing against the numbers they were opened under.
+- 2026-08-28 — Targets removed from both panels pending a rework (now on the to-do list).
 
 - 2026-08-28 — Reviews-due badge mirrored onto the Desk header, so the queue is visible from the top
   of the page whatever is collapsed. Both badges render from one function and cannot disagree.

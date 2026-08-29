@@ -153,6 +153,11 @@ button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(
 details summary::before{content:"\25B8  ";color:var(--mut)}
 details[open] summary::before{content:"\25BE  "}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+/* A group is marked by a dot, and when open it holds its members inside a bordered box so the
+   nesting is visible rather than implied by order. */
+.gdot{color:#fff;font-size:8px;vertical-align:middle;margin-right:5px}
+.gbox{display:inline-flex;gap:6px;align-items:center;padding:4px;border:1px solid var(--blue);
+      border-radius:11px;background:var(--bluebg)}
 .chart{width:100%;height:120px;display:block}
 .spark{width:100%;height:86px;display:block;margin-top:10px}
 .hint{font-size:11.5px;color:var(--mut);margin-top:6px}
@@ -200,7 +205,7 @@ details[open] summary::before{content:"\25BE  "}
   <div id="body_desk">
   <div class="tabs" id="tabs" style="margin-top:10px"></div>
   <div class="fields">
-    <div><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
+    <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
     <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
     <div><label for="t0">Tier A+ (R)</label><input id="t0" type="number" step="0.25" min="0.05"></div>
     <div><label for="t1">Tier A (R)</label><input id="t1" type="number" step="0.25" min="0.05"></div>
@@ -210,6 +215,7 @@ details[open] summary::before{content:"\25BE  "}
     <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
     <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
   </div>
+  <div class="scroll" id="groupEquity" style="display:none;margin-top:14px"></div>
   <div class="calans" id="runitBox" style="font-size:16px;margin-top:14px"></div>
   <div class="hint">
     1R recalculates from AUM, so it scales as you compound. Each trade locks its own R unit at the moment it opens.
@@ -292,7 +298,8 @@ details[open] summary::before{content:"\25BE  "}
   <div class="sechead">
     <button class="small" id="tg_charts" onclick="toggleSection('charts')">&#9662;</button>
     <div class="head" style="margin-bottom:0">05 &middot; Charts &amp; Statistics</div>
-    <span class="muted" style="margin-left:auto" id="chartsSummary"></span>
+    <span id="chartsAcct" style="margin-left:auto"></span>
+    <span class="muted" id="chartsSummary"></span>
   </div>
   <div id="body_charts">
     <div id="chartsEmpty" class="muted" style="margin-top:10px">Close a few trades and the picture builds itself.</div>
@@ -408,8 +415,58 @@ function defaults(){
                       heatCap:5, coldR:3, sizeMode:"r",
                       collapsed:{desk:false,new:false,open:false,tally:false,charts:false,data:false} }, trades:[] };
 }
+// The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
+// each account; only these are shared.
+const GROUP_KEYS = ["rPct","tiers","compound","heatCap","coldR"];
+function groupDefaults(){
+  const d = defaults().settings, g = {};
+  GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
+  return { settings:g, members:[] };
+}
 function newRoot(){
-  return { active:"Trading", order:["Trading"], portfolios:{ Trading:defaults() } };
+  return { active:"Trading", focus:null, order:["Trading"],
+           portfolios:{ Trading:defaults() }, groups:{} };
+}
+
+/* ---- accounts, groups, and which of them is in view ---- */
+const isGroup   = n => !!(root.groups && root.groups[n]);
+const isAccount = n => !!(root.portfolios && root.portfolios[n]);
+const groupMembers = g => (root.groups[g] && Array.isArray(root.groups[g].members))
+  ? root.groups[g].members.filter(m=>root.portfolios[m]) : [];
+function groupOf(acct){
+  for(const g in (root.groups||{})) if(groupMembers(g).indexOf(acct)>=0) return g;
+  return null;
+}
+// A member reads its ruleset from the group and its equity from itself. An ungrouped account
+// answers entirely for itself.
+function settingsFor(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return defaults().settings;
+  const g = groupOf(acct);
+  if(!g) return pf.settings;
+  const merged = Object.assign({}, pf.settings);
+  GROUP_KEYS.forEach(k=>{ merged[k] = root.groups[g].settings[k]; });
+  return merged;
+}
+const rUnitOf = acct => {
+  const pf = root.portfolios[acct];
+  return pf ? pf.settings.aum * settingsFor(acct).rPct/100 : 0;
+};
+// "group" = a group tab with no member drilled into. Everything else behaves as a single account.
+const inGroup = () => isGroup(root.active) && !root.focus;
+const acctInView = () => root.focus || (isGroup(root.active) ? (groupMembers(root.active)[0]||null) : root.active);
+const scope = () => inGroup() ? groupMembers(root.active) : [acctInView()].filter(Boolean);
+// Trades across whatever is in view, each carried with the account it belongs to.
+function scopeTrades(status){
+  const out = [];
+  scope().forEach(a=>(root.portfolios[a].trades||[]).forEach(t=>{
+    if(!status || t.status===status) out.push({acct:a, t});
+  }));
+  return out;
+}
+// Group trades are N linked records sharing a gid. In account mode each trade stands alone.
+function groupLegs(gid, status){
+  return scopeTrades(status).filter(x=>x.t.gid===gid);
 }
 function load(){
   try{
@@ -462,8 +519,36 @@ function normalize(){
       if(t.aumAtOpen==null && t.rUnit>0 && pf.settings.rPct>0) t.aumAtOpen = t.rUnit*100/pf.settings.rPct;
     });
   });
-  if(!root.portfolios[root.active]) root.active = root.order[0];
-  state = root.portfolios[root.active];
+  // groups
+  if(root.finnhub==null){
+    const withKey = Object.values(root.portfolios).find(p=>p.settings && p.settings.finnhub);
+    root.finnhub = withKey ? withKey.settings.finnhub : "";
+  }
+  if(!root.groups || typeof root.groups !== "object") root.groups = {};
+  const gd = groupDefaults().settings;
+  Object.keys(root.groups).forEach(g=>{
+    const G = root.groups[g];
+    if(!G.settings) G.settings = groupDefaults().settings;
+    Object.keys(gd).forEach(k=>{ if(G.settings[k]==null) G.settings[k] = gd[k]; });
+    if(!Array.isArray(G.settings.tiers) || G.settings.tiers.length!==3) G.settings.tiers = [1,0.5,0.25];
+    // Drop members that no longer exist, and never let an account sit in two groups.
+    if(!Array.isArray(G.members)) G.members = [];
+    G.members = G.members.filter((m,i)=>root.portfolios[m] && G.members.indexOf(m)===i);
+  });
+  const claimed = {};
+  Object.keys(root.groups).forEach(g=>{
+    root.groups[g].members = root.groups[g].members.filter(m=>{
+      if(claimed[m]) return false;
+      claimed[m] = g; return true;
+    });
+  });
+  Object.keys(root.groups).forEach(g=>{ if(root.order.indexOf(g)<0) root.order.push(g); });
+  root.order = root.order.filter(n=>isAccount(n) || isGroup(n));
+
+  if(!isAccount(root.active) && !isGroup(root.active)) { root.active = root.order[0]; root.focus = null; }
+  // A drilled-in member has to still belong to the active group.
+  if(root.focus && !(isGroup(root.active) && groupMembers(root.active).indexOf(root.focus)>=0)) root.focus = null;
+  state = root.portfolios[acctInView()] || root.portfolios[root.order.find(isAccount)] || defaults();
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(root)); }catch(e){} }
 
@@ -481,7 +566,7 @@ const $ = id => document.getElementById(id);
 
 /* ========================= core math ========================= */
 // 1R in dollars, right now, from live AUM.
-function rUnitNow(){ return state.settings.aum * state.settings.rPct / 100; }
+function rUnitNow(){ return rUnitOf(acctInView()); }
 
 // Replay the event log into a position. Everything downstream reads from here.
 function derive(t){
@@ -713,55 +798,175 @@ function svgLine(values, opts){
 }
 
 /* ========================= portfolios ========================= */
+// Tab strip. Accounts are plain pills; a group carries a leading dot, and the active group opens
+// out into a bordered box holding its own pill plus one per member.
 function renderTabs(){
-  const el = $("tabs");
-  el.innerHTML = root.order.map(n=>
-    '<button class="small'+(root.active===n?" primary":"")+'" onclick="switchPortfolio('+JSON.stringify(n).replace(/"/g,"&quot;")+')">'+esc(n)+'</button>'
-  ).join("") +
-  '<button class="small" title="New portfolio" onclick="addPortfolio()">+</button>' +
-  (root.order.length>1 ? '<button class="small danger" title="Delete the active portfolio" onclick="removePortfolio()">&#10005;</button>' : '') +
-  '<span class="muted" style="margin-left:auto">separate books, separate R units</span>';
+  const q = n => JSON.stringify(n).replace(/"/g,"&quot;");
+  const pill = (n,on,extra) => '<button class="small'+(on?" primary":"")+'"'+(extra||"")+
+    ' onclick="switchTab('+q(n)+')">'+esc(n)+'</button>';
+
+  const html = root.order.map(n=>{
+    if(!isGroup(n)) return groupOf(n) ? "" : pill(n, root.active===n && !root.focus);
+    const members = groupMembers(n);
+    const head = '<button class="small'+(root.active===n && !root.focus ? " primary":"")+'" onclick="switchTab('+q(n)+')">' +
+                 '<span class="gdot">&#9679;</span>'+esc(n)+'</button>';
+    if(root.active!==n) return head;                      // shut: just the group pill
+    return '<span class="gbox">' + head +
+      (members.length
+        ? members.map(m=>'<button class="small'+(root.focus===m?" primary":"")+
+            '" title="Work in '+esc(m)+' alone" onclick="focusMember('+q(m)+')">'+esc(m)+'</button>').join("")
+        : '<span class="muted" style="align-self:center;padding:0 6px">no accounts yet</span>') +
+      '</span>';
+  }).join("");
+
+  $("tabs").innerHTML = html +
+    '<button class="small" title="New account" onclick="addPortfolio()">+</button>' +
+    '<button class="small" title="New group" onclick="addGroup()">+ group</button>' +
+    (isGroup(root.active) ? '<button class="small" title="Choose which accounts belong to this group" onclick="editGroupMembers()">Members</button>' : '') +
+    (root.order.length>1 ? '<button class="small danger" title="Delete whatever tab is selected" onclick="removeTab()">&#10005;</button>' : '') +
+    '<span class="muted" style="margin-left:auto">'+
+      (inGroup() ? "one ruleset, each account on its own equity" : "separate books, separate R units")+'</span>';
 }
-window.switchPortfolio = n => {
-  if(!root.portfolios[n] || root.active===n) return;
-  root.active = n; state = root.portfolios[n]; save(); render();
-};
-window.addPortfolio = () => {
-  const n = (prompt("Name for the new portfolio:")||"").trim();
-  if(!n) return;
-  if(root.portfolios[n]){ alert("A portfolio called \""+n+"\" already exists."); return; }
-  root.portfolios[n] = defaults(); root.order.push(n); root.active = n; state = root.portfolios[n];
+
+window.switchTab = n => {
+  if(!isAccount(n) && !isGroup(n)) return;
+  root.active = n; root.focus = null;
+  state = root.portfolios[acctInView()] || state;
   save(); render();
 };
-window.removePortfolio = () => {
+window.focusMember = m => {
+  root.focus = (root.focus===m) ? null : m;   // click the member again to go back to the whole group
+  state = root.portfolios[acctInView()] || state;
+  save(); render();
+};
+
+window.addGroup = () => {
+  const n = (prompt("Name for the new group:")||"").trim();
+  if(!n) return;
+  if(isGroup(n) || isAccount(n)){ alert("\""+n+"\" is already taken by an account or group."); return; }
+  const g = groupDefaults();
+  // Seed the ruleset from whatever is in view, so a group starts where you already were.
+  const seed = settingsFor(acctInView());
+  if(seed) GROUP_KEYS.forEach(k=>{ g.settings[k] = Array.isArray(seed[k]) ? seed[k].slice() : seed[k]; });
+  root.groups[n] = g; root.order.push(n); root.active = n; root.focus = null;
+  save(); render();
+  editGroupMembers();
+};
+
+window.editGroupMembers = () => {
+  if(!isGroup(root.active)) return;
+  const g = root.active, mine = groupMembers(g);
+  const free = root.order.filter(n=>isAccount(n) && (!groupOf(n) || groupOf(n)===g));
+  if(!free.length){ alert("Create some accounts first — a group is a ruleset laid over accounts you already have."); return; }
+  const answer = prompt(
+    "Which accounts belong to \""+g+"\"?\n\nComma-separated, from: "+free.join(", ")+
+    "\n\nAn account can only be in one group. Accounts already grouped elsewhere are not listed.",
+    mine.join(", "));
+  if(answer===null) return;
+  const picked = answer.split(",").map(s=>s.trim()).filter(Boolean);
+  const bad = picked.filter(p=>free.indexOf(p)<0);
+  if(bad.length){ alert("Not available: "+bad.join(", ")); return; }
+  // An account leaving the group takes the group's ruleset with it, so its open trades keep sizing
+  // against the same numbers they were opened under.
+  mine.filter(m=>picked.indexOf(m)<0).forEach(m=>{
+    GROUP_KEYS.forEach(k=>{
+      const v = root.groups[g].settings[k];
+      root.portfolios[m].settings[k] = Array.isArray(v) ? v.slice() : v;
+    });
+  });
+  root.groups[g].members = picked;
+  if(root.focus && picked.indexOf(root.focus)<0) root.focus = null;
+  normalize(); save(); render();
+};
+
+window.removeTab = () => {
   if(root.order.length<2) return;
   const n = root.active;
-  const cnt = root.portfolios[n].trades.length;
-  if(!confirm("Delete the portfolio \""+n+"\" and its "+cnt+" trade(s)? This cannot be undone.")) return;
-  delete root.portfolios[n];
+  if(isGroup(n)){
+    const members = groupMembers(n);
+    if(!confirm("Delete the group \""+n+"\"?\n\nIts "+members.length+" account(s) and every trade in them are kept — they each take a copy of the group's ruleset and go back to standing alone.")) return;
+    members.forEach(m=>GROUP_KEYS.forEach(k=>{
+      const v = root.groups[n].settings[k];
+      root.portfolios[m].settings[k] = Array.isArray(v) ? v.slice() : v;
+    }));
+    delete root.groups[n];
+  } else {
+    const cnt = root.portfolios[n].trades.length;
+    if(!confirm("Delete the account \""+n+"\" and its "+cnt+" trade(s)? This cannot be undone.")) return;
+    delete root.portfolios[n];
+    Object.keys(root.groups).forEach(g=>{ root.groups[g].members = root.groups[g].members.filter(m=>m!==n); });
+  }
   root.order = root.order.filter(x=>x!==n);
-  root.active = root.order[0]; state = root.portfolios[root.active];
-  save(); render();
+  root.active = root.order[0]; root.focus = null;
+  normalize(); save(); render();
+};
+
+window.addPortfolio = () => {
+  const n = (prompt("Name for the new account:")||"").trim();
+  if(!n) return;
+  if(isAccount(n) || isGroup(n)){ alert("\""+n+"\" is already taken by an account or group."); return; }
+  root.portfolios[n] = defaults();
+  root.order.push(n);
+  // Created while a group is open? Put it straight into that group.
+  if(isGroup(root.active)){ root.groups[root.active].members.push(n); root.focus = null; }
+  else { root.active = n; root.focus = null; }
+  normalize(); save(); render();
 };
 
 /* ========================= settings ========================= */
 function renderSettings(){
-  const s = state.settings;
-  $("aum").value = "$" + s.aum.toLocaleString(undefined,{maximumFractionDigits:0});
+  const g = inGroup() ? root.active : null;
+  const s = g ? Object.assign({}, defaults().settings, root.groups[g].settings)
+              : settingsFor(acctInView());
+
+  // Equity is per account, so the single AUM field has no meaning for a whole group — the members
+  // list below takes its place.
+  $("aumCell").style.display = g ? "none" : "";
+  if(!g) $("aum").value = "$" + state.settings.aum.toLocaleString(undefined,{maximumFractionDigits:0});
   $("rpct").value = s.rPct;
   $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
   $("compound").value = s.compound ? "1" : "0";
   $("heatcap").value = s.heatCap; $("coldr").value = s.coldR;
-  $("fhkey").value = s.finnhub || "";
-  $("runitBox").innerHTML = "1R = " + fmt$(rUnitNow()) +
-    ' <span class="muted">(' + s.rPct + "% of " + fmt$(s.aum) + ")</span>";
+  $("fhkey").value = root.finnhub || "";
+
+  const eq = $("groupEquity");
+  if(g){
+    const members = groupMembers(g);
+    eq.style.display = "";
+    eq.innerHTML = members.length
+      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th class='num'>1R</th>" +
+        "<th class='num'>"+TIERS[0]+"</th><th class='num'>"+TIERS[1]+"</th><th class='num'>"+TIERS[2]+"</th><th></th></tr>" +
+        members.map(m=>{
+          const R = rUnitOf(m);
+          return "<tr><td>"+esc(m)+"</td>" +
+            "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
+              fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+esc(m).replace(/'/g,"\\'")+"',this.value)\"></td>" +
+            "<td class='num'>"+fmt$(R)+"</td>" +
+            s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
+            "<td class='num'><button class='small' onclick=\"focusMember('"+esc(m).replace(/'/g,"\\'")+"')\">Open</button></td></tr>";
+        }).join("") + "</table>"
+      : "<div class='muted'>No accounts in this group yet &mdash; use Members above.</div>";
+  } else eq.style.display = "none";
+
+  $("runitBox").innerHTML = g
+    ? "One ruleset &middot; " + groupMembers(g).length + " account" + (groupMembers(g).length===1?"":"s") +
+      ' <span class="muted">&mdash; each sizes off its own equity above</span>'
+    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(state.settings.aum) + ")</span>";
+
   const sel = $("nt_tier").value !== "" ? $("nt_tier").value : "1";
   $("nt_tier").innerHTML = TIERS.map((n,i)=>
-    '<option value="'+i+'"'+(i===parseInt(sel)?" selected":"")+'>'+n+" &mdash; "+s.tiers[i]+"R ("+fmt$(rUnitNow()*s.tiers[i])+")</option>").join("");
+    '<option value="'+i+'"'+(i===parseInt(sel)?" selected":"")+'>'+n+" &mdash; "+s.tiers[i]+"R" +
+    (g ? "" : " ("+fmt$(rUnitNow()*s.tiers[i])+")") + "</option>").join("");
 }
+window.setMemberAum = (m,v) => {
+  const n = parseFloat(String(v).replace(/[^0-9.]/g,""));
+  if(root.portfolios[m] && !isNaN(n) && n>0) root.portfolios[m].settings.aum = n;
+  save(); render();
+};
 
 /* ========================= new trade ========================= */
 function newTradeCal(){
+  if(inGroup()) return renderGroupNewTrade();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
   const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
   $("nt_err").textContent = "";
@@ -782,9 +987,7 @@ function newTradeCal(){
     "Risk per share <b>" + fmt$(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
     " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)";
 
-  $("nt_ladder").innerHTML = q>0
-    ? '<span class="muted" style="align-self:center">targets:</span>' + ladderHtml(ladder(side,P,q,R,null,[1,2,3,5]))
-    : "";
+  $("nt_ladder").innerHTML = "";   // targets removed 2026-08-28; a reworked version is on the list
 
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
@@ -848,6 +1051,7 @@ function openTrade(){
     const p = $("nt_plan"); if(p) p.open = true;
     return;
   }
+  if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
   const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
@@ -881,7 +1085,19 @@ function openTrade(){
 }
 
 /* ========================= trade card ========================= */
-const getTrade = id => state.trades.find(t=>t.id===id);
+// Trade actions are addressed by id from markup that may belong to any account in view, so the
+// lookup spans every book rather than just the active one.
+function getTrade(id){
+  for(const n of Object.keys(root.portfolios)){
+    const t = root.portfolios[n].trades.find(x=>x.id===id);
+    if(t) return t;
+  }
+  return null;
+}
+function acctOf(id){
+  for(const n of Object.keys(root.portfolios)) if(root.portfolios[n].trades.some(x=>x.id===id)) return n;
+  return acctInView();
+}
 
 // A mark is the last price you told the app about. It goes stale after a day of wall-clock time,
 // because every number on an open card — heat, open P/L, the ADR check — is only as current as it.
@@ -954,7 +1170,6 @@ function tradeCard(t){
 
   if(t.collapsed) return '<div class="card tradecollapsed">'+head+'</div>';
 
-  const rungs = ladder(t.side, d.avg, d.Q, R, t.last, [1,2,3,5]);
   const planBits = [
     t.plan && t.plan.addIf  ? "<b>add if</b> "+esc(t.plan.addIf)   : null,
     t.plan && t.plan.cutIf  ? "<b>cut if</b> "+esc(t.plan.cutIf)   : null,
@@ -1026,7 +1241,6 @@ function tradeCard(t){
       (trailNote ? '<div class="calsub calrule">'+trailNote+'</div>' : "") +
     '</div>' +
 
-    (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">03 &middot; targets from avg '+fmtP(d.avg)+':</span>'+ladderHtml(rungs)+'</div>' : "") +
     (planBits.length ? '<div class="calsub" style="margin-top:9px">'+planBits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "") +
 
     '<div class="actions">' +
@@ -1196,7 +1410,9 @@ window.closeTrade = id => {
   if(d.Q>0) t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
   t.status = "closed"; t.closedAt = Date.now(); t.last = P; t.lastMarkTs = Date.now();
   const fin = derive(t);
-  if(state.settings.compound) state.settings.aum = Math.round((state.settings.aum + fin.realized)*100)/100;
+  // Compound into the account that actually held the trade, not whatever tab is open.
+  const pf = root.portfolios[acctOf(id)];
+  if(pf && settingsFor(acctOf(id)).compound) pf.settings.aum = Math.round((pf.settings.aum + fin.realized)*100)/100;
   save(); render();
 };
 window.toggleCard = id => { const t = getTrade(id); if(t){ t.collapsed = !t.collapsed; save(); render(); } };
@@ -1238,7 +1454,7 @@ const reviewDue = t => t.status==="closed" &&
   !(t.review30 && t.review30.trim()) &&
   daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS;
 const reviewDueIn = t => REVIEW_DAYS - daysBetween(t.closedAt || t.createdAt, Date.now());
-const reviewsDueCount = () => state.trades.filter(reviewDue).length;
+const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
 // One renderer for the badge, so the desk and the Closed Trades header can never disagree.
 function reviewsDueHtml(){
   const n = reviewsDueCount();
@@ -1350,6 +1566,7 @@ function reopenLog(id){
 
 /* ========================= tally ========================= */
 function renderClosed(){
+  if(inGroup()) return renderGroupClosed();
   const closed = state.trades.filter(t=>t.status==="closed");
   const sum = $("closedSummary");
   if(closed.length){
@@ -1405,15 +1622,7 @@ function renderClosed(){
     const p = t.plan||{};
     const planRow = [p.addIf?"<b>add if</b> "+esc(p.addIf):null, p.cutIf?"<b>cut if</b> "+esc(p.cutIf):null,
                      p.waitIf?"<b>wait if</b> "+esc(p.waitIf):null, p.exit?"<b>exit</b> "+esc(p.exit):null].filter(Boolean).join(" &nbsp;&middot;&nbsp; ");
-
-    const legacy = t.lossTag && !LOSS_TAGS.some(o=>o.v===t.lossTag);
-    const tagSel = rm<0
-      ? '<select onchange="setLossTag(\''+t.id+'\',this.value)" style="max-width:230px">' +
-        '<option value="">tag this loss…</option>' +
-        LOSS_TAGS.map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
-        (legacy ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired tag)</option>' : "") +
-        '</select>'
-      : '<span class="muted">&mdash;</span>';
+    const tagSel = lossTagSelect(t);
 
     const due = reviewDue(t);
     return "<tr"+(due?" class='reviewdue'":"")+">" +
@@ -1473,9 +1682,102 @@ function renderClosed(){
 
 }
 
+// Closed group trades: the visible line is the whole group, the expansion is one row per account.
+function renderGroupClosed(){
+  const closed = scopeTrades("closed");
+  const tbl = $("closedTbl"), sum = $("closedSummary");
+  const groups = {}, order = [];
+  closed.forEach(x=>{
+    const k = x.t.gid || ("solo:"+x.t.id);
+    if(!groups[k]){ groups[k] = []; order.push(k); }
+    groups[k].push(x);
+  });
+  order.sort((a,b)=>{
+    const la = Math.max(...groups[a].map(x=>x.t.closedAt||0));
+    const lb = Math.max(...groups[b].map(x=>x.t.closedAt||0));
+    return lb-la;
+  });
+
+  const totR = closed.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
+  const badge = reviewsDueHtml();
+  sum.innerHTML = order.length ? order.length+" group trade"+(order.length===1?"":"s")+
+    " &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>"+(badge?" &middot; "+badge:"") : "";
+
+  if(!order.length){
+    tbl.innerHTML = "<tr><td class='muted'>No closed trades in this group yet.</td></tr>";
+    $("stats").innerHTML = "";
+    return;
+  }
+
+  const rows = order.map(k=>{
+    const legs = groups[k], f = legs[0].t;
+    const realized = legs.reduce((a,x)=>a+derive(x.t).realized, 0);
+    const rSum = legs.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
+    const rMean = rSum/legs.length;
+    const days = Math.max(...legs.map(x=>stats(x.t).days));
+    const due = legs.some(reviewDueLeg);
+    const detail = "<tr><td colspan='9' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+      "<div class='scroll'><table><tr><th>Account</th><th class='num'>1R</th><th class='num'>Realized</th>" +
+      "<th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th>" +
+      "<th class='num'>% equity</th><th>Loss audit</th><th></th></tr>" +
+      legs.map(x=>{
+        const S = stats(x.t), rm = S.rm;
+        return "<tr><td>"+esc(x.acct)+"</td><td class='num'>"+fmt$(x.t.rUnit)+"</td>" +
+          "<td class='num "+cls(S.d.realized)+"'>"+fmt$(S.d.realized)+"</td>" +
+          "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
+          "<td class='num'>"+S.days+"</td><td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
+          "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
+          "<td>"+lossTagSelect(x.t)+"</td>" +
+          "<td class='num'><button class='small' onclick=\"focusMember('"+esc(x.acct).replace(/'/g,"\'")+"')\">Open</button></td></tr>";
+      }).join("") + "</table></div></td></tr>";
+    return "<tr"+(due?" class='reviewdue'":"")+">" +
+      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
+        (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
+      "<td>"+(f.side>0?"L":"S")+"</td><td>"+TIERS[f.tier]+"</td><td>"+esc(f.concept)+"</td>" +
+      "<td class='num'>"+legs.length+"</td>" +
+      "<td class='num "+cls(realized)+"'>"+fmt$(realized)+"</td>" +
+      "<td class='num "+cls(rMean)+"'>"+fmtR(rMean)+"</td>" +
+      "<td class='num'>"+days+"</td>" +
+      "<td class='num'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">&#10005;</button></td></tr>" +
+      "<tr id='log_"+k+"' style='display:none'>"+detail.slice(4);
+  }).join("");
+
+  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>Accounts</th>" +
+    "<th class='num'>Realized</th><th class='num'>Mean R</th><th class='num'>Days</th><th></th></tr>" + rows;
+  $("stats").innerHTML = '<div class="metric"><div class="k">Group totals</div><div class="v '+cls(totR)+'">'+fmtR(totR)+'</div>'+
+    '<div class="r">summed across accounts &mdash; per-account statistics live in section 05</div></div>';
+}
+// Shared by the account view and the group expansion, so a tag looks and behaves the same in both.
+function lossTagSelect(t){
+  if(derive(t).realized >= 0) return '<span class="muted">&mdash;</span>';
+  const legacy = t.lossTag && !LOSS_TAGS.some(o=>o.v===t.lossTag);
+  return '<select onchange="setLossTag(\x27'+t.id+'\x27,this.value)" style="max-width:230px">' +
+    '<option value="">tag this loss…</option>' +
+    LOSS_TAGS.map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
+    (legacy ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired tag)</option>' : "") +
+    '</select>';
+}
+const reviewDueLeg = x => reviewDue(x.t);
+window.gDeleteClosed = k => {
+  const legs = scopeTrades("closed").filter(x=>(x.t.gid||("solo:"+x.t.id))===k);
+  if(!confirm("Delete this trade from all "+legs.length+" account(s)? This cannot be undone.")) return;
+  legs.forEach(x=>{ root.portfolios[x.acct].trades = root.portfolios[x.acct].trades.filter(t=>t.id!==x.t.id); });
+  save(); render();
+};
+
 /* ========================= charts & statistics ========================= */
 function renderCharts(chrono){
   const sum = $("chartsSummary");
+  // A group picks one account at a time: none of these statistics survive being pooled across
+  // accounts of different size.
+  const pick = $("chartsAcct");
+  if(inGroup()){
+    const members = groupMembers(root.active), cur = chartAcct();
+    pick.innerHTML = members.length
+      ? '<span class="muted" style="margin-right:6px">account</span><select style="width:auto;max-width:200px" onchange="setChartAcct(this.value)">' +
+        members.map(m=>'<option value="'+esc(m)+'"'+(m===cur?" selected":"")+'>'+esc(m)+'</option>').join("") + '</select>'
+      : "";
+  } else pick.innerHTML = "";
   if(!chrono || chrono.length < 2){
     $("chartsBox").style.display = "none";
     $("chartsEmpty").style.display = "";
@@ -1580,6 +1882,309 @@ function groupTable(trades, S, keyOf, label){
       "</td><td class='num "+cls(r.exp)+"'>"+fmtR(r.exp)+"</td></tr>").join("");
 }
 
+/* ========================= group mode ========================= */
+// One ruleset fanned across accounts. Everything here renders a list with a row per account, because
+// the numbers genuinely differ per account even though the decision is one decision.
+
+function gSel(){ return root.gsel || {}; }                 // per-trade member opt-outs
+window.toggleMember = m => {
+  const s = root.gsel || (root.gsel = {});
+  s[m] = !s[m];
+  newTradeCal();
+};
+const memberIn = m => !gSel()[m];
+
+// Sizing preview: one row per member, off its own equity.
+function groupSizeRows(P, S, side, ti){
+  const den = side*(P-S);
+  return groupMembers(root.active).map(m=>{
+    const s = settingsFor(m), R = rUnitOf(m), mult = s.tiers[ti], budget = R*mult;
+    const q = den>0 ? Math.floor(budget/den) : 0;
+    return { m, R, mult, budget, q, cost:q*P, aum:root.portfolios[m].settings.aum,
+             alloc: root.portfolios[m].settings.aum>0 ? q*P/root.portfolios[m].settings.aum*100 : 0,
+             on: memberIn(m), skipped: q<=0 };
+  });
+}
+
+function renderGroupNewTrade(){
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  $("nt_err").textContent = "";
+  if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
+  const den = side*(P-S);
+  if(!(den>0)){
+    $("nt_calbox").style.display="none";
+    $("nt_err").textContent = "Stop must be below entry for longs, above entry for shorts.";
+    return null;
+  }
+  const rows = groupSizeRows(P,S,side,ti);
+  const taking = rows.filter(r=>r.on && !r.skipped);
+  $("nt_calbox").style.display = "block";
+  $("nt_calans").textContent = taking.length + " of " + rows.length + " accounts &middot; "
+    .replace("&middot;","·") + fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total";
+  $("nt_calsub").innerHTML = "Risk per share <b>"+fmt$(den)+"</b> &middot; every account sizes off its own equity at "+
+    TIERS[ti]+" ("+rows[0]?.mult+"R)";
+  $("nt_ladder").innerHTML =
+    '<div class="scroll" style="width:100%"><table>' +
+    "<tr><th>Take</th><th>Account</th><th class='num'>Equity</th><th class='num'>1R</th><th class='num'>Risk</th>" +
+    "<th class='num'>Shares</th><th class='num'>Cost</th><th class='num'>Allocation</th></tr>" +
+    rows.map(r=>{
+      const off = !r.on || r.skipped;
+      return "<tr"+(off?" style='opacity:.5'":"")+">" +
+        "<td><input type='checkbox' style='width:auto' "+(r.on?"checked":"")+
+          " onchange=\"toggleMember('"+esc(r.m).replace(/'/g,"\\'")+"')\"></td>" +
+        "<td>"+esc(r.m)+"</td>" +
+        "<td class='num'>"+fmt$(r.aum)+"</td><td class='num'>"+fmt$(r.R)+"</td>" +
+        "<td class='num'>"+fmt$(r.budget)+"</td>" +
+        "<td class='num'><b>"+(r.skipped ? "<span class='muted'>0 &mdash; too small</span>" : fmtQ(r.q))+"</b></td>" +
+        "<td class='num'>"+fmt$(r.cost)+"</td><td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>";
+    }).join("") + "</table></div>";
+
+  const skipped = rows.filter(r=>r.on && r.skipped);
+  const adr = parseFloat($("nt_adr").value);
+  const a = adrAudit(P, adr, den);
+  let vol = a
+    ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.adrs.toFixed(1)+" ADRs away.</span> " +
+      (a.adrs<1.5 ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
+    : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
+  if(skipped.length) vol += '<br><span style="color:var(--amber)">Skipped: '+skipped.map(r=>esc(r.m)).join(", ")+
+    " &mdash; one share would risk more than the budget at this stop. Nothing is opened for them.</span>";
+  $("nt_vol").innerHTML = vol;
+  return rows;
+}
+
+function openGroupTrade(){
+  const tk = $("nt_tk").value.trim().toUpperCase();
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  const rows = renderGroupNewTrade();
+  if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
+  if(!rows){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
+  const taking = rows.filter(r=>r.on && !r.skipped);
+  if(!taking.length){ $("nt_err").textContent = "No account can take this trade — every member is unticked or sized to zero."; return; }
+
+  const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
+  const adr = parseFloat($("nt_adr").value);
+  const plan = { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
+                 waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() };
+  const checks = [0,1,2,3].map(i=>$("nt_c"+i).checked);
+  const now = Date.now();
+  taking.forEach(r=>{
+    root.portfolios[r.m].trades.unshift({
+      id: now+""+Math.floor(Math.random()*1e6),
+      gid, gname: root.active,
+      ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti, mult: r.mult,
+      adr: (!isNaN(adr)&&adr>0) ? adr : null,
+      rUnit: r.R, aumAtOpen: r.aum, status:"open", last:P,
+      plan: Object.assign({}, plan), checks: checks.slice(),
+      events: [{type:"entry", qty:r.q, price:P, stop:S, ts:now}],
+      createdAt: now, lastMarkTs: now
+    });
+  });
+  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
+    .forEach(id=>{ $(id).value = ""; });
+  [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
+  updateGate(); updateWash();
+  $("nt_calbox").style.display = "none";
+  save(); render();
+}
+
+/* ---- group actions: one decision, applied to each leg on its own numbers ---- */
+const legsOf = gid => scopeTrades("open").filter(x=>x.t.gid===gid);
+function gEach(gid, fn){ legsOf(gid).forEach(x=>fn(x.t, x.acct)); save(); render(); }
+
+window.gSetLast = gid => { const v = parseFloat($("gpx_"+gid).value);
+  if(!(v>0)) return; gEach(gid,t=>{ t.last=v; t.lastMarkTs=Date.now(); }); };
+window.gMoveStop = gid => { const v = parseFloat($("gstp_"+gid).value);
+  if(isNaN(v)) return; gEach(gid,t=>t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()})); };
+window.gSetAdr = gid => { const v = parseFloat($("gadr_"+gid).value);
+  if(!(v>0)) return; gEach(gid,t=>{ t.adr=v; }); };
+window.gSetBudget = gid => { const v = parseFloat($("grb_"+gid).value);
+  if(!(v>0)) return; gEach(gid,t=>t.events.push({type:"budget", mult:v, price:t.last, ts:Date.now()})); };
+window.gBudgetTo = (gid,v) => { $("grb_"+gid).value = v; gSetBudget(gid); };
+// Adds are per-account by construction: same price and stop, each account's own maximum.
+window.gAdd = gid => {
+  const Pa = parseFloat($("gaddp_"+gid).value);
+  let S = parseFloat($("gadds_"+gid).value);
+  const err = $("gadderr_"+gid);
+  if(isNaN(Pa)){ err.textContent = "Enter an add price."; return; }
+  let any = false, zero = [];
+  legsOf(gid).forEach(x=>{
+    const d = derive(x.t), stop = isNaN(S) ? d.stop : S;
+    if(stop==null) return;
+    const r = maxAdd(x.t, d, Pa, stop);
+    if(!r.ok || r.q<=0){ zero.push(x.acct); return; }
+    x.t.events.push({type:"add", qty:r.q, price:Pa, stop:stop, ts:Date.now()});
+    x.t.last = Pa; x.t.lastMarkTs = Date.now(); any = true;
+  });
+  if(!any){ err.textContent = "No account has room to add at this stop. Tighten the stop or trim first."; return; }
+  err.textContent = zero.length ? "No room in: "+zero.join(", ") : "";
+  save(); render();
+};
+// Trims broadcast as a fraction, never a share count — the accounts hold different sizes.
+window.gTrim = (gid, frac) => {
+  const P0 = parseFloat($("gtrp_"+gid).value);
+  const err = $("gtrerr_"+gid);
+  let f = frac!=null ? frac : parseFloat($("gtrpct_"+gid).value)/100;
+  if(!(f>0)){ err.textContent = "Enter a percentage, or use the 25% / 50% buttons."; return; }
+  if(f>1) f = 1;
+  let any = false;
+  legsOf(gid).forEach(x=>{
+    const d = derive(x.t), q = Math.floor(d.Q*f);
+    if(q<=0) return;
+    const P = isNaN(P0) ? x.t.last : P0;
+    x.t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
+    x.t.last = P; x.t.lastMarkTs = Date.now(); any = true;
+  });
+  err.textContent = any ? "" : "That percentage rounds to zero shares in every account.";
+  if(any){ save(); render(); }
+};
+window.gClose = gid => {
+  const P = parseFloat($("gclp_"+gid).value);
+  const err = $("gclerr_"+gid);
+  if(isNaN(P)){ err.textContent = "Enter the exit price."; return; }
+  legsOf(gid).forEach(x=>{
+    const d = derive(x.t);
+    if(d.Q>0) x.t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
+    x.t.status="closed"; x.t.closedAt=Date.now(); x.t.last=P; x.t.lastMarkTs=Date.now();
+    const fin = derive(x.t), pf = root.portfolios[x.acct];
+    if(settingsFor(x.acct).compound) pf.settings.aum = Math.round((pf.settings.aum + fin.realized)*100)/100;
+  });
+  save(); render();
+};
+window.gDelete = gid => {
+  const legs = legsOf(gid);
+  if(!confirm("Delete this group trade from all "+legs.length+" account(s)? This cannot be undone.")) return;
+  legs.forEach(x=>{ root.portfolios[x.acct].trades = root.portfolios[x.acct].trades.filter(t=>t.id!==x.t.id); });
+  save(); render();
+};
+window.gToggleCard = gid => { root.gcollapse = root.gcollapse || {};
+  root.gcollapse[gid] = !root.gcollapse[gid]; save(); render(); };
+
+// The per-account line for an open group trade. Prices are shared; everything money is not.
+function legStats(t){
+  const d = derive(t), R = t.rUnit;
+  const cost = d.avg*d.Q, value = t.last*d.Q;
+  const openPL = t.side*(t.last-d.avg)*d.Q;
+  const ras = riskAtStop(t,d);
+  return { d, R, cost, value, openPL, realized:d.realized,
+    openPct: cost>0 ? openPL/cost*100 : 0,
+    equityPct: t.aumAtOpen>0 ? (d.realized+openPL)/t.aumAtOpen*100 : 0,
+    seq: ras - d.realized, total: d.realized+openPL,
+    alloc: t.aumAtOpen>0 ? value/t.aumAtOpen*100 : 0 };
+}
+
+function groupTradeCard(gid, legs){
+  const first = legs[0].t;
+  const collapsed = !!(root.gcollapse||{})[gid];
+  const agg = legs.map(x=>legStats(x.t));
+  const sum = k => agg.reduce((a,s)=>a+s[k], 0);
+  const totR = agg.reduce((a,s)=>a+s.total/s.R, 0) / legs.length;   // mean R across the legs
+  const d0 = derive(first);
+  const anyStale = legs.some(x=>isStale(x.t));
+
+  const head = '<div class="tradehead">' +
+    '<button class="small" style="padding:2px 9px" onclick="gToggleCard(\''+gid+'\')">'+(collapsed?"&#9656;":"&#9662;")+'</button>' +
+    (!collapsed ? '<button class="small danger" style="padding:2px 9px" title="Delete from every account" onclick="gDelete(\''+gid+'\')">&#10005;</button>' : "") +
+    '<span class="tk">'+esc(first.ticker)+'</span>' +
+    '<span class="pill '+(first.side>0?"long":"short")+'">'+(first.side>0?"LONG":"SHORT")+'</span>' +
+    '<span class="pill tier">'+TIERS[first.tier]+" &middot; "+d0.mult+"R budget</span>" +
+    '<span class="pill grey">'+legs.length+" account"+(legs.length===1?"":"s")+"</span>" +
+    (collapsed ? '<span class="muted" style="font-family:var(--mono)">stop '+(d0.stop!=null?fmtP(d0.stop):"—")+
+        " &middot; last "+fmtP(first.last)+" &middot; "+fmt$(sum("total"))+'</span>' : "") +
+    '<span class="muted" style="margin-left:auto">'+esc(first.concept)+
+      (anyStale?' <span style="color:var(--amber)">· stale mark</span>':"")+'</span></div>';
+
+  if(collapsed) return '<div class="card tradecollapsed">'+head+'</div>';
+
+  const rows = legs.map((x,i)=>{
+    const s = agg[i];
+    return "<tr><td>"+esc(x.acct)+"</td>" +
+      "<td class='num'>"+fmtQ(s.d.Q)+"</td>" +
+      "<td class='num'>"+(s.d.stop!=null?fmtP(s.d.stop):"&mdash;")+"</td>" +
+      "<td class='num'>"+fmtP(x.t.last)+"</td>" +
+      "<td class='num "+cls(s.openPL)+"'>"+fmt$(s.openPL)+"</td>" +
+      "<td class='num "+cls(s.openPct)+"'>"+s.openPct.toFixed(2)+"%</td>" +
+      "<td class='num "+cls(s.equityPct)+"'>"+s.equityPct.toFixed(2)+"%</td>" +
+      "<td class='num "+cls(s.realized)+"'>"+fmt$(s.realized)+"</td>" +
+      "<td class='num "+cls(-s.seq)+"'>"+fmt$(-s.seq)+"</td>" +
+      "<td class='num "+cls(s.total)+"'>"+fmt$(s.total)+"</td>" +
+      "<td class='num'>"+fmt$(s.cost)+"</td>" +
+      "<td class='num'>"+fmt$(s.value)+"</td>" +
+      "<td class='num'>"+s.alloc.toFixed(1)+"%</td>" +
+      "<td class='num'><button class='small' onclick=\"focusMember('"+esc(x.acct).replace(/'/g,"\\'")+"')\">Open</button></td></tr>";
+  }).join("");
+
+  const totalRow = "<tr style='border-top:1px solid var(--line2)'><td><b>Group</b></td>" +
+    "<td class='num'><b>"+fmtQ(agg.reduce((a,s)=>a+s.d.Q,0))+"</b></td>" +
+    "<td class='num muted'>&mdash;</td><td class='num muted'>&mdash;</td>" +
+    "<td class='num "+cls(sum("openPL"))+"'><b>"+fmt$(sum("openPL"))+"</b></td>" +
+    "<td class='num muted'>&mdash;</td><td class='num muted'>&mdash;</td>" +
+    "<td class='num "+cls(sum("realized"))+"'><b>"+fmt$(sum("realized"))+"</b></td>" +
+    "<td class='num "+cls(-sum("seq"))+"'><b>"+fmt$(-sum("seq"))+"</b></td>" +
+    "<td class='num "+cls(sum("total"))+"'><b>"+fmt$(sum("total"))+"</b></td>" +
+    "<td class='num'><b>"+fmt$(sum("cost"))+"</b></td>" +
+    "<td class='num'><b>"+fmt$(sum("value"))+"</b></td>" +
+    "<td class='num muted'>&mdash;</td><td></td></tr>";
+
+  const be = beStop(first, d0);
+  const q = s => "'"+gid+"'";
+  return '<div class="card">' + head +
+    '<div class="scroll"><table><tr><th>Account</th><th class="num">Shares</th><th class="num">Stop</th>' +
+    '<th class="num">Last</th><th class="num">Open P/L</th><th class="num">Open P/L %</th>' +
+    '<th class="num">Equity P/L %</th><th class="num">Realized</th><th class="num">Seq at stop</th>' +
+    '<th class="num">Total</th><th class="num">Cost</th><th class="num">Value</th><th class="num">Allocation</th><th></th></tr>' +
+    rows + totalRow + '</table></div>' +
+    '<div class="calsub" style="margin-top:8px">Mean R across the legs: <b>'+fmtR(totR)+
+      '</b>. Every control below is one decision applied to all '+legs.length+
+      ' accounts, each computed on its own equity. Open an account to act on it alone.</div>' +
+
+    '<div class="actions">' +
+      '<div class="action"><div class="t">Mark / last price</div><div class="row">' +
+        '<input type="number" step="any" id="gpx_'+gid+'" placeholder="'+first.last+'" onkeydown="if(event.key===\'Enter\')gSetLast('+q()+')">' +
+        '<button class="small" onclick="gSetLast('+q()+')">Set</button></div></div>' +
+
+      '<div class="action"><div class="t">Add (constant risk, per account)</div><div class="row">' +
+        '<input type="number" step="any" id="gaddp_'+gid+'" placeholder="price" onkeydown="if(event.key===\'Enter\')gAdd('+q()+')">' +
+        '<input type="number" step="any" id="gadds_'+gid+'" placeholder="new stop">' +
+        '<button class="small primary" onclick="gAdd('+q()+')">Add</button></div>' +
+        '<div class="err" id="gadderr_'+gid+'"></div>' +
+        '<div class="muted" style="margin-top:5px">Each account takes its own maximum at this price and stop.</div></div>' +
+
+      '<div class="action"><div class="t">Trim / take profit</div><div class="row">' +
+        '<input type="number" step="any" id="gtrp_'+gid+'" placeholder="price">' +
+        '<input type="number" step="1" id="gtrpct_'+gid+'" placeholder="%" style="max-width:70px">' +
+        '<button class="small" onclick="gTrim('+q()+',0.25)">25%</button>' +
+        '<button class="small" onclick="gTrim('+q()+',0.5)">50%</button>' +
+        '<button class="small primary" onclick="gTrim('+q()+',null)">Trim</button></div>' +
+        '<div class="err" id="gtrerr_'+gid+'"></div>' +
+        '<div class="muted" style="margin-top:5px">A percentage, not a share count — the accounts hold different sizes.</div></div>' +
+
+      '<div class="action"><div class="t">Stop</div>' +
+        '<div class="sublbl">Move stop to <span class="muted">'+(d0.stop!=null?"now "+fmtP(d0.stop):"none set")+'</span></div>' +
+        '<div class="row"><input type="number" step="any" id="gstp_'+gid+'" placeholder="price" onkeydown="if(event.key===\'Enter\')gMoveStop('+q()+')">' +
+        '<button class="small primary" onclick="gMoveStop('+q()+')">Move</button></div>' +
+        (be!=null ? '<div class="row" style="margin-top:6px"><span class="muted" style="align-self:center">jump to:</span>' +
+          '<button class="small" onclick="gstp_'+gid+'.value='+roundPx(be)+';gMoveStop('+q()+')">breakeven '+fmtP(roundPx(be))+'</button></div>' : "") +
+        '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(first.adr!=null?"now "+first.adr+"%":"not set")+'</span></div>' +
+        '<div class="row"><input type="number" step="0.1" id="gadr_'+gid+'" placeholder="% of price" style="max-width:110px">' +
+        '<button class="small" onclick="gSetAdr('+q()+')">Set</button></div></div>' +
+
+      '<div class="action"><div class="t">Risk budget (R)</div><div class="row">' +
+        '<input type="number" step="0.05" id="grb_'+gid+'" placeholder="'+d0.mult+'R now" style="max-width:86px">' +
+        '<button class="small" onclick="gBudgetTo('+q()+',0.25)">.25</button>' +
+        '<button class="small" onclick="gBudgetTo('+q()+',0.5)">.5</button>' +
+        '<button class="small" onclick="gBudgetTo('+q()+',1)">1</button>' +
+        '<button class="small" onclick="gBudgetTo('+q()+',2)">2</button>' +
+        '<button class="small primary" onclick="gSetBudget('+q()+')">Set</button></div></div>' +
+
+      '<div class="action"><div class="t">Close all accounts</div><div class="row">' +
+        '<input type="number" step="any" id="gclp_'+gid+'" placeholder="price">' +
+        '<button class="small danger" onclick="gClose('+q()+')">Close</button></div>' +
+        '<div class="err" id="gclerr_'+gid+'"></div></div>' +
+    '</div></div>';
+}
+
 /* ========================= book bar ========================= */
 // The section header lives inside this card rather than floating above it, so section 03 lines up
 // with every other section's card edge.
@@ -1626,7 +2231,7 @@ function renderBook(open){
       "R cap. This is a survival lever &mdash; no new trades and no adds until heat comes back under it (trim, tighten, or let stops ratchet).</div>" : "") +
     (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
       " closed trades (threshold &minus;"+state.settings.coldR+"R). The lever here is stepping back and reviewing &mdash; never resizing R to win it back.</div>" : "") +
-'<div class="card">' + openHead(refreshBtnHtml(stale, !!state.settings.finnhub)) +
+'<div class="card">' + openHead(refreshBtnHtml(stale, !!root.finnhub)) +
     '<div class="hint" id="refreshStatus"></div>' +
     '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
       '<div class="statrow" style="flex:1;min-width:280px">' +
@@ -1652,18 +2257,50 @@ function render(){
   renderSections();
   // Mirrored on the desk so the queue is visible from the top of the page, whatever is collapsed.
   $("deskSummary").innerHTML = reviewsDueHtml();
-  const open = state.trades.filter(t=>t.status==="open");
+  const G = inGroup();
+  const open = G ? scopeTrades("open").map(x=>x.t) : state.trades.filter(t=>t.status==="open");
   const heat = renderBook(open) || [];
   heat.sort((a,b)=> b.seqR - a.seqR);
-  $("openTrades").innerHTML = open.length
-    ? heat.map(h=>tradeCard(h.t)).join("")
-    : '<div class="card muted">Nothing open. Size one in section 02 and it appears here.</div>';
+
+  if(G){
+    // One card per group trade, holding all its legs. A leg opened in a single account still gets
+    // its own card, so nothing is hidden just because it was not fanned out.
+    const seen = {}, cards = [];
+    scopeTrades("open").forEach(x=>{
+      const key = x.t.gid || ("solo:"+x.t.id);
+      if(seen[key]) return;
+      seen[key] = 1;
+      const legs = x.t.gid ? scopeTrades("open").filter(y=>y.t.gid===x.t.gid) : [x];
+      cards.push(groupTradeCard(key, legs));
+    });
+    $("openTrades").innerHTML = cards.length ? cards.join("")
+      : '<div class="card muted">Nothing open. Size one in section 02 and it appears here.</div>';
+  } else {
+    $("openTrades").innerHTML = open.length
+      ? heat.map(h=>tradeCard(h.t)).join("")
+      : '<div class="card muted">Nothing open. Size one in section 02 and it appears here.</div>';
+  }
+
   renderClosed();
-  const closedChrono = state.trades.filter(t=>t.status==="closed")
-    .sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
-  renderCharts(closedChrono);
+  renderCharts(chartTrades());
   const os = $("openSummary");
   if(os) os.textContent = open.length ? open.length+" open" : "none open";
+}
+
+// Charts read one account at a time — a group picks which through the dropdown, since none of the
+// statistics are meaningful pooled across accounts of different size.
+function chartAcct(){
+  if(!inGroup()) return acctInView();
+  const members = groupMembers(root.active);
+  if(!members.length) return null;
+  return members.indexOf(root.chartAcct)>=0 ? root.chartAcct : members[0];
+}
+window.setChartAcct = a => { root.chartAcct = a; save(); render(); };
+function chartTrades(){
+  const a = chartAcct();
+  if(!a) return [];
+  return root.portfolios[a].trades.filter(t=>t.status==="closed")
+    .sort((x,y)=>(x.closedAt||x.createdAt||0)-(y.closedAt||y.createdAt||0));
 }
 
 /* ========================= bindings ========================= */
@@ -1673,24 +2310,31 @@ function bindSettings(){
     if(!isNaN(v) && v>0) state.settings.aum = v;
     save(); render();
   });
+  // A ruleset edit lands on the group when one is open, otherwise on the account. Members read
+  // through to the group, so one write reaches every account under it.
+  const ruleset = () => {
+    if(inGroup()) return root.groups[root.active].settings;
+    const g = groupOf(acctInView());
+    return g ? root.groups[g].settings : state.settings;
+  };
   $("rpct").addEventListener("change", e=>{
     const v = parseFloat(e.target.value);
-    if(!isNaN(v) && v>0){ state.settings.rPct = v; save(); render(); }
+    if(!isNaN(v) && v>0){ ruleset().rPct = v; save(); render(); }
   });
   ["t0","t1","t2"].forEach((id,i)=>$(id).addEventListener("change", e=>{
     const v = parseFloat(e.target.value);
-    if(!isNaN(v) && v>0){ state.settings.tiers[i] = v; save(); render(); }
+    if(!isNaN(v) && v>0){ ruleset().tiers[i] = v; save(); render(); }
   }));
-  $("compound").addEventListener("change", e=>{ state.settings.compound = e.target.value==="1"; save(); });
-  $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ state.settings.heatCap = v; save(); render(); } });
-  $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ state.settings.coldR = v; save(); render(); } });
+  $("compound").addEventListener("change", e=>{ ruleset().compound = e.target.value==="1"; save(); });
+  $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
+  $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
   ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
   [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
   updateGate();
   $("nt_tk").addEventListener("input", updateWash);
   updateWash();
-  $("fhkey").addEventListener("change", e=>{ state.settings.finnhub = e.target.value.trim(); save(); render(); });
+  $("fhkey").addEventListener("change", e=>{ root.finnhub = e.target.value.trim(); save(); render(); });
 
   $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
   $("downloadBtn").addEventListener("click", ()=>{
@@ -1770,7 +2414,7 @@ let refreshing = false;
 window.refreshMarks = refreshMarks;
 async function refreshMarks(){
   if(refreshing) return;
-  const key = state.settings.finnhub;
+  const key = root.finnhub;
   const open = state.trades.filter(t=>t.status==="open");
   // The status line lives inside the book bar, which is absent when nothing is open.
   const say = m => { const st = $("refreshStatus"); if(st) st.textContent = m; };
@@ -1795,7 +2439,7 @@ async function refreshMarks(){
   refreshing = false;
 }
 function pollMarks(){
-  if(!state.settings.finnhub) return;
+  if(!root.finnhub) return;
   if(!state.trades.some(t=>t.status==="open")) return;
   const ae = document.activeElement;
   if(ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA")) return;  // don't re-render under the cursor
@@ -1832,7 +2476,7 @@ function initRail(){
 
 /* ========================= boot ========================= */
 load(); bindSettings(); render(); initRail();
-if(state.settings.finnhub && state.trades.some(t=>t.status==="open")) refreshMarks();
+if(root.finnhub && state.trades.some(t=>t.status==="open")) refreshMarks();
 setInterval(pollMarks, 60000);
 </script>
 </body>
