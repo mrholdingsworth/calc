@@ -99,6 +99,25 @@ machine will not see it. Use **Export / Download .json** to back up and to move 
 **Clearing data** asks twice and dumps your whole book into the export box first, so a mis-click is
 recoverable as long as you have not left the page.
 
+## The 30-day review
+
+A month after a close, the market has answered a question your exit could not: did it keep running
+without you, or did the exit hold up? Every closed trade carries a **30-day review** field for that,
+beside the immediate re-trade note.
+
+Once 30 days have passed with the field still empty the row takes a gold rail and a gold dot, and the
+count appears in the section header — visible even with the section collapsed. Writing anything
+clears it. The two failures this is built to surface are cutting winners early and being shaken out
+of something that went on to work; neither is visible on the day you close.
+
+## Wash-sale flag
+
+Naming a ticker you closed at a loss within the last 30 days raises an amber line under the Open
+trade button. It is a flag and nothing more: no lots, no adjusted basis, no attempt to reproduce what
+your broker's 1099-B already does correctly. It does not block the trade. Worth heeding for two
+reasons — the disallowed loss, and the fact that a fast re-entry into a name that just beat you is
+often revenge rather than a setup.
+
 ## Multiple books
 
 Tabs at the top of the desk are separate portfolios — separate AUM, separate R unit, separate trade

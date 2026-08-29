@@ -4,40 +4,6 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **30-day review on closed trades.** Every closed trade gets a `30 day review` field for notes
-  written a month after the close — did it keep going without you, or did the exit hold up? The
-  point is catching two specific failures the immediate post-trade note cannot see: cutting winners
-  early, and being shaken out of something that went on to work.
-
-  Highlight the row in a brighter blue once `closedAt + 30 days` has passed and the field is still
-  empty; clear the highlight as soon as it has content. That way the queue is visible rather than
-  remembered.
-
-  To settle at build time: the blue has to out-signal the existing accents without reading as an
-  error — the palette already spends blue on buttons and the max-add panel, so this may want its
-  own tone rather than the accent. Also worth a count in the section header ("3 reviews due") so it
-  is visible while section 04 is collapsed.
-
-- **Wash sales / adjusted tax basis — decide whether it is worth doing at all.** Raised 2026-08-28,
-  explicitly as a question rather than a decision.
-
-  The case against: this is a process tool denominated in R, not a tax ledger. It has no concept of
-  lots, cost basis carried between trades, or "substantially identical" securities, and your broker's
-  1099-B already computes wash sales properly. Half-implementing it produces numbers that look
-  authoritative and are wrong, which is worse than not having them.
-
-  The case for: the *flag* is useful even if the accounting is not. Re-entering a name within 30 days
-  of taking a loss in it is a process signal — often revenge re-entry — and this app already has the
-  dates and tickers needed to spot it. That version costs little and stays inside what the tool
-  claims to measure.
-
-  Suggested split when we get to it: build the flag, skip the basis maths.
-
-- **MAE / MFE — re-add if a live data feed arrives.** Pulled 2026-08-28: without intraday data the
-  app only sees prices you typed, so the excursion envelope understates and the numbers flatter you.
-  The hi/lo envelope still accrues quietly in the background, and `_parked/mae-mfe.md` holds the
-  definitions and the basis caveat for a rebuild.
-
 - **Account group calculations.** Several accounts running the same ruleset should take a trade
   once, not once each. Enter ticker, side, tier, entry, stop, ADR and concept a single time; each
   account in the group sizes it off its *own* equity, so each gets its own 1R and its own share
@@ -80,6 +46,16 @@ Running list. Newest at the top of each section.
   Re-add later, rewritten to your own rules rather than the memoir's.
 
 ## Decided / done
+
+- 2026-08-28 — 30-day review built. Every closed trade has its own field beside the re-trade review;
+  the row takes a gold left rail, a gold dot and a faint gold wash once 30 days have passed with it
+  empty, and clears the moment anything is written. The count sits in the section header so it is
+  still visible with section 04 collapsed. The panel label reads "due now", "done", or "in N days".
+- 2026-08-28 — Wash-sale flag on new trade entry: naming a ticker you closed at a loss inside the
+  last 30 days shows an amber line under the Open trade button, citing the most recent loss and
+  counting any others in the window. Non-blocking, and no basis maths — that stays with the 1099-B.
+- 2026-08-28 — MAE/MFE dropped for good: the to-do item, the dead hi/lo tracking, the excursion
+  computation and the parked notes are all gone. Recoverable from git history if it ever returns.
 
 - 2026-08-28 — Single gold set to the darker metallic #b08d3f, applied to every gold instance:
   masthead R, prose emphasis, max-add bolds, target rungs, checklist bolds, open heat, and the

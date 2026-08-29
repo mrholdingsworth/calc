@@ -133,6 +133,11 @@ th{text-align:left;font-size:9.5px;font-weight:700;color:var(--mut);text-transfo
 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 /* The toggle and the ticker are one unit — never let a narrow screen break them apart. */
 td.tickcell{white-space:nowrap}
+/* A closed trade whose 30-day review is due. Gold rather than a semantic colour: nothing is wrong,
+   there is simply work outstanding. */
+tr.reviewdue td{background:rgba(176,141,63,.09)}
+tr.reviewdue td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+.revdot{color:var(--gold);font-size:11px;vertical-align:middle}
 td.num,th.num{text-align:right;font-family:var(--mono)}
 .scroll{overflow-x:auto}
 
@@ -243,6 +248,7 @@ details[open] summary::before{content:"\25BE  "}
     <span class="muted" id="nt_gate"></span>
   </div>
   <div class="err" id="nt_err"></div>
+  <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
 
   <details id="nt_plan" open>
     <summary>Plan &amp; hinges &mdash; the commitment (decided now, not later)</summary>
@@ -454,10 +460,6 @@ function normalize(){
       if(!Array.isArray(t.checks)) t.checks = [false,false,false,false];
       // Backfill for trades opened before these were recorded.
       if(t.aumAtOpen==null && t.rUnit>0 && pf.settings.rPct>0) t.aumAtOpen = t.rUnit*100/pf.settings.rPct;
-      if(t.hi==null || t.lo==null){
-        const px = t.events.filter(e=>e.price!=null).map(e=>e.price);
-        if(px.length){ if(t.hi==null) t.hi = Math.max.apply(null,px); if(t.lo==null) t.lo = Math.min.apply(null,px); }
-      }
     });
   });
   if(!root.portfolios[root.active]) root.active = root.order[0];
@@ -532,14 +534,6 @@ function freshSize(t,d,P,S){
 // The stop that makes the whole sequence net zero.
 function beStop(t,d){ return d.Q>0 ? d.avg - t.side*d.realized/d.Q : null; }
 
-// Every price the app is ever shown for a trade widens its high/low envelope. This only sees prices
-// you actually entered or marked, never the true intraday extremes — hence the manual override.
-function touchExtremes(t, price){
-  if(!(price>0)) return;
-  if(t.hi==null || price>t.hi) t.hi = price;
-  if(t.lo==null || price<t.lo) t.lo = price;
-}
-
 // Per-trade analytics, all derived — nothing here is stored except hi/lo and the dates.
 function stats(t){
   const d = derive(t);
@@ -559,26 +553,7 @@ function stats(t){
 
   // MAE / MFE in R-multiples of the per-share risk taken at entry — size-independent, so trades of
   // different sizes compare directly.
-  let mfe = null, mae = null;   // retained: the hi/lo envelope keeps accruing for a future rebuild
-  if(riskPS>0){
-    const fav = t.side>0 ? t.hi : t.lo;
-    const adv = t.side>0 ? t.lo : t.hi;
-    if(fav!=null) mfe = Math.max(0, t.side*(fav-entryPx)/riskPS);
-    if(adv!=null) mae = Math.min(0, t.side*(adv-entryPx)/riskPS);
-  }
-  // Capture has to be measured on the same basis as MFE — price path, per share — not against the
-  // account-level R multiple, which is scaled by position size and would not be comparable.
-  let exitR = null, capture = null;
-  if(riskPS>0){
-    let q = 0, v = 0;
-    t.events.forEach(e=>{ if(e.type==="trim"||e.type==="close"){ q += e.qty; v += e.price*e.qty; } });
-    if(q>0){
-      exitR = t.side*(v/q - entryPx)/riskPS;
-      if(mfe && mfe>0.05) capture = exitR/mfe;
-    }
-  }
-
-  return {d, rm, days, rPerDay, aum0, roe, mfe, mae, exitR, capture, riskPS, entryPx, openTs, endTs};
+  return {d, rm, days, rPerDay, aum0, roe, riskPS, entryPx, openTs, endTs};
 }
 
 function modeLabel(t,d){ return state.settings.sizeMode==="be" ? "breakeven (0R)" : (d && d.mult!=null ? d.mult : t.mult)+"R"; }
@@ -833,6 +808,31 @@ function newTradeCal(){
 // The four pre-trade checks are the gate, not a suggestion. The button reports what is still
 // missing — a disabled control with no stated reason is a dead end.
 function checksDone(){ return [0,1,2,3].filter(i=>$("nt_c"+i).checked).length; }
+
+// Re-entering a name you took a loss in inside the last 30 days is a wash sale: the loss is
+// disallowed and rolls into the new basis. It is also, more often than not, a revenge re-entry.
+// This flags it and nothing more — the basis maths belongs to your broker's 1099-B, not here.
+const WASH_DAYS = 30;
+function washWarning(ticker){
+  const tk = String(ticker||"").trim().toUpperCase();
+  if(!tk) return null;
+  const hits = state.trades.filter(t=>
+    t.status==="closed" && t.ticker===tk && derive(t).realized < 0 &&
+    daysBetween(t.closedAt || t.createdAt, Date.now()) <= WASH_DAYS
+  ).sort((a,b)=>(b.closedAt||0)-(a.closedAt||0));
+  if(!hits.length) return null;
+  const t = hits[0];
+  const ago = daysBetween(t.closedAt || t.createdAt, Date.now());
+  return "Wash sale: you closed " + esc(tk) + " at " + fmtR(derive(t).realized/t.rUnit) + " " +
+    (ago===0 ? "today" : ago===1 ? "yesterday" : ago+" days ago") +
+    (hits.length>1 ? " (and "+(hits.length-1)+" more loss"+(hits.length>2?"es":"")+" in the window)" : "") +
+    ". Re-entering inside " + WASH_DAYS + " days disallows that loss for tax — and is worth a second thought besides.";
+}
+function updateWash(){
+  const el = $("nt_wash"), msg = washWarning($("nt_tk").value);
+  el.innerHTML = msg || "";
+  el.style.display = msg ? "" : "none";
+}
 function updateGate(){
   const done = checksDone(), btn = $("nt_open"), note = $("nt_gate");
   const ok = done===4;
@@ -863,7 +863,7 @@ function openTrade(){
     ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
     mult: state.settings.tiers[ti],
     adr: (!isNaN(adr)&&adr>0) ? adr : null,
-    rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P, hi:P, lo:P,
+    rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
     plan: { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
             waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
     checks: [0,1,2,3].map(i=>$("nt_c"+i).checked),
@@ -875,6 +875,7 @@ function openTrade(){
     .forEach(id=>{ $(id).value = ""; });
   [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
   updateGate();
+  updateWash();
   $("nt_calbox").style.display = "none";
   save(); render();
 }
@@ -1099,7 +1100,7 @@ function tradeCard(t){
 /* ========================= trade actions ========================= */
 window.setLast = id => {
   const t = getTrade(id), v = parseFloat($("px_"+id).value);
-  if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); touchExtremes(t, v); save(); render(); }
+  if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); save(); render(); }
 };
 window.liveAdd = id => {
   const t = getTrade(id), d = derive(t);
@@ -1133,7 +1134,6 @@ window.doAdd = id => {
   }
   if(q<=0){ errEl.textContent = "Quantity must be positive."; return; }
   t.events.push({type:"add", qty:q, price:Pa, stop:(S==null||isNaN(S))?null:S, ts:Date.now()});
-  touchExtremes(t, Pa);
   t.last = Pa; t.lastMarkTs = Date.now(); save(); render();
 };
 window.doTrim = (id, frac) => {
@@ -1144,7 +1144,6 @@ window.doTrim = (id, frac) => {
   if(isNaN(q) || q<=0){ errEl.textContent = "Enter a quantity (or use 25% / 50%)."; return; }
   if(q>d.Q) q = d.Q;
   t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
-  touchExtremes(t, P);
   t.last = P; t.lastMarkTs = Date.now(); save(); render();
 };
 window.moveStop = id => {
@@ -1195,7 +1194,6 @@ window.closeTrade = id => {
   const P = parseFloat($("clp_"+id).value);
   if(isNaN(P)){ errEl.textContent = "Enter the exit price."; return; }
   if(d.Q>0) t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
-  touchExtremes(t, P);
   t.status = "closed"; t.closedAt = Date.now(); t.last = P; t.lastMarkTs = Date.now();
   const fin = derive(t);
   if(state.settings.compound) state.settings.aum = Math.round((state.settings.aum + fin.realized)*100)/100;
@@ -1232,6 +1230,21 @@ window.saveNote = id => {
   if(st){ st.textContent = "Saved "+new Date().toLocaleTimeString(); setTimeout(()=>{ if(st) st.textContent=""; }, 3000); }
 };
 window.setLossTag = (id,v) => { const t = getTrade(id); if(t){ t.lossTag = v||null; save(); render(); } };
+
+// A month after a close, the market has answered a question the exit could not: did it keep going
+// without you, or did the exit hold up? Due once 30 days have passed and nothing has been written.
+const REVIEW_DAYS = 30;
+const reviewDue = t => t.status==="closed" &&
+  !(t.review30 && t.review30.trim()) &&
+  daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS;
+const reviewDueIn = t => REVIEW_DAYS - daysBetween(t.closedAt || t.createdAt, Date.now());
+
+window.saveReview30 = id => {
+  const t = getTrade(id), ta = $("rev_"+id);
+  if(!t || !ta) return;
+  t.review30 = ta.value.trim();
+  save(); render(); reopenLog(id);
+};
 
 /* ---- dates on a closed trade ---- */
 const entryTs = t => { const e = t.events.find(e=>e.type==="entry"); return e ? e.ts : t.createdAt; };
@@ -1335,7 +1348,10 @@ function renderClosed(){
   const sum = $("closedSummary");
   if(closed.length){
     const totR = closed.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
-    sum.innerHTML = closed.length+" trades &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>";
+    // The due count sits in the header so it is still visible with the section collapsed.
+    const dueN = closed.filter(reviewDue).length;
+    sum.innerHTML = closed.length+" trades &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" +
+      (dueN ? " &middot; <span style=\"color:var(--gold);font-weight:600\">"+dueN+" 30-day review"+(dueN>1?"s":"")+" due</span>" : "");
   } else sum.textContent = "";
 
   const tbl = $("closedTbl");
@@ -1393,8 +1409,10 @@ function renderClosed(){
         '</select>'
       : '<span class="muted">&mdash;</span>';
 
-    return "<tr>" +
+    const due = reviewDue(t);
+    return "<tr"+(due?" class='reviewdue'":"")+">" +
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
+        (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
         (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
       "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
@@ -1412,10 +1430,18 @@ function renderClosed(){
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
       "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
-      "<div style='margin-top:12px'><div class='lbl'>Re-trade review</div>" +
-      "<textarea id='note_"+t.id+"' style='min-height:76px' placeholder='What did the calculator say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
-      "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
-      "<span class='muted' id='notest_"+t.id+"'></span></div></div></td></tr>";
+      "<div class='split' style='margin-top:12px'>" +
+        "<div><div class='lbl'>Re-trade review</div>" +
+        "<textarea id='note_"+t.id+"' style='min-height:88px' placeholder='What did the calculator say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
+        "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
+        "<span class='muted' id='notest_"+t.id+"'></span></div></div>" +
+        "<div><div class='lbl'>30-day review " +
+          (due ? "<span style='color:var(--gold)'>&mdash; due now</span>"
+               : (t.review30 && t.review30.trim()) ? "<span class='pos'>&mdash; done</span>"
+               : "<span class='muted'>&mdash; in "+reviewDueIn(t)+" day"+(reviewDueIn(t)===1?"":"s")+"</span>") + "</div>" +
+        "<textarea id='rev_"+t.id+"' style='min-height:88px' placeholder='A month on: did it keep going without you, or did the exit hold up? This is where cutting winners early and getting shaken out of eventual winners become visible.'>"+esc(t.review30||"")+"</textarea>" +
+        "<div class='row' style='margin-top:6px;align-items:center'><button class='small"+(due?" primary":"")+"' onclick=\"saveReview30('"+t.id+"')\">Save 30-day</button></div></div>" +
+      "</div></td></tr>";
   }).join("");
 
   tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
@@ -1654,6 +1680,8 @@ function bindSettings(){
   $("nt_open").addEventListener("click", openTrade);
   [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
   updateGate();
+  $("nt_tk").addEventListener("input", updateWash);
+  updateWash();
   $("fhkey").addEventListener("change", e=>{ state.settings.finnhub = e.target.value.trim(); save(); render(); });
 
   $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
@@ -1748,7 +1776,7 @@ async function refreshMarks(){
       const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(t.ticker)+"&token="+encodeURIComponent(key));
       if(!res.ok) throw new Error("HTTP "+res.status);
       const j = await res.json();
-      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); touchExtremes(t, j.c); results.push(t.ticker+" "+fmtP(j.c)); }
+      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); results.push(t.ticker+" "+fmtP(j.c)); }
       else results.push(t.ticker+": no quote");
     }catch(err){ results.push(t.ticker+": failed"); }
   }
