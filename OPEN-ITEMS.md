@@ -52,8 +52,9 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
-- 2026-08-28 — Collapsed trade row is vertically centred; the header kept its 12px bottom margin when
-  it was the only thing in the card, so the row sat 12px from the top and 24px from the bottom.
+- 2026-08-28 — Collapsed trade row sits at the same height as the expanded one, and is centred in its
+  card: the header keeps the card's own padding and loses only the trailing margin it needs when
+  metrics follow it. 17px top in both states.
 
 - 2026-08-28 — Finnhub key moved to Data Management with the other non-trade settings. The Refresh
   marks button now sits on the Open Positions header, next to what it updates, and turns amber with a
