@@ -613,6 +613,9 @@ function normalize(){
       if(!Array.isArray(t.checks)) t.checks = [false,false,false,false];
       // Backfill for trades opened before these were recorded.
       if(t.aumAtOpen==null && t.rUnit>0 && pf.settings.rPct>0) t.aumAtOpen = t.rUnit*100/pf.settings.rPct;
+      // Only the live ADR was ever stored, so that is the best available stand-in. Exact for any
+      // trade whose ADR was never edited, which is most of them.
+      if(t.adrAtOpen==null && t.adr>0) t.adrAtOpen = t.adr;
     });
   });
   // groups
@@ -1327,6 +1330,8 @@ function openTrade(){
     ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
     mult: state.settings.tiers[ti],
     adr: (!isNaN(adr)&&adr>0) ? adr : null,
+    // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
+    adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
     rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
     plan: { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
             waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
@@ -1492,6 +1497,18 @@ function tradeCard(t){
         const pct = t.last*d.Q/aum0*100;
         return '<div class="metric"><div class="k">Allocation</div><div class="v">'+pct.toFixed(1)+'%</div>' +
                '<div class="r">of '+fmt$(aum0)+' equity at open</div></div>';
+      })() +
+      (function(){
+        // The volatility you signed up for, kept separate from the live ADR because that one is
+        // editable — this is the number the stop and the size were chosen against.
+        const a0 = t.adrAtOpen;
+        if(a0==null) return '<div class="metric"><div class="k">ADR % at entry</div>' +
+          '<div class="v" style="color:var(--mut)">&mdash;</div><div class="r">none set when this opened</div></div>';
+        const moved = t.adr>0 && Math.abs(t.adr-a0) > 1e-9;
+        return '<div class="metric"><div class="k">ADR % at entry</div><div class="v">'+a0+'%</div>' +
+          '<div class="r">&asymp; '+fmt$((e0 ? e0.price : d.avg)*a0/100)+' a day per share' +
+          (moved ? ' &middot; <span style="color:var(--amber)">now '+t.adr+'%</span>' : "") +
+          '</div></div>';
       })() +
       adrHtml +
     '</div>' +
@@ -2370,6 +2387,8 @@ function openGroupTrade(){
       gid, gname: root.active,
       ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti, mult: r.mult,
       adr: (!isNaN(adr)&&adr>0) ? adr : null,
+      // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
+      adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
       rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
       plan: Object.assign({}, plan), checks: checks.slice(),
       events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
@@ -2536,7 +2555,14 @@ function groupTradeCard(gid, legs){
       return '<div class="ladder"><span class="muted" style="align-self:center">targets from avg '+fmtP(avgAll)+':</span>' +
         ladderHtml(ladder(first.side, avgAll, Qall, Rall, first.last, TARGETS))+'</div>';
     })() +
-    '<div class="calsub" style="margin-top:8px">Mean R across the legs: <b>'+fmtR(totR)+
+    // Every leg was opened off one form, so ADR at entry is one number for the whole card.
+    '<div class="calsub" style="margin-top:8px">' +
+      (first.adrAtOpen!=null
+        ? 'ADR % at entry: <b>'+first.adrAtOpen+'%</b>' +
+          (first.adr>0 && Math.abs(first.adr-first.adrAtOpen)>1e-9
+            ? ' <span style="color:var(--amber)">(now '+first.adr+'%)</span>' : "") + '. '
+        : "") +
+      'Mean R across the legs: <b>'+fmtR(totR)+
       '</b>. Every control below is one decision applied to all '+legs.length+
       ' accounts, each computed on its own equity. Open an account to act on it alone.</div>' +
 
