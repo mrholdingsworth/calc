@@ -310,6 +310,7 @@ details[open] summary::before{content:"\25BE  "}
   <div class="row" style="margin-top:13px;align-items:center">
     <button class="primary" id="nt_open">Open trade</button>
     <span class="muted" id="nt_gate"></span>
+    <button class="small" id="nt_clear" title="Clear the whole form" style="margin-left:auto">&#10005;</button>
   </div>
   <div class="err" id="nt_err"></div>
   <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
@@ -1334,14 +1335,22 @@ function openTrade(){
     createdAt: Date.now(), lastMarkTs: Date.now()
   });
 
-  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
-    .forEach(id=>{ $(id).value = ""; });
-  [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
-  updateGate();
-  updateWash();
-  $("nt_calbox").style.display = "none";
+  clearNewTrade();
   save(); render();
 }
+
+// Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
+// One function so the Clear button and both open paths can never leave different things behind.
+window.clearNewTrade = (focus) => {
+  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_adr","nt_qty",
+   "nt_add_if","nt_cut_if","nt_wait_if","nt_exit"].forEach(id=>{ $(id).value = ""; });
+  [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
+  clearFills();
+  $("nt_err").textContent = "";
+  $("nt_calbox").style.display = "none";
+  updateGate(); updateWash();
+  if(focus) $("nt_tk").focus();
+};
 
 /* ========================= trade card ========================= */
 // Trade actions are addressed by id from markup that may belong to any account in view, so the
@@ -2357,12 +2366,7 @@ function openGroupTrade(){
       createdAt: now, lastMarkTs: now
     });
   });
-  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
-    .forEach(id=>{ $(id).value = ""; });
-  [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
-  clearFills();                              // a fill belongs to the trade it came from
-  updateGate(); updateWash();
-  $("nt_calbox").style.display = "none";
+  clearNewTrade();                           // a fill belongs to the trade it came from
   save(); render();
 }
 
@@ -2726,6 +2730,7 @@ function bindSettings(){
   // Margin belongs to the account, not the ruleset — it is a broker arrangement, not a method.
   ["fc_price","fc_stop"].forEach(id=>$(id).addEventListener("input", renderFastCalc));
   $("fc_clear").addEventListener("click", clearFc);
+  $("nt_clear").addEventListener("click", ()=>clearNewTrade(true));
   $("marginX").addEventListener("change", e=>{
     const a = acctInView();
     if(root.portfolios[a]) root.portfolios[a].settings.marginX = parseFloat(e.target.value)||1;
