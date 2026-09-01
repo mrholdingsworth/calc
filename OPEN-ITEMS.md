@@ -4,12 +4,9 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Clock and market status in the masthead** *(exploratory — "possibly", raised 2026-08-28)*.
-  Date and time right-justified opposite the masthead, with a sub-line reading a green **market
-  open** or a red **market closed**.
-
-  The clock is trivial. The status line is where the work is, and it is worth deciding how far to
-  take it before starting:
+- **Market open / closed indicator** *(the clock itself shipped 2026-08-31; this is the other half)*.
+  A sub-line under the masthead clock reading a green **market open** or a red **market closed**.
+  Still unbuilt because it needs a decision first:
   - Regular US equity hours are 09:30–16:00 **Eastern**, so the browser clock has to be converted to
     ET — including US daylight saving, which does not move in step with other regions.
   - Weekends are easy. **Holidays need a calendar**, and it changes every year. Half-days (the day
@@ -29,7 +26,18 @@ Running list. Newest at the top of each section.
   out of the page. The original markup is parked in `_parked/bible.html` so nothing is lost.
   Re-add later, rewritten to your own rules rather than the memoir's.
 
+## Ruled out
+
+- **Rolling 25 trades per concept** — not wanted. Do not re-propose.
+- **Wash-sale basis maths** — not wanted. The entry-time flag that exists is the whole of it; the
+  accounting stays with the broker's 1099-B.
+
 ## Decided / done
+
+- 2026-08-31 — Masthead clock, right-justified opposite the wordmark. 24-hour with gold colons and
+  tabular figures so the digits do not shuffle as they tick; weekday and date beneath. Updates every
+  second and touches only its own element, so it cannot disturb a field being typed into. The market
+  open/closed half is still on the list, pending the holiday-calendar decision.
 
 - 2026-08-29 — Gold vertical bar replaces the slash wherever two parallel things sit side by side, in
   a label or a value: win rate, avg win/loss, avg days held, winners/losers, long/short, Concept |
