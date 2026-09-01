@@ -4,21 +4,6 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Market open / closed indicator** *(the clock itself shipped 2026-08-31; this is the other half)*.
-  A sub-line under the masthead clock reading a green **market open** or a red **market closed**.
-  Still unbuilt because it needs a decision first:
-  - Regular US equity hours are 09:30–16:00 **Eastern**, so the browser clock has to be converted to
-    ET — including US daylight saving, which does not move in step with other regions.
-  - Weekends are easy. **Holidays need a calendar**, and it changes every year. Half-days (the day
-    after Thanksgiving, Christmas Eve) close at 13:00 and would read wrong without it.
-  - Decide whether pre-market and after-hours get their own state, or fold into "closed".
-  - A wrong "market open" on a holiday is worse than no indicator at all, so if the calendar is out
-    of scope, the honest version is weekday-plus-hours with the limitation stated in the tooltip.
-
-  Worth noting this is the **same calendar problem** as the stale-mark weekend noise: a Friday mark
-  reads stale by Saturday because staleness counts wall-clock hours, not trading days. If a market
-  calendar gets built, one implementation should serve both.
-
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
   point the masthead, the `<title>` and (if you want them to match) the repo/URL change together.
   The in-app "Cal" references are already gone.
@@ -29,10 +14,16 @@ Running list. Newest at the top of each section.
 ## Ruled out
 
 - **Rolling 25 trades per concept** — not wanted. Do not re-propose.
+- **Market open / closed indicator** — not wanted. Too many variables change year to year (holiday
+  calendar, half-days, DST) to keep it honest. Do not re-propose.
 - **Wash-sale basis maths** — not wanted. The entry-time flag that exists is the whole of it; the
   accounting stays with the broker's 1099-B.
 
 ## Decided / done
+
+- 2026-08-31 — Five date notes under the masthead clock, in gold, keyed MM-DD: New Year, Valentines,
+  tax day, 4 July, and 24-26 December sharing the Christmas one. Deliberately impersonal — the repo
+  is public, so no names or birthdays.
 
 - 2026-08-31 — Masthead clock, right-justified opposite the wordmark. 24-hour with gold colons and
   tabular figures so the digits do not shuffle as they tick; weekday and date beneath. Updates every

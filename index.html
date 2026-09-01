@@ -58,6 +58,8 @@ h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
           font-variant-numeric:tabular-nums}
 .clock .d{font-size:11.5px;color:var(--mut);letter-spacing:.04em;text-transform:uppercase}
 .clock .c{color:var(--gold)}
+.clock .n{color:var(--gold);font-size:12px;font-weight:700;margin-top:3px;
+          max-width:300px;margin-left:auto}
 .tagline{color:var(--sub);max-width:660px;margin:10px 0 18px;font-size:13.5px}
 .tagline em{color:var(--gold);font-weight:700;font-style:normal}
 
@@ -2782,15 +2784,27 @@ function pollMarks(){
 /* ========================= clock ========================= */
 // Local time, 24-hour, ticking every second. Touches only its own element, so it can never pull the
 // page out from under a field you are typing into.
+// Keyed MM-DD. Deliberately impersonal — this file is public.
+const DATE_NOTES = {
+  "01-01": "Happy New Year!",
+  "02-14": "Don't forget to tell the misses Happy Valentines Day!",
+  "04-15": "Tax day...",
+  "07-04": "USA! USA! USA!",
+  "12-24": "No work during Christmas! For shame!",
+  "12-25": "No work during Christmas! For shame!",
+  "12-26": "No work during Christmas! For shame!"
+};
 function tickClock(){
   const el = $("clock");
   if(!el) return;
   const d = new Date();
   const p = n => String(n).padStart(2,"0");
   const c = '<span class="c">:</span>';
+  const note = DATE_NOTES[p(d.getMonth()+1)+"-"+p(d.getDate())];
   el.innerHTML =
     '<div class="t">'+p(d.getHours())+c+p(d.getMinutes())+c+p(d.getSeconds())+'</div>' +
-    '<div class="d">'+d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"})+'</div>';
+    '<div class="d">'+d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"})+'</div>' +
+    (note ? '<div class="n">'+esc(note)+'</div>' : "");
 }
 
 /* ========================= section index ========================= */
