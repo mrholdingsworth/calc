@@ -1686,7 +1686,17 @@ window.closeTrade = id => {
   save(); render();
 };
 window.toggleCard = id => { const t = getTrade(id); if(t){ t.collapsed = !t.collapsed; save(); render(); } };
-window.collapseAll = v => { state.trades.forEach(t=>{ if(t.status==="open") t.collapsed = v; }); save(); render(); };
+// Two card renderers, two collapse flags: an account card reads t.collapsed, a group card reads
+// root.gcollapse keyed the way render() keys the cards. Write whichever one is actually on screen.
+window.collapseAll = v => {
+  if(inGroup()){
+    const c = root.gcollapse || (root.gcollapse = {});
+    scopeTrades("open").forEach(x=>{ c[x.t.gid || ("solo:"+x.t.id)] = v; });
+  } else {
+    state.trades.forEach(t=>{ if(t.status==="open") t.collapsed = v; });
+  }
+  save(); render();
+};
 const SECTIONS = ["desk","new","open","tally","charts","data"];
 window.toggleSection = key => {
   const c = state.settings.collapsed || (state.settings.collapsed = {});

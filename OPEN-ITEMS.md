@@ -36,6 +36,12 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-09-01 — Fixed **Collapse all / Expand all** in group mode. They date from the first upload
+  (891ba27) and had never worked there: the buttons set `t.collapsed` on each trade, while group
+  cards read `root.gcollapse[gid]`. Account mode was always fine. `collapseAll` now writes whichever
+  flag belongs to the renderer on screen, keying group cards the same way `render()` does so a trade
+  opened in one member only (`solo:<id>`) collapses too.
+
 - 2026-09-01 — **Weighted ADR** tile on the Open Positions bar, next to open heat: sum of each
   position's share of equity times its own ADR, plus the dollar equivalent. Absolute value so shorts
   count; across a group it is total ADR dollars over total equity. Positions with no ADR are counted
