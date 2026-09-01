@@ -21,6 +21,11 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-09-01 — **Clear** button on New Trade, matching the one in Fast calc. Right-hand end of the
+  Open trade row, deliberately not beside the button, since it wipes a written-out plan. Both open
+  paths reset through the same `clearNewTrade()` so nothing can drift. Caught an existing gap doing
+  it: ADR % was in neither reset list, so it survived an open and was recorded onto the next trade.
+
 - 2026-09-01 — Per-account **Fill** column on the group New Trade table, sitting after Equity. Blank
   means the shared entry. It deliberately does **not** resize: size is settled at the shared entry
   (usually via Fast calc), and the fill only sets the price the trade is recorded at, plus the cost
