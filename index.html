@@ -170,6 +170,7 @@ details[open] summary::before{content:"\25BE  "}
 .fcbig{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
 .fcsub{font-size:12.5px;color:var(--sub);margin-top:3px}
 .fcsub b{color:var(--tx)}
+.wrbar{color:var(--gold);font-weight:700;padding:0 2px}
 .tabsep{display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--gold);
         opacity:.7;margin:0 6px;flex:none}
 .gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
@@ -350,7 +351,20 @@ details[open] summary::before{content:"\25BE  "}
   <div id="body_charts">
     <div id="chartsEmpty" class="muted" style="margin-top:10px">Close a few trades and the picture builds itself.</div>
     <div id="chartsBox" style="display:none">
-      <div class="lbl" style="margin-top:14px">Distribution &amp; normalised return</div>
+      <div class="lbl" style="margin-top:14px">Statistics</div>
+      <div class="statrow" id="stats2" style="margin-bottom:12px"></div>
+      <div class="statrow" id="deepStats"></div>
+      <div class="split" style="margin-top:10px">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">By tier &mdash; do your conviction grades actually separate?</div>
+          <div class="scroll"><table id="tierTbl"></table></div>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">By concept &mdash; which setups pay</div>
+          <div class="scroll"><table id="conceptTbl"></table></div>
+        </div>
+      </div>
+      <div class="lbl" style="margin-top:18px">Distribution &amp; normalised return</div>
       <div class="split">
         <div class="metric" style="padding:10px 12px">
           <div class="k">R multiples &mdash; losses left, gains right</div>
@@ -388,18 +402,6 @@ details[open] summary::before{content:"\25BE  "}
         <svg class="chart" id="eqCurve" viewBox="0 0 560 130" style="height:150px"></svg>
       </div>
 
-      <div class="lbl" style="margin-top:18px">Statistics</div>
-      <div class="statrow" id="deepStats"></div>
-      <div class="split" style="margin-top:10px">
-        <div class="metric" style="padding:10px 12px">
-          <div class="k">By tier &mdash; do your conviction grades actually separate?</div>
-          <div class="scroll"><table id="tierTbl"></table></div>
-        </div>
-        <div class="metric" style="padding:10px 12px">
-          <div class="k">By concept &mdash; which setups pay</div>
-          <div class="scroll"><table id="conceptTbl"></table></div>
-        </div>
-      </div>
     </div>
   </div>
 </div>
@@ -1830,20 +1832,10 @@ function renderClosed(){
     return;
   }
 
-  let tot=0, wins=0, wr=0, lr=0, wn=0, ln=0, worst=0, discOK=0, noise=0, violations=0, tagged=0, planned=0;
-  let bDecisive=0, bScratch=0, bExWin=0;
-  const rms = [];
   const chrono = closed.slice().sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
 
   const rows = closed.map(t=>{
     const S = stats(t), d = S.d, rm = S.rm;
-    tot += rm; rms.push(rm);
-    if(isScratch(rm)) bScratch++; else if(rm > SCRATCH_HI) bExWin++;
-    if(rm >= WIN_R) bDecisive++;
-    if(rm>0){ wins++; wr += rm; wn++; }
-    else { lr += rm; ln++; if(rm<worst) worst = rm; if(rm>=-1.2) discOK++;
-           if(t.lossTag){ tagged++; if(t.lossTag==="noise") noise++; if(t.lossTag==="violation") violations++; } }
-    if(Array.isArray(t.checks) && t.checks.every(Boolean)) planned++;
 
     // replay for the per-event detail table
     let Q2=0, avg2=0, real2=0;
@@ -1912,43 +1904,56 @@ function renderClosed(){
   tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
     "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
 
-  const exp = tot/closed.length;
-  const payoff = (wn && ln) ? (wr/wn)/Math.abs(lr/ln) : null;
-  const disc = ln ? Math.round(100*discOK/ln) : null;
-  const noisePct = tagged ? Math.round(100*noise/tagged) : null;
-  const planPct = Math.round(100*planned/closed.length);
+  $("stats").innerHTML = statsHtml(bookStats(closed));
+}
+
+// Aggregates for a set of closed trades, and the tile row that renders them. Extracted so the
+// tally and the statistics panel show the same numbers from the same code.
+function bookStats(list){
+  const A = { n:list.length, tot:0, wins:0, exWin:0, decisive:0, scratch:0,
+              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, noise:0, violations:0, tagged:0, planned:0, rms:[] };
+  list.forEach(t=>{
+    const rm = stats(t).rm;
+    A.tot += rm; A.rms.push(rm);
+    if(isScratch(rm)) A.scratch++;
+    if(rm > SCRATCH_HI) A.exWin++;
+    if(rm >= WIN_R) A.decisive++;
+    if(rm>0){ A.wins++; A.wr += rm; A.wn++; }
+    else { A.lr += rm; A.ln++; if(rm<A.worst) A.worst = rm; if(rm>=-1.2) A.discOK++;
+           if(t.lossTag){ A.tagged++; if(t.lossTag==="noise") A.noise++; if(t.lossTag==="violation") A.violations++; } }
+    if(Array.isArray(t.checks) && t.checks.every(Boolean)) A.planned++;
+  });
+  return A;
+}
+
+function statsHtml(A){
+  if(!A.n) return "";
+  const exp = A.tot/A.n;
+  const payoff = (A.wn && A.ln) ? (A.wr/A.wn)/Math.abs(A.lr/A.ln) : null;
+  const disc = A.ln ? Math.round(100*A.discOK/A.ln) : null;
+  const noisePct = A.tagged ? Math.round(100*A.noise/A.tagged) : null;
+  const planPct = Math.round(100*A.planned/A.n);
   const discCol = disc==null ? "var(--mut)" : (disc>=80?"var(--green)":(disc>=60?"var(--amber)":"var(--red)"));
   const noiseCol = noisePct==null ? "var(--mut)" : (noisePct<=20?"var(--green)":(noisePct<=40?"var(--amber)":"var(--red)"));
-
-  $("stats").innerHTML =
-    '<div class="metric"><div class="k">Closed trades</div><div class="v">'+closed.length+'</div><div class="r">'+bScratch+' of them scratches</div></div>' +
-    (function(){
-      // Same idea, tightened twice. Only the ex-scratch rate drops trades from the sample — that is
-      // what "without scratch trades" means — so its denominator is shown alongside the others.
-      const nAll = closed.length, nEx = nAll - bScratch;
-      const pct = (a,b) => b>0 ? (100*a/b) : null;
-      const raw = pct(wins, nAll), ex = pct(bExWin, nEx), dec = pct(bDecisive, nAll);
-      const fmtPct = v => v==null ? "&mdash;" : (Math.round(v*10)/10).toFixed(1)+"%";
-      const gap = (raw!=null && dec!=null) ? Math.round(raw-dec) : 0;
-      return '<div class="metric" title="Raw: any result above zero, over every closed trade. Ex-scratch: above +'+SCRATCH_HI+
-        'R, over the trades that finished outside the scratch band ('+SCRATCH_LO+'R to +'+SCRATCH_HI+
-        'R). Decisive: at or above +'+WIN_R+'R — paid for a full loss — over every closed trade.">' +
-        '<div class="k">Win rate &mdash; raw / ex-scratch / &ge;'+WIN_R+'R</div>' +
-        '<div class="v" style="font-size:15px">'+fmtPct(raw)+
-          ' <span class="muted">|</span> '+fmtPct(ex)+
-          ' <span class="muted">|</span> <span class="pos">'+fmtPct(dec)+'</span></div>' +
-        '<div class="r">'+wins+"/"+nAll+" &middot; "+bExWin+"/"+nEx+" &middot; "+bDecisive+"/"+nAll +
-        (gap>=20 ? '<br><span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>' : "") +
-        '</div></div>';
-    })() +
-    '<div class="metric"><div class="k">Total R</div><div class="v '+cls(tot)+'">'+fmtR(tot)+'</div><div class="r">across '+closed.length+' closes</div></div>' +
+  // All three rates share one denominator — every closed trade — so they read as one idea tightened
+  // twice rather than three separate samples. The middle one counts the setups that went nowhere
+  // against you, which is the cost in time and buying power.
+  const p = a => (Math.round(1000*a/A.n)/10).toFixed(1)+"%";
+  const bar = ' <span class="wrbar">|</span> ';
+  const gap = Math.round(100*(A.wins-A.decisive)/A.n);
+  return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
+    '<div class="metric" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+SCRATCH_HI+'R. '+WIN_R+'R+: paid for a full loss.">' +
+      '<div class="k">Win rate &mdash; raw / ex-scratch / &ge;'+WIN_R+'R</div>' +
+      '<div class="v" style="font-size:15px">'+p(A.wins)+bar+p(A.exWin)+bar+'<span class="pos">'+p(A.decisive)+'</span></div>' +
+      '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>'
+                     : "each stricter than the last") + '</div></div>' +
+    '<div class="metric"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
     '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade &mdash; the number that matters</div></div>' +
-    '<div class="metric"><div class="k">Avg win / avg loss</div><div class="v">'+(wn?fmtR(wr/wn).replace("+",""):"&mdash;")+" / "+(ln?fmtR(lr/ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(rms.length?fmtR(Math.max.apply(null,rms)):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under 1.2R &middot; worst '+(worst<0?fmtR(worst):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(tagged?noise+" of "+tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
-    '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(violations?"var(--red)":"var(--green)")+'">'+(tagged?violations:"&mdash;")+'</div><div class="r">'+(tagged?(violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Avg win / avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+" / "+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under 1.2R &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(A.tagged?A.noise+" of "+A.tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(A.violations?"var(--red)":"var(--green)")+'">'+(A.tagged?A.violations:"&mdash;")+'</div><div class="r">'+(A.tagged?(A.violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">full pre-trade check on open</div></div>';
-
 }
 
 // Closed group trades: the visible line is the whole group, the expansion is one row per account.
@@ -2051,6 +2056,7 @@ function renderCharts(chrono){
   if(!chrono || chrono.length < 2){
     $("chartsBox").style.display = "none";
     $("chartsEmpty").style.display = "";
+    $("stats2").innerHTML = "";
     if(sum) sum.textContent = chrono && chrono.length ? "needs at least 2 closed trades" : "";
     return;
   }
@@ -2127,6 +2133,7 @@ function renderCharts(chrono){
       (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+" / "+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
       '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
 
+  $("stats2").innerHTML = statsHtml(bookStats(chrono));
   $("tierTbl").innerHTML = groupTable(chrono, S, t=>TIERS[t.tier], "Tier");
   $("conceptTbl").innerHTML = groupTable(chrono, S, t=>(t.concept||"").trim() || "(none)", "Concept");
 }

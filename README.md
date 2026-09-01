@@ -137,16 +137,16 @@ There is no loss rate here on purpose.
 | | Counts as a win | Out of |
 |---|---|---|
 | **Raw** | anything above zero | every closed trade |
-| **Ex-scratch** | above +0.10R | trades that finished outside the scratch band |
+| **Ex-scratch** | above +0.10R | every closed trade |
 | **&ge;1R** | +1R or better — paid for a full loss | every closed trade |
 
-The scratch band is **-0.05R to +0.10R**, and it is deliberately wider on the positive side. That
-matters: dropping scratches discards slightly more marginal wins than marginal losses, so the
-ex-scratch rate can never flatter you by quietly removing small losses from the sample. It also
-absorbs a bad fill on a breakeven stop — a scratch in every sense except the sign.
+All three share one denominator — every closed trade — so they read as one idea tightened twice
+rather than three separate samples. Nothing is excluded; a scratch simply is not a win.
 
-Only the middle rate changes its denominator, which is what "without scratch trades" means. All three
-fractions are printed under the percentages so the arithmetic is never hidden.
+The scratch band is **-0.05R to +0.10R**, wider on the positive side so a bad fill on a breakeven stop
+still reads as the scratch it is. The middle rate is the useful one day to day: it counts the trades
+that actually returned something, which makes its shortfall against the raw rate a measure of the
+time and buying power spent on setups that went nowhere.
 
 Read it against **avg days held: winners vs losers**. If the raw rate is high, the &ge;1R rate is low,
 *and* winners are held shorter than losers, that is cutting winners early confirmed from two

@@ -31,13 +31,13 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
-- 2026-08-29 — Win rate shown three ways, each stricter: raw (above zero, all trades), ex-scratch
-  (above +0.10R, over trades outside the scratch band) and decisive (at or above +1R, all trades).
-  No loss rate — the question is only ever how often a trade won. Scratch band is -0.05R to +0.10R,
-  wider on the positive side so dropping scratches can never flatter the number by removing small
-  losses from the sample; it also absorbs a bad fill on a breakeven stop. Only the middle rate
-  changes denominator, and all three fractions are printed beneath. SCRATCH_LO, SCRATCH_HI and WIN_R
-  are the constants.
+- 2026-08-29 — Win rate shown three ways, each stricter, all over the same denominator (every closed
+  trade): raw (above zero), ex-scratch (above +0.10R) and decisive (at or above +1R). No loss rate,
+  no fractions on screen, gold separators. Scratch band -0.05R to +0.10R, wider on the positive side
+  so a bad fill on a breakeven stop still reads as a scratch.
+- 2026-08-29 — Every closed-trade statistic now also heads the Charts & Statistics panel, above the
+  graphs. bookStats() and statsHtml() were extracted so the tally and the panel cannot diverge; in a
+  group the panel follows the account picker while the tally keeps showing group totals.
 
 - 2026-08-29 — Fast calc on the Desk: price, stop, tier, shares, and nothing else. Side is inferred
   from which side the stop sits. Works per account and per group, honours buying power identically to
