@@ -36,6 +36,13 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-09-01 — **ADR % at entry** box on each open position. Needed a new stored field: `t.adr` is
+  live and editable, so editing it destroyed the figure the stop and size were chosen against.
+  Trades now carry `adrAtOpen`, written by both open paths, with the per-share dollar move at the
+  entry price and the current ADR in amber when they diverge. Existing trades backfill from `t.adr`
+  in `normalize()` — exact where the ADR was never edited. Group cards carry it on the summary line
+  rather than per leg, since every leg is opened off one form.
+
 - 2026-09-01 — Fixed **Collapse all / Expand all** in group mode. They date from the first upload
   (891ba27) and had never worked there: the buttons set `t.collapsed` on each trade, while group
   cards read `root.gcollapse[gid]`. Account mode was always fine. `collapseAll` now writes whichever
