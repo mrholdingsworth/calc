@@ -31,6 +31,15 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-29 — Margin and buying power. Per-account setting (Cash / 2x / 4x / 6x) on the Desk, and a
+  column in the group members table. Buying power = equity x multiple; open positions consume it at
+  their mark. Sizing takes the lesser of the R-derived size and what buying power allows, and states
+  the fraction of an R that leaves you taking. Book bar shows buying power used, amber past 80%,
+  red at 100%. A ceiling only — no maintenance requirements or per-security haircuts.
+  Deviation from the request: one dropdown with "Cash — no margin" as the first option, rather than a
+  checkbox plus a level. Same information, and it cannot reach the inconsistent state of margin
+  unticked with 4x still selected.
+
 - 2026-08-29 — Targets back, informational only and trimmed to +1R and +2R, in both New Trade and
   Open Positions and in both account and group mode. A target price does not depend on account size
   (shares scale with R, so k·R/shares reduces to k·risk-per-share/mult), so one row serves a whole

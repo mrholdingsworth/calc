@@ -64,6 +64,22 @@ The repo has to be public for Pages to serve it on the free plan. What that publ
 itself and nothing else — your trades never enter the repo, and there is no account, key, or
 personal data in the file. Serving from a private repo needs a paid plan.
 
+## Buying power
+
+R answers how much you may **lose**. It says nothing about how much you may **hold** — and a tight
+stop makes those two wildly different. A $1,000 risk unit against a 50c stop is 2,000 shares; at $100
+a share that is a $200,000 position on a $100,000 account.
+
+Each account carries a margin setting: **Cash** (1x), or 2x, 4x, 6x. Buying power is equity times
+that multiple, and open positions consume it at their current mark. Sizing takes the **smaller** of
+what R allows and what buying power allows, and says so plainly when the second one binds — including
+what fraction of an R you are actually taking as a result. The book bar carries buying power used
+across whatever is in view, amber past 80% and red at 100%.
+
+This is a ceiling, not a broker calculation. There are no maintenance requirements, no per-security
+haircuts, no overnight-versus-intraday distinction. Your broker remains the authority on what you can
+actually borrow.
+
 ## Marks and staleness
 
 A **mark** is simply the last price you have given the app for an open position. It is set whenever

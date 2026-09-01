@@ -224,6 +224,13 @@ details[open] summary::before{content:"\25BE  "}
   <div class="tabs" id="tabs" style="margin-top:10px"></div>
   <div class="fields">
     <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
+    <div id="marginCell"><label for="marginX">Margin</label>
+      <select id="marginX">
+        <option value="1">Cash — no margin</option>
+        <option value="2">Margin 2&times; (Reg T)</option>
+        <option value="4">Margin 4&times; (day trading)</option>
+        <option value="6">Margin 6&times;</option>
+      </select></div>
     <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
     <div><label for="t0">Tier A+ (R)</label><input id="t0" type="number" step="0.25" min="0.05"></div>
     <div><label for="t1">Tier A (R)</label><input id="t1" type="number" step="0.25" min="0.05"></div>
@@ -431,6 +438,7 @@ let root = null, state = null;
 
 function defaults(){
   return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
+                      marginX:1,
                       heatCap:5, coldR:3, sizeMode:"r",
                       collapsed:{desk:false,new:false,open:false,tally:false,charts:false,data:false} }, trades:[] };
 }
@@ -467,6 +475,27 @@ function settingsFor(acct){
   GROUP_KEYS.forEach(k=>{ merged[k] = root.groups[g].settings[k]; });
   return merged;
 }
+// Buying power. marginX is 1 for a cash account, 2 for Reg T, 4 for day-trading margin. Nothing
+// here is a broker calculation — no maintenance requirements, no per-security haircuts — it is a
+// ceiling so R-sizing cannot quietly hand you a position you could not pay for.
+const marginXOf = acct => {
+  const pf = root.portfolios[acct];
+  const x = pf ? pf.settings.marginX : 1;
+  return (x>0) ? x : 1;
+};
+const buyingPower = acct => {
+  const pf = root.portfolios[acct];
+  return pf ? pf.settings.aum * marginXOf(acct) : 0;
+};
+// What open positions are currently standing on, marked to the last price.
+function bpUsed(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return 0;
+  return pf.trades.filter(t=>t.status==="open")
+    .reduce((a,t)=>{ const d = derive(t); return a + Math.abs(t.last*d.Q); }, 0);
+}
+const bpFree = acct => Math.max(0, buyingPower(acct) - bpUsed(acct));
+
 const rUnitOf = acct => {
   const pf = root.portfolios[acct];
   return pf ? pf.settings.aum * settingsFor(acct).rPct/100 : 0;
@@ -1002,7 +1031,11 @@ function renderSettings(){
   // Equity is per account, so the single AUM field has no meaning for a whole group — the members
   // list below takes its place.
   $("aumCell").style.display = g ? "none" : "";
-  if(!g) $("aum").value = "$" + state.settings.aum.toLocaleString(undefined,{maximumFractionDigits:0});
+  $("marginCell").style.display = g ? "none" : "";
+  if(!g){
+    $("aum").value = "$" + state.settings.aum.toLocaleString(undefined,{maximumFractionDigits:0});
+    $("marginX").value = String(marginXOf(acctInView()));
+  }
   $("rpct").value = s.rPct;
   $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
   $("compound").value = s.compound ? "1" : "0";
@@ -1014,13 +1047,17 @@ function renderSettings(){
     const members = groupMembers(g);
     eq.style.display = "";
     eq.innerHTML = members.length
-      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th class='num'>1R</th>" +
+      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th>Margin</th><th class='num'>Buying power</th><th class='num'>1R</th>" +
         "<th class='num'>"+TIERS[0]+"</th><th class='num'>"+TIERS[1]+"</th><th class='num'>"+TIERS[2]+"</th><th></th></tr>" +
         members.map(m=>{
           const R = rUnitOf(m);
           return "<tr><td>"+esc(m)+"</td>" +
             "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
               fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+esc(m).replace(/'/g,"\\'")+"',this.value)\"></td>" +
+            "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+esc(m).replace(/'/g,"\'")+"',this.value)\">" +
+              [1,2,4,6].map(x=>"<option value='"+x+"'"+(marginXOf(m)===x?" selected":"")+">"+(x===1?"Cash":x+"&times;")+"</option>").join("") +
+            "</select></td>" +
+            "<td class='num'>"+fmt$(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmt$(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
             "<td class='num'><button class='small' onclick=\"focusMember('"+esc(m).replace(/'/g,"\\'")+"')\">Open</button></td></tr>";
@@ -1038,6 +1075,10 @@ function renderSettings(){
     '<option value="'+i+'"'+(i===parseInt(sel)?" selected":"")+'>'+n+" &mdash; "+s.tiers[i]+"R" +
     (g ? "" : " ("+fmt$(rUnitNow()*s.tiers[i])+")") + "</option>").join("");
 }
+window.setMemberMargin = (m,v) => {
+  if(root.portfolios[m]) root.portfolios[m].settings.marginX = parseFloat(v)||1;
+  save(); render();
+};
 window.setMemberAum = (m,v) => {
   const n = parseFloat(String(v).replace(/[^0-9.]/g,""));
   if(root.portfolios[m] && !isNaN(n) && n>0) root.portfolios[m].settings.aum = n;
@@ -1059,13 +1100,29 @@ function newTradeCal(){
   }
   const mult = state.settings.tiers[ti];
   const R = rUnitNow(), b = R*mult;
-  const q = Math.floor(b/den);
+  const acct = acctInView();
+
+  // R answers how much you may lose. Buying power answers how much you may hold. A tight stop makes
+  // the first number large and says nothing about the second, so the smaller of the two wins.
+  const qR = Math.floor(b/den);
+  const free = bpFree(acct);
+  const qBP = P>0 ? Math.floor(free/P) : 0;
+  const capped = qBP < qR;
+  const q = Math.min(qR, qBP);
 
   $("nt_calbox").style.display = "block";
-  $("nt_calans").textContent = fmtQ(q) + " shares";
+  $("nt_calans").innerHTML = fmtQ(q) + " shares" +
+    (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— capped by buying power</span>' : "");
   $("nt_calsub").innerHTML =
     "Risk per share <b>" + fmt$(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
-    " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)";
+    " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)" +
+    (capped
+      ? '<br><span style="color:var(--amber)">R alone wants <b>'+fmtQ(qR)+"</b> shares ("+fmt$(qR*P)+
+        "), but only <b>"+fmt$(free)+"</b> of buying power is free"+
+        (marginXOf(acct)===1 ? " (cash account — no margin)" : " ("+marginXOf(acct)+"&times; on "+fmt$(state.settings.aum)+")")+
+        ". At "+fmtQ(q)+" shares this risks <b>"+ (q*den/R).toFixed(2) +"R</b>, not "+mult+"R.</span>"
+      : '<br><span class="muted">Buying power free: '+fmt$(free)+" of "+fmt$(buyingPower(acct))+
+        (marginXOf(acct)===1 ? " (cash account)" : " ("+marginXOf(acct)+"&times;)")+"</span>");
 
   $("nt_targets").innerHTML = q>0
     ? '<span class="muted" style="align-self:center">targets:</span>' + ladderHtml(ladder(side,P,q,R,null,TARGETS))
@@ -1985,9 +2042,13 @@ function groupSizeRows(P, S, side, ti){
   const den = side*(P-S);
   return groupMembers(root.active).map(m=>{
     const s = settingsFor(m), R = rUnitOf(m), mult = s.tiers[ti], budget = R*mult;
-    const q = den>0 ? Math.floor(budget/den) : 0;
-    return { m, R, mult, budget, q, cost:q*P, aum:root.portfolios[m].settings.aum,
-             alloc: root.portfolios[m].settings.aum>0 ? q*P/root.portfolios[m].settings.aum*100 : 0,
+    const qR = den>0 ? Math.floor(budget/den) : 0;
+    const free = bpFree(m);
+    const qBP = P>0 ? Math.floor(free/P) : 0;
+    const q = Math.min(qR, qBP);
+    const aum = root.portfolios[m].settings.aum;
+    return { m, R, mult, budget, q, qR, free, capped:qBP<qR, cost:q*P, aum,
+             alloc: aum>0 ? q*P/aum*100 : 0,
              on: memberIn(m), skipped: q<=0 };
   });
 }
@@ -2013,7 +2074,7 @@ function renderGroupNewTrade(){
   $("nt_ladder").innerHTML =
     '<div class="scroll" style="width:100%"><table>' +
     "<tr><th>Take</th><th class='num'>Shares</th><th>Account</th><th class='num'>Equity</th>" +
-    "<th class='num'>1R</th><th class='num'>Risk</th><th class='num'>Cost</th><th class='num'>Allocation</th></tr>" +
+    "<th class='num'>1R</th><th class='num'>Risk</th><th class='num'>Cost</th><th class='num'>BP free</th><th class='num'>Allocation</th></tr>" +
     rows.map(r=>{
       const off = !r.on || r.skipped;
       return "<tr"+(off?" style='opacity:.5'":"")+">" +
@@ -2026,7 +2087,9 @@ function renderGroupNewTrade(){
         "<td>"+esc(r.m)+"</td>" +
         "<td class='num'>"+fmt$(r.aum)+"</td><td class='num'>"+fmt$(r.R)+"</td>" +
         "<td class='num'>"+fmt$(r.budget)+"</td>" +
-        "<td class='num'>"+fmt$(r.cost)+"</td><td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>";
+        "<td class='num'>"+fmt$(r.cost)+"</td>" +
+        "<td class='num'"+(r.capped?" style='color:var(--amber)' title='R alone wants '+fmtQ(r.qR)+' shares here'":"")+">"+fmt$(r.free)+"</td>" +
+        "<td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>";
     }).join("") + "</table></div>";
 
   // A target price does not depend on account size: shares scale with R, so k*R/shares reduces to
@@ -2036,6 +2099,7 @@ function renderGroupNewTrade(){
     ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den/mult0, hit:false})));
 
   const skipped = rows.filter(r=>r.on && r.skipped);
+  const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
   let vol = a
@@ -2043,7 +2107,10 @@ function renderGroupNewTrade(){
       (a.adrs<1.5 ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
     : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
   if(skipped.length) vol += '<br><span style="color:var(--amber)">Skipped: '+skipped.map(r=>esc(r.m)).join(", ")+
-    " &mdash; one share would risk more than the budget at this stop. Nothing is opened for them.</span>";
+    " &mdash; no room at this stop, on risk or on buying power. Nothing is opened for them.</span>";
+  if(cappedRows.length) vol += '<br><span style="color:var(--amber)">Capped by buying power: '+
+    cappedRows.map(r=>esc(r.m)+" ("+fmtQ(r.q)+" of "+fmtQ(r.qR)+")").join(", ")+
+    " &mdash; those accounts take less than a full "+rows[0].mult+"R.</span>";
   $("nt_vol").innerHTML = vol;
   return rows;
 }
@@ -2345,6 +2412,15 @@ function renderBook(open){
         '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
         '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
         '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
+        (function(){
+          // Buying power across whatever is in view, so over-extension shows next to open heat.
+          const bp = scope().reduce((a,x)=>a+buyingPower(x), 0);
+          const used = scope().reduce((a,x)=>a+bpUsed(x), 0);
+          const pct = bp>0 ? used/bp*100 : 0;
+          const col = pct>=100 ? "var(--red)" : (pct>=80 ? "var(--amber)" : "var(--green)");
+          return '<div class="metric"><div class="k">Buying power used</div><div class="v" style="color:'+col+'">'+
+            pct.toFixed(0)+'%</div><div class="r">'+fmt$(used)+" of "+fmt$(bp)+" &middot; "+fmt$(Math.max(0,bp-used))+" free</div></div>";
+        })() +
         '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px">' +
@@ -2431,6 +2507,12 @@ function bindSettings(){
     if(!isNaN(v) && v>0){ ruleset().tiers[i] = v; save(); render(); }
   }));
   $("compound").addEventListener("change", e=>{ ruleset().compound = e.target.value==="1"; save(); });
+  // Margin belongs to the account, not the ruleset — it is a broker arrangement, not a method.
+  $("marginX").addEventListener("change", e=>{
+    const a = acctInView();
+    if(root.portfolios[a]) root.portfolios[a].settings.marginX = parseFloat(e.target.value)||1;
+    save(); render();
+  });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
   ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
