@@ -1131,6 +1131,7 @@ window.clearFc = () => { $("fc_price").value = ""; $("fc_stop").value = ""; rend
 
 // Hand the numbers to New Trade so the only thing left to change is the price you actually got.
 window.fcToNewTrade = () => {
+  clearFills();                              // a new setup, so no account carries an old fill
   $("nt_entry").value = $("fc_price").value;
   $("nt_stop").value = $("fc_stop").value;
   const side = fcSide();
@@ -2182,82 +2183,150 @@ window.toggleMember = m => {
 };
 const memberIn = m => !gSel()[m];
 
+// Per-member fill overrides for the trade being entered. Deliberately not on root: a price is only
+// true for the fill it came from, and one surviving a reload would quietly size the next trade.
+let gPx = {};
+const pxFor = (m, P) => { const v = gPx[m]; return (v>0) ? v : P; };
+window.setMemberPx = (m, v) => {
+  const x = parseFloat(v);
+  if(v === "" || isNaN(x) || x <= 0) delete gPx[m]; else gPx[m] = x;
+  repaintGroupCalc();
+};
+const clearFills = () => { gPx = {}; };
+
+// The table addresses members by row index — see the note where it is built.
+const memberAt = i => groupMembers(root.active)[i];
+window.toggleMemberAt = i => toggleMember(memberAt(i));
+window.setMemberPxAt = (i, v) => setMemberPx(memberAt(i), v);
+
 // Sizing preview: one row per member, off its own equity.
+//
+// Size is decided before any of this fills, so every account sizes off the SHARED entry and a per
+// account fill never moves a share count — the number you sized on is the number you take. The fill
+// is a recording correction: it sets the price the trade is opened at, and with it the cost, the
+// allocation, and every statistic downstream that reads back the entry price.
 function groupSizeRows(P, S, side, ti){
   const den = side*(P-S);
   return groupMembers(root.active).map(m=>{
+    const px = pxFor(m, P);
     const s = settingsFor(m), R = rUnitOf(m), mult = s.tiers[ti], budget = R*mult;
     const qR = den>0 ? Math.floor(budget/den) : 0;
     const free = bpFree(m);
     const qBP = P>0 ? Math.floor(free/P) : 0;
     const q = Math.min(qR, qBP);
     const aum = root.portfolios[m].settings.aum;
-    return { m, R, mult, budget, q, qR, free, capped:qBP<qR, cost:q*P, aum,
-             alloc: aum>0 ? q*P/aum*100 : 0,
-             on: memberIn(m), skipped: q<=0 };
+    return { m, px, den, R, mult, budget, q, qR, free, capped:qBP<qR, cost:q*px, aum,
+             alloc: aum>0 ? q*px/aum*100 : 0,
+             on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 };
   });
 }
 
+// Two entry points. renderGroupNewTrade rebuilds the table and is what the shared fields call.
+// repaintGroupCalc only rewrites the derived cells, so typing into a per-account fill never blows
+// away the input the cursor is sitting in.
 function renderGroupNewTrade(){
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
   const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
-  const den = side*(P-S);
-  if(!(den>0)){
+  if(!(side*(P-S)>0)){
     $("nt_calbox").style.display="none";
     $("nt_err").textContent = "Stop must be below entry for longs, above entry for shorts.";
     return null;
   }
   const rows = groupSizeRows(P,S,side,ti);
-  const taking = rows.filter(r=>r.on && !r.skipped);
   $("nt_calbox").style.display = "block";
-  $("nt_calans").textContent = taking.length + " of " + rows.length + " accounts &middot; "
-    .replace("&middot;","·") + fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total";
-  $("nt_calsub").innerHTML = "Risk per share <b>"+fmt$(den)+"</b> &middot; every account sizes off its own equity at "+
-    TIERS[ti]+" ("+rows[0]?.mult+"R)";
   $("nt_ladder").innerHTML =
     '<div class="scroll" style="width:100%"><table>' +
-    "<tr><th>Take</th><th class='num'>Shares</th><th>Account</th><th class='num'>Equity</th>" +
+    "<tr><th>Take</th><th class='num'>Shares</th><th>Account</th><th class='num'>Equity</th><th class='num'>Fill</th>" +
     "<th class='num'>1R</th><th class='num'>Risk</th><th class='num'>Cost</th><th class='num'>BP free</th><th class='num'>Allocation</th></tr>" +
-    rows.map(r=>{
-      const off = !r.on || r.skipped;
-      return "<tr"+(off?" style='opacity:.5'":"")+">" +
+    // Handlers take the row index, not the account name: an index needs no escaping, and a name
+    // carrying an apostrophe would break out of the attribute no matter how it were quoted.
+    rows.map((r,i)=>{
+      return "<tr id='grow_"+i+"'>" +
         "<td><input type='checkbox' style='width:auto' "+(r.on?"checked":"")+
-          " onchange=\"toggleMember('"+esc(r.m).replace(/'/g,"\\'")+"')\"></td>" +
+          " onchange=\"toggleMemberAt("+i+")\"></td>" +
         // Shares first and in gold: it is the number you act on, everything else is why.
-        "<td class='num' style='font-size:15px'>"+(r.skipped
-          ? "<span class='muted'>0 &mdash; too small</span>"
-          : "<b style='color:var(--gold)'>"+fmtQ(r.q)+"</b>")+"</td>" +
+        "<td class='num' id='gq_"+i+"' style='font-size:15px'></td>" +
         "<td>"+esc(r.m)+"</td>" +
-        "<td class='num'>"+fmt$(r.aum)+"</td><td class='num'>"+fmt$(r.R)+"</td>" +
+        "<td class='num'>"+fmt$(r.aum)+"</td>" +
+        // Each account gets the price it was actually filled at; blank means the shared entry above.
+        // Cent steps: fills on a liquid name differ by pennies, so that is what the arrows should nudge.
+        "<td class='num'><input id='gpx_"+i+"' type='number' step='0.01' value='"+
+          (gPx[r.m]>0 ? gPx[r.m] : "")+"' placeholder='"+P+"' title='Fill for "+esc(r.m)+
+          " &mdash; blank uses the entry above' style='width:88px;padding:4px 7px;font-size:13px;text-align:right'"+
+          " oninput=\"setMemberPxAt("+i+", this.value)\"></td>" +
+        "<td class='num'>"+fmt$(r.R)+"</td>" +
         "<td class='num'>"+fmt$(r.budget)+"</td>" +
-        "<td class='num'>"+fmt$(r.cost)+"</td>" +
-        "<td class='num'"+(r.capped?" style='color:var(--amber)' title='R alone wants '+fmtQ(r.qR)+' shares here'":"")+">"+fmt$(r.free)+"</td>" +
-        "<td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>";
+        "<td class='num' id='gcost_"+i+"'></td>" +
+        "<td class='num' id='gbp_"+i+"'></td>" +
+        "<td class='num' id='galloc_"+i+"'></td></tr>";
     }).join("") + "</table></div>";
+  paintGroupCalc(rows, P, S, side, ti);
+  return rows;
+}
 
-  // A target price does not depend on account size: shares scale with R, so k*R/shares reduces to
-  // k*risk-per-share/mult for every member alike.
+function repaintGroupCalc(){
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  if(isNaN(P) || isNaN(S) || !(side*(P-S)>0) || !$("grow_0")) return null;
+  const rows = groupSizeRows(P,S,side,ti);
+  paintGroupCalc(rows, P, S, side, ti);
+  return rows;
+}
+
+function paintGroupCalc(rows, P, S, side, ti){
+  const taking = rows.filter(r=>r.on && !r.skipped);
+  $("nt_calans").textContent = taking.length + " of " + rows.length + " accounts · " +
+    fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total";
+
+  // One risk per share, because sizing is settled at the shared entry regardless of where each
+  // account actually filled.
   const mult0 = rows.length ? rows[0].mult : 1;
-  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">targets:</span>' +
-    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den/mult0, hit:false})));
+  $("nt_calsub").innerHTML = "Risk per share <b>"+fmt$(side*(P-S))+"</b>" +
+    " &middot; every account sizes off its own equity at "+TIERS[ti]+" ("+mult0+"R)";
 
+  rows.forEach((r,i)=>{
+    const tr = $("grow_"+i); if(!tr) return;
+    tr.style.opacity = (!r.on || r.skipped) ? ".5" : "";
+    $("gq_"+i).innerHTML = r.skipped
+      ? "<span class='muted'>0 &mdash; too small</span>"
+      : "<b style='color:var(--gold)'>"+fmtQ(r.q)+"</b>";
+    const px = $("gpx_"+i); if(px) px.style.color = (gPx[r.m]>0) ? "var(--gold)" : "";
+    $("gcost_"+i).textContent = fmt$(r.cost);
+    $("galloc_"+i).textContent = r.alloc.toFixed(1)+"%";
+    const bp = $("gbp_"+i);
+    bp.textContent = fmt$(r.free);
+    bp.style.color = r.capped ? "var(--amber)" : "";
+    bp.title = r.capped ? ("R alone wants "+fmtQ(r.qR)+" shares here") : "";
+  });
+
+  // A target price does not depend on account size — shares scale with R, so k*R/shares reduces to
+  // k*risk-per-share/mult — but it does depend on the fill, so it is quoted off the shared entry.
+  const den0 = side*(P-S);
+  const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
+  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">targets'+
+    (overridden ? " at "+fmt$(P) : "")+':</span>' +
+    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den0/mult0, hit:false})));
+
+  const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
   const skipped = rows.filter(r=>r.on && r.skipped);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
   const adr = parseFloat($("nt_adr").value);
-  const a = adrAudit(P, adr, den);
+  const a = adrAudit(P, adr, den0);
   let vol = a
     ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.adrs.toFixed(1)+" ADRs away.</span> " +
       (a.adrs<1.5 ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
     : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
+  // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
+  if(badRows.length) vol += '<br><span style="color:var(--amber)">Fill is already past the stop for: '+
+    badRows.map(r=>esc(r.m)+" ("+fmt$(r.px)+")").join(", ")+" &mdash; check the entry. These still open.</span>";
   if(skipped.length) vol += '<br><span style="color:var(--amber)">Skipped: '+skipped.map(r=>esc(r.m)).join(", ")+
     " &mdash; no room at this stop, on risk or on buying power. Nothing is opened for them.</span>";
   if(cappedRows.length) vol += '<br><span style="color:var(--amber)">Capped by buying power: '+
     cappedRows.map(r=>esc(r.m)+" ("+fmtQ(r.q)+" of "+fmtQ(r.qR)+")").join(", ")+
-    " &mdash; those accounts take less than a full "+rows[0].mult+"R.</span>";
+    " &mdash; those accounts take less than a full "+mult0+"R.</span>";
   $("nt_vol").innerHTML = vol;
-  return rows;
 }
 
 function openGroupTrade(){
@@ -2282,15 +2351,16 @@ function openGroupTrade(){
       gid, gname: root.active,
       ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti, mult: r.mult,
       adr: (!isNaN(adr)&&adr>0) ? adr : null,
-      rUnit: r.R, aumAtOpen: r.aum, status:"open", last:P,
+      rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
       plan: Object.assign({}, plan), checks: checks.slice(),
-      events: [{type:"entry", qty:r.q, price:P, stop:S, ts:now}],
+      events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
       createdAt: now, lastMarkTs: now
     });
   });
   ["nt_tk","nt_concept","nt_entry","nt_stop","nt_qty","nt_add_if","nt_cut_if","nt_wait_if","nt_exit"]
     .forEach(id=>{ $(id).value = ""; });
   [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
+  clearFills();                              // a fill belongs to the trade it came from
   updateGate(); updateWash();
   $("nt_calbox").style.display = "none";
   save(); render();

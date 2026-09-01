@@ -21,6 +21,14 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-09-01 — Per-account **Fill** column on the group New Trade table, sitting after Equity. Blank
+  means the shared entry. It deliberately does **not** resize: size is settled at the shared entry
+  (usually via Fast calc), and the fill only sets the price the trade is recorded at, plus the cost
+  and allocation that follow from it. The point is accurate tracking, not sizing — every closed-trade
+  statistic reads back the entry price. Cent steps on the arrows. A fill past the stop warns in amber
+  but still opens. Fixed two latent bugs alongside it: the buying-power tooltip rendered its own
+  source text, and an account name containing an apostrophe broke the row handlers (row index now).
+
 - 2026-08-31 — Five date notes under the masthead clock, in gold, keyed MM-DD: New Year, Valentines,
   tax day, 4 July, and 24-26 December sharing the Christmas one. Deliberately impersonal — the repo
   is public, so no names or birthdays.
@@ -28,7 +36,7 @@ Running list. Newest at the top of each section.
 - 2026-08-31 — Masthead clock, right-justified opposite the wordmark. 24-hour with gold colons and
   tabular figures so the digits do not shuffle as they tick; weekday and date beneath. Updates every
   second and touches only its own element, so it cannot disturb a field being typed into. The market
-  open/closed half is still on the list, pending the holiday-calendar decision.
+  open/closed half was ruled out — see above.
 
 - 2026-08-29 — Gold vertical bar replaces the slash wherever two parallel things sit side by side, in
   a label or a value: win rate, avg win/loss, avg days held, winners/losers, long/short, Concept |

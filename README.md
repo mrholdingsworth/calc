@@ -138,9 +138,9 @@ There is no loss rate here on purpose.
 |---|---|---|
 | **Raw** | anything above zero | every closed trade |
 | **Ex-scratch** | above +0.10R | every closed trade |
-| **&ge;1R** | +1R or better — paid for a full loss | every closed trade |
+| **&ge;1R** | +1R or better ï¿½ paid for a full loss | every closed trade |
 
-All three share one denominator — every closed trade — so they read as one idea tightened twice
+All three share one denominator ï¿½ every closed trade ï¿½ so they read as one idea tightened twice
 rather than three separate samples. Nothing is excluded; a scratch simply is not a win.
 
 The scratch band is **-0.05R to +0.10R**, wider on the positive side so a bad fill on a breakeven stop
@@ -150,7 +150,7 @@ time and buying power spent on setups that went nowhere.
 
 Read it against **avg days held: winners vs losers**. If the raw rate is high, the &ge;1R rate is low,
 *and* winners are held shorter than losers, that is cutting winners early confirmed from two
-independent directions. A low &ge;1R rate is not automatically wrong — only if it contradicts how you
+independent directions. A low &ge;1R rate is not automatically wrong ï¿½ only if it contradicts how you
 meant to trade.
 
 ## The 30-day review
@@ -183,7 +183,25 @@ opens out into a box holding its members. What the group owns: R %, tier budgets
 the cold-streak brake. What each account keeps: its equity, its positions, and every statistic.
 
 Enter a trade once in a group and each account sizes it off its **own** equity, so the share counts
-differ while the risk stays one R everywhere. Tick boxes on the entry form let you skip an account
+differ while the risk stays one R everywhere.
+
+One order across several accounts rarely fills at one price, so the entry table carries a **Fill**
+column: a per-account price, blank meaning "the shared entry above."
+
+It does not resize anything. Size is settled before the order goes in â€” off the shared entry, in Fast
+calc or here â€” and a fill arriving three cents away is not a reason to take two fewer shares. What
+the fill sets is the price the trade is **recorded** at, and with it the cost and the allocation.
+
+That matters more than the share count. Every closed-trade statistic reads back the entry price â€” R
+multiple, P/L, the three win rates, days held against outcome â€” so booking four legs at one price
+when three filled elsewhere puts a permanent error into each of them. On a tight stop a few cents is
+a few hundredths of an R, which is enough to move a trade across the scratch band and into a
+different win-rate bucket.
+
+A fill on the far side of the stop is flagged amber, since it is nearly always a typo, but it still
+opens: the fill is yours to state. The target ladder stays quoted off the shared entry and says so.
+
+Tick boxes on the entry form let you skip an account
 for a single trade, and any account too small to take one share at that stop is named and skipped
 rather than silently dropped.
 
