@@ -448,14 +448,18 @@ const TIERS = ["A+","A","B"];
 
 // Why a loss happened. Three causes that call for three different responses: nothing, a wider stop,
 // or a word with yourself. A tag no longer on this list still shows on its trade, marked retired.
-// Three outcomes that partition every closed trade, both boundaries expressed in R.
-//   Win     rm >= +1R    — paid for exactly one full loss, the unit everything is denominated in.
-//   Loss    rm <= -0.5R  — took real damage, at or approaching the 1R cap the system imposes.
-//   Scratch in between   — neither covered a loss nor cost you much.
-// The asymmetry is deliberate: losses are bounded by design, wins are not, so the two sides answer
-// different questions. Move these two numbers and the whole metric moves with them.
-const WIN_R = 1, LOSS_R = -0.5;
-const outcomeOf = rm => rm >= WIN_R ? "win" : (rm <= LOSS_R ? "loss" : "scratch");
+// Three win rates, each stricter than the last. No loss rate — the question is only ever how often
+// a trade actually won.
+//
+//   raw         rm > 0                        anything above zero
+//   ex-scratch  rm > +0.10R, scratches out    of the trades that went somewhere, how many won
+//   decisive    rm >= +1R                     how many paid for a full loss
+//
+// The scratch band is deliberately wider on the positive side: it discards slightly more marginal
+// wins than marginal losses, so dropping scratches can never flatter the number. It also absorbs a
+// bad fill on a breakeven stop, which is a scratch in every sense but the sign.
+const SCRATCH_LO = -0.05, SCRATCH_HI = 0.10, WIN_R = 1;
+const isScratch = rm => rm >= SCRATCH_LO && rm <= SCRATCH_HI;
 
 const LOSS_TAGS = [
   { v:"invalidation", t:"Thesis broken — the stop did its job" },
@@ -1827,15 +1831,15 @@ function renderClosed(){
   }
 
   let tot=0, wins=0, wr=0, lr=0, wn=0, ln=0, worst=0, discOK=0, noise=0, violations=0, tagged=0, planned=0;
-  let bWin=0, bScratch=0, bLoss=0;
+  let bDecisive=0, bScratch=0, bExWin=0;
   const rms = [];
   const chrono = closed.slice().sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
 
   const rows = closed.map(t=>{
     const S = stats(t), d = S.d, rm = S.rm;
     tot += rm; rms.push(rm);
-    const oc = outcomeOf(rm);
-    if(oc==="win") bWin++; else if(oc==="loss") bLoss++; else bScratch++;
+    if(isScratch(rm)) bScratch++; else if(rm > SCRATCH_HI) bExWin++;
+    if(rm >= WIN_R) bDecisive++;
     if(rm>0){ wins++; wr += rm; wn++; }
     else { lr += rm; ln++; if(rm<worst) worst = rm; if(rm>=-1.2) discOK++;
            if(t.lossTag){ tagged++; if(t.lossTag==="noise") noise++; if(t.lossTag==="violation") violations++; } }
@@ -1917,19 +1921,24 @@ function renderClosed(){
   const noiseCol = noisePct==null ? "var(--mut)" : (noisePct<=20?"var(--green)":(noisePct<=40?"var(--amber)":"var(--red)"));
 
   $("stats").innerHTML =
-    '<div class="metric"><div class="k">Closed trades</div><div class="v">'+closed.length+'</div><div class="r">raw win rate '+Math.round(100*wins/closed.length)+'% &mdash; anything above zero</div></div>' +
+    '<div class="metric"><div class="k">Closed trades</div><div class="v">'+closed.length+'</div><div class="r">'+bScratch+' of them scratches</div></div>' +
     (function(){
-      // The gap between the raw rate and this one is the finding: how much of a win rate is built
-      // from trades that never covered a loss.
-      const decisive = Math.round(100*bWin/closed.length);
-      const raw = Math.round(100*wins/closed.length);
-      const gap = raw - decisive;
-      return '<div class="metric" title="Win = at or above +'+WIN_R+'R, the trade that pays for one full loss. Loss = at or below '+LOSS_R+'R. Scratch = everything between.">' +
-        '<div class="k">Decisive win rate</div>' +
-        '<div class="v"><span class="pos">'+decisive+'%</span> <span class="muted" style="font-size:13px">/ '+
-          Math.round(100*bScratch/closed.length)+'% / </span><span class="neg">'+Math.round(100*bLoss/closed.length)+'%</span></div>' +
-        '<div class="r">'+bWin+' won &ge;'+WIN_R+'R &middot; '+bScratch+' scratch &middot; '+bLoss+' lost' +
-        (gap>=20 ? '<br><span style="color:var(--amber)">'+gap+' points of the raw rate never covered a loss</span>' : "") +
+      // Same idea, tightened twice. Only the ex-scratch rate drops trades from the sample — that is
+      // what "without scratch trades" means — so its denominator is shown alongside the others.
+      const nAll = closed.length, nEx = nAll - bScratch;
+      const pct = (a,b) => b>0 ? (100*a/b) : null;
+      const raw = pct(wins, nAll), ex = pct(bExWin, nEx), dec = pct(bDecisive, nAll);
+      const fmtPct = v => v==null ? "&mdash;" : (Math.round(v*10)/10).toFixed(1)+"%";
+      const gap = (raw!=null && dec!=null) ? Math.round(raw-dec) : 0;
+      return '<div class="metric" title="Raw: any result above zero, over every closed trade. Ex-scratch: above +'+SCRATCH_HI+
+        'R, over the trades that finished outside the scratch band ('+SCRATCH_LO+'R to +'+SCRATCH_HI+
+        'R). Decisive: at or above +'+WIN_R+'R — paid for a full loss — over every closed trade.">' +
+        '<div class="k">Win rate &mdash; raw / ex-scratch / &ge;'+WIN_R+'R</div>' +
+        '<div class="v" style="font-size:15px">'+fmtPct(raw)+
+          ' <span class="muted">|</span> '+fmtPct(ex)+
+          ' <span class="muted">|</span> <span class="pos">'+fmtPct(dec)+'</span></div>' +
+        '<div class="r">'+wins+"/"+nAll+" &middot; "+bExWin+"/"+nEx+" &middot; "+bDecisive+"/"+nAll +
+        (gap>=20 ? '<br><span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>' : "") +
         '</div></div>';
     })() +
     '<div class="metric"><div class="k">Total R</div><div class="v '+cls(tot)+'">'+fmtR(tot)+'</div><div class="r">across '+closed.length+' closes</div></div>' +

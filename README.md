@@ -129,28 +129,29 @@ machine will not see it. Use **Export / Download .json** to back up and to move 
 **Clearing data** asks twice and dumps your whole book into the export box first, so a mis-click is
 recoverable as long as you have not left the page.
 
-## Decisive win rate
+## Win rate, three ways
 
-Raw win rate counts anything above zero, which lets a run of breakeven scratches read as skill. The
-tally carries both, side by side, because **the gap between them is the finding** â€” it is how much of
-a win rate was built from trades that never covered a loss. Past 20 points the gap is called out.
+One question â€” how often did a trade actually win â€” asked three times, each stricter than the last.
+There is no loss rate here on purpose.
 
-Three buckets partition every closed trade:
-
-| | | |
+| | Counts as a win | Out of |
 |---|---|---|
-| **Win** | `R >= +1` | paid for exactly one full loss |
-| **Scratch** | between | neither covered a loss nor cost much |
-| **Loss** | `R <= -0.5` | took real damage |
+| **Raw** | anything above zero | every closed trade |
+| **Ex-scratch** | above +0.10R | trades that finished outside the scratch band |
+| **&ge;1R** | +1R or better — paid for a full loss | every closed trade |
 
-The asymmetry is deliberate. Losses are bounded by design at 1R; wins are not. So the win side asks
-*did it clear the unit*, and the loss side asks *did I approach the cap or get out cheap*. A trade
-exited at -0.3R is a cut, not a stop-out.
+The scratch band is **-0.05R to +0.10R**, and it is deliberately wider on the positive side. That
+matters: dropping scratches discards slightly more marginal wins than marginal losses, so the
+ex-scratch rate can never flatter you by quietly removing small losses from the sample. It also
+absorbs a bad fill on a breakeven stop — a scratch in every sense except the sign.
 
-Read it against **avg days held: winners vs losers**. If wins are mostly scratches *and* winners are
-held shorter than losers, that is cutting winners early showing up in two independent places. And a
-low decisive rate is not automatically wrong â€” it is only wrong if it contradicts how you meant to
-trade.
+Only the middle rate changes its denominator, which is what "without scratch trades" means. All three
+fractions are printed under the percentages so the arithmetic is never hidden.
+
+Read it against **avg days held: winners vs losers**. If the raw rate is high, the &ge;1R rate is low,
+*and* winners are held shorter than losers, that is cutting winners early confirmed from two
+independent directions. A low &ge;1R rate is not automatically wrong — only if it contradicts how you
+meant to trade.
 
 ## The 30-day review
 
