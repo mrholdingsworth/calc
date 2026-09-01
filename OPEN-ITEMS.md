@@ -36,6 +36,12 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-09-01 — **Weighted ADR** tile on the Open Positions bar, next to open heat: sum of each
+  position's share of equity times its own ADR, plus the dollar equivalent. Absolute value so shorts
+  count; across a group it is total ADR dollars over total equity. Positions with no ADR are counted
+  and named in amber, since they can only make the figure read low. No colour thresholds on the
+  number itself — what counts as too much daily movement is a judgement, not a constant.
+
 - 2026-09-01 — **Clear** button on New Trade, matching the one in Fast calc. Right-hand end of the
   Open trade row, deliberately not beside the button, since it wipes a written-out plan. Both open
   paths reset through the same `clearNewTrade()` so nothing can drift. Caught an existing gap doing

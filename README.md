@@ -42,6 +42,12 @@ and your stop. Under 1.0 is red, under 1.5 is amber: a stop inside ordinary nois
 theses into losses that teach you nothing. It also tells you the stop and size that would buy 1.5 ADRs
 of room at the same R.
 
+**Weighted ADR** on the Open Positions bar is the other side of open heat. Heat is what a bad day
+costs if every stop hits; this is what an ordinary day *moves* when nothing goes wrong — each
+position's share of equity times its own ADR, summed, with the dollar figure beside it. Shorts count
+on absolute value. A position with no ADR set can only drag it down, so the number of those is
+stated next to it rather than left silent.
+
 **Survival levers**, deliberately outside per-trade sizing: a max open heat cap in R across the book,
 and a cold-streak brake on the last five closes.
 
