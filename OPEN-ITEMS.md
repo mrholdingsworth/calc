@@ -31,6 +31,11 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-29 — Gold vertical bar replaces the slash wherever two parallel things sit side by side, in
+  a label or a value: win rate, avg win/loss, avg days held, winners/losers, long/short, Concept |
+  setup, Mark | last price, Trim | take profit. Left alone where the slash is not a separator —
+  "R / last 5" is a unit, "P/L" and "R/day" are abbreviations, and the 25%/50% error text is prose.
+
 - 2026-08-29 — Win rate shown three ways, each stricter, all over the same denominator (every closed
   trade): raw (above zero), ex-scratch (above +0.10R) and decisive (at or above +1R). No loss rate,
   no fractions on screen, gold separators. Scratch band -0.05R to +0.10R, wider on the positive side

@@ -170,7 +170,8 @@ details[open] summary::before{content:"\25BE  "}
 .fcbig{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
 .fcsub{font-size:12.5px;color:var(--sub);margin-top:3px}
 .fcsub b{color:var(--tx)}
-.wrbar{color:var(--gold);font-weight:700;padding:0 2px}
+/* Gold bar wherever two parallel things sit side by side, in a label or a value. */
+.vbar{color:var(--gold);font-weight:700;padding:0 6px}
 .tabsep{display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--gold);
         opacity:.7;margin:0 6px;flex:none}
 .gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
@@ -281,7 +282,7 @@ details[open] summary::before{content:"\25BE  "}
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
     <div><label for="nt_side">Side</label><select id="nt_side"><option value="1">Long</option><option value="-1">Short</option></select></div>
     <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
-    <div style="grid-column:span 2"><label for="nt_concept">Concept / setup</label><input id="nt_concept" type="text" placeholder="mean reversion, multiday mover"></div>
+    <div style="grid-column:span 2"><label for="nt_concept">Concept <span class="vbar">|</span> setup</label><input id="nt_concept" type="text" placeholder="mean reversion, multiday mover"></div>
     <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
     <div><label for="nt_adr">ADR %</label><input id="nt_adr" type="number" step="0.1" placeholder="8.5"></div>
@@ -461,6 +462,7 @@ const TIERS = ["A+","A","B"];
 // wins than marginal losses, so dropping scratches can never flatter the number. It also absorbs a
 // bad fill on a breakeven stop, which is a scratch in every sense but the sign.
 const SCRATCH_LO = -0.05, SCRATCH_HI = 0.10, WIN_R = 1;
+const VBAR = '<span class="vbar">|</span>';
 const isScratch = rm => rm >= SCRATCH_LO && rm <= SCRATCH_HI;
 
 const LOSS_TAGS = [
@@ -1492,7 +1494,7 @@ function tradeCard(t){
     (planBits.length ? '<div class="calsub" style="margin-top:9px">'+planBits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "") +
 
     '<div class="actions">' +
-      '<div class="action"><div class="t">Mark / last price</div><div class="row">' +
+      '<div class="action"><div class="t">Mark <span class="vbar">|</span> last price</div><div class="row">' +
         '<input type="number" step="any" id="px_'+t.id+'" placeholder="'+t.last+'" onkeydown="if(event.key===\'Enter\')setLast(\''+t.id+'\')">' +
         '<button class="small" onclick="setLast(\''+t.id+'\')">Set</button></div></div>' +
 
@@ -1503,7 +1505,7 @@ function tradeCard(t){
         '<button class="small primary" onclick="doAdd(\''+t.id+'\')">Add</button></div>' +
         '<div class="err" id="adderr_'+t.id+'"></div></div>' +
 
-      '<div class="action"><div class="t">Trim / take profit</div><div class="row">' +
+      '<div class="action"><div class="t">Trim <span class="vbar">|</span> take profit</div><div class="row">' +
         '<input type="number" step="any" id="trp_'+t.id+'" placeholder="price" onkeydown="if(event.key===\'Enter\')doTrim(\''+t.id+'\',null)">' +
         '<input type="number" step="any" id="trq_'+t.id+'" placeholder="qty" onkeydown="if(event.key===\'Enter\')doTrim(\''+t.id+'\',null)">' +
         '<button class="small" onclick="doTrim(\''+t.id+'\',0.25)">25% ('+fmtQ(Math.floor(d.Q*0.25))+')</button>' +
@@ -1939,17 +1941,16 @@ function statsHtml(A){
   // twice rather than three separate samples. The middle one counts the setups that went nowhere
   // against you, which is the cost in time and buying power.
   const p = a => (Math.round(1000*a/A.n)/10).toFixed(1)+"%";
-  const bar = ' <span class="wrbar">|</span> ';
   const gap = Math.round(100*(A.wins-A.decisive)/A.n);
   return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
     '<div class="metric" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+SCRATCH_HI+'R. '+WIN_R+'R+: paid for a full loss.">' +
-      '<div class="k">Win rate &mdash; raw / ex-scratch / &ge;'+WIN_R+'R</div>' +
-      '<div class="v" style="font-size:15px">'+p(A.wins)+bar+p(A.exWin)+bar+'<span class="pos">'+p(A.decisive)+'</span></div>' +
+      '<div class="k">Win rate &mdash; raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+WIN_R+'R</div>' +
+      '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div>' +
       '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>'
                      : "each stricter than the last") + '</div></div>' +
     '<div class="metric"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
     '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade &mdash; the number that matters</div></div>' +
-    '<div class="metric"><div class="k">Avg win / avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+" / "+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under 1.2R &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(A.tagged?A.noise+" of "+A.tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(A.violations?"var(--red)":"var(--green)")+'">'+(A.tagged?A.violations:"&mdash;")+'</div><div class="r">'+(A.tagged?(A.violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
@@ -2124,13 +2125,13 @@ function renderCharts(chrono){
 
   $("deepStats").innerHTML =
     '<div class="metric"><div class="k">Avg days held</div><div class="v">'+
-      (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+" / "+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
-      '<div class="r"><span class="pos">winners</span> <span style="color:var(--tx)">/</span> <span class="neg">losers</span>' +
+      (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+VBAR+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
+      '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span>' +
       (holdOk===false?'<span class="neg"> &mdash; losers held longer</span>':"")+'</div></div>' +
     '<div class="metric"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
     '<div class="metric"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
-    '<div class="metric"><div class="k">Long / short</div><div class="v">'+
-      (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+" / "+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
+    '<div class="metric"><div class="k">Long '+VBAR+' short</div><div class="v">'+
+      (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+VBAR+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
       '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
 
   $("stats2").innerHTML = statsHtml(bookStats(chrono));
@@ -2446,7 +2447,7 @@ function groupTradeCard(gid, legs){
       ' accounts, each computed on its own equity. Open an account to act on it alone.</div>' +
 
     '<div class="actions">' +
-      '<div class="action"><div class="t">Mark / last price</div><div class="row">' +
+      '<div class="action"><div class="t">Mark <span class="vbar">|</span> last price</div><div class="row">' +
         '<input type="number" step="any" id="gpx_'+gid+'" placeholder="'+first.last+'" onkeydown="if(event.key===\'Enter\')gSetLast('+q()+')">' +
         '<button class="small" onclick="gSetLast('+q()+')">Set</button></div></div>' +
 
@@ -2457,7 +2458,7 @@ function groupTradeCard(gid, legs){
         '<div class="err" id="gadderr_'+gid+'"></div>' +
         '<div class="muted" style="margin-top:5px">Each account takes its own maximum at this price and stop.</div></div>' +
 
-      '<div class="action"><div class="t">Trim / take profit</div><div class="row">' +
+      '<div class="action"><div class="t">Trim <span class="vbar">|</span> take profit</div><div class="row">' +
         '<input type="number" step="any" id="gtrp_'+gid+'" placeholder="price">' +
         '<input type="number" step="1" id="gtrpct_'+gid+'" placeholder="%" style="max-width:70px">' +
         '<button class="small" onclick="gTrim('+q()+',0.25)">25%</button>' +
