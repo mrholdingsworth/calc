@@ -4,6 +4,21 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Section collapse state is stored per account — decide whether it should be.** Reported
+  2026-09-01 as "switching accounts minimised the Desk, once, then never again". Not a startup or
+  restart bug; it reproduces every time. `collapsed:{desk,new,open,tally,charts,data}` lives on
+  `pf.settings` (see `defaults()`), and `renderSections()` reads it off `state`, which is whichever
+  account is in view. So an account carrying `desk:true` from some earlier session folds the Desk the
+  moment you switch to it. Expanding it writes `false` and saves, which is why it never recurred.
+
+  Same root cause, still live: in a group `state` is the *first member*, so collapsing a section
+  while a group is open silently writes onto that one account's settings.
+
+  Collapse is a preference about the page, not a property of a book. Proposed fix: move `collapsed`
+  to `root`, migrate on load by taking the active account's existing map and dropping the per
+  portfolio copies. Small change, but it rewrites stored data, so worth doing deliberately with an
+  export taken first.
+
 - **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
   point the masthead, the `<title>` and (if you want them to match) the repo/URL change together.
   The in-app "Cal" references are already gone.
