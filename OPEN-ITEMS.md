@@ -31,6 +31,11 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-29 — Decisive win rate beside the raw one. Win at or above +1R (pays for one full loss),
+  loss at or below -0.5R, scratch between; the asymmetry follows from losses being capped by design
+  while wins are not. The gap between raw and decisive is called out past 20 points. WIN_R and LOSS_R
+  are two constants if the boundaries want moving after living with them.
+
 - 2026-08-29 — Fast calc on the Desk: price, stop, tier, shares, and nothing else. Side is inferred
   from which side the stop sits. Works per account and per group, honours buying power identically to
   New Trade, and records nothing. "Send to New Trade" carries price, stop, side and tier across and

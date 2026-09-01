@@ -129,6 +129,29 @@ machine will not see it. Use **Export / Download .json** to back up and to move 
 **Clearing data** asks twice and dumps your whole book into the export box first, so a mis-click is
 recoverable as long as you have not left the page.
 
+## Decisive win rate
+
+Raw win rate counts anything above zero, which lets a run of breakeven scratches read as skill. The
+tally carries both, side by side, because **the gap between them is the finding** — it is how much of
+a win rate was built from trades that never covered a loss. Past 20 points the gap is called out.
+
+Three buckets partition every closed trade:
+
+| | | |
+|---|---|---|
+| **Win** | `R >= +1` | paid for exactly one full loss |
+| **Scratch** | between | neither covered a loss nor cost much |
+| **Loss** | `R <= -0.5` | took real damage |
+
+The asymmetry is deliberate. Losses are bounded by design at 1R; wins are not. So the win side asks
+*did it clear the unit*, and the loss side asks *did I approach the cap or get out cheap*. A trade
+exited at -0.3R is a cut, not a stop-out.
+
+Read it against **avg days held: winners vs losers**. If wins are mostly scratches *and* winners are
+held shorter than losers, that is cutting winners early showing up in two independent places. And a
+low decisive rate is not automatically wrong — it is only wrong if it contradicts how you meant to
+trade.
+
 ## The 30-day review
 
 A month after a close, the market has answered a question your exit could not: did it keep running
