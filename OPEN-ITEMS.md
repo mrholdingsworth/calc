@@ -31,6 +31,12 @@ Running list. Newest at the top of each section.
 
 ## Decided / done
 
+- 2026-08-29 — Fast calc on the Desk: price, stop, tier, shares, and nothing else. Side is inferred
+  from which side the stop sits. Works per account and per group, honours buying power identically to
+  New Trade, and records nothing. "Send to New Trade" carries price, stop, side and tier across and
+  focuses the ticker, so a trade is sized before the order and recorded after it without being typed
+  twice.
+
 - 2026-08-29 — Margin and buying power. Per-account setting (Cash / 2x / 4x / 6x) on the Desk, and a
   column in the group members table. Buying power = equity x multiple; open positions consume it at
   their mark. Sizing takes the lesser of the R-derived size and what buying power allows, and states

@@ -164,6 +164,12 @@ details[open] summary::before{content:"\25BE  "}
    (1px border + 4px padding, top and bottom). The box paints outside the row without growing it,
    so opening a group cannot shove the desk down. */
 /* Separates what you select (accounts, groups) from what you do (create, edit, delete). */
+/* The desk's working surface: price, stop, tier, share count. No ticker, no plan, no record. */
+.fastcalc{margin-top:14px;padding:12px 14px;border:1px solid rgba(176,141,63,.35);
+          border-radius:12px;background:rgba(176,141,63,.06)}
+.fcbig{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
+.fcsub{font-size:12.5px;color:var(--sub);margin-top:3px}
+.fcsub b{color:var(--tx)}
 .tabsep{display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--gold);
         opacity:.7;margin:0 6px;flex:none}
 .gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
@@ -242,6 +248,20 @@ details[open] summary::before{content:"\25BE  "}
   </div>
   <div class="scroll" id="groupEquity" style="display:none;margin-top:14px"></div>
   <div class="calans" id="runitBox" style="font-size:16px;margin-top:14px"></div>
+
+  <div class="fastcalc">
+    <div class="row" style="align-items:flex-end">
+      <div class="head" style="margin:0 4px 8px 0;align-self:center">Fast calc</div>
+      <div style="max-width:130px"><label for="fc_price">Price</label>
+        <input id="fc_price" type="number" step="any" placeholder="entry"></div>
+      <div style="max-width:130px"><label for="fc_stop">Stop</label>
+        <input id="fc_stop" type="number" step="any" placeholder="invalidation"></div>
+      <div><label>Tier</label><div class="row" id="fc_tiers"></div></div>
+      <button class="small" id="fc_clear" title="Clear">&#10005;</button>
+    </div>
+    <div id="fc_out"></div>
+  </div>
+
   <div class="hint">
     1R recalculates from AUM, so it scales as you compound. Each trade locks its own R unit at the moment it opens.
     R expresses how much edge is in front of you &mdash; never the size you want. The survival levers (heat cap,
@@ -1075,6 +1095,78 @@ function renderSettings(){
     '<option value="'+i+'"'+(i===parseInt(sel)?" selected":"")+'>'+n+" &mdash; "+s.tiers[i]+"R" +
     (g ? "" : " ("+fmt$(rUnitNow()*s.tiers[i])+")") + "</option>").join("");
 }
+/* ========================= fast calc ========================= */
+// The question the calculator exists to answer, with nothing in front of it: price, stop, tier,
+// share count. Side is inferred from which way the stop sits, so it is one less field to touch.
+// Nothing here is recorded — commit the real fill through New Trade afterwards.
+window.setFcTier = i => { root.fcTier = i; save(); renderFastCalc(); };
+window.clearFc = () => { $("fc_price").value = ""; $("fc_stop").value = ""; renderFastCalc(); };
+
+// Hand the numbers to New Trade so the only thing left to change is the price you actually got.
+window.fcToNewTrade = () => {
+  $("nt_entry").value = $("fc_price").value;
+  $("nt_stop").value = $("fc_stop").value;
+  const side = fcSide();
+  if(side) $("nt_side").value = String(side);
+  $("nt_tier").value = String(root.fcTier==null ? 1 : root.fcTier);
+  if(state.settings.collapsed) state.settings.collapsed.new = false;
+  renderSections();
+  newTradeCal();
+  $("sec-new").scrollIntoView({block:"start"});
+  setTimeout(()=>$("nt_tk").focus(), 60);
+};
+function fcSide(){
+  const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
+  if(isNaN(P) || isNaN(S) || P===S) return 0;
+  return S < P ? 1 : -1;                       // stop below price is a long, above it a short
+}
+
+function renderFastCalc(){
+  const ti = root.fcTier==null ? 1 : root.fcTier;
+  const g = inGroup();
+  const tiers = g ? root.groups[root.active].settings.tiers : settingsFor(acctInView()).tiers;
+  $("fc_tiers").innerHTML = TIERS.map((n,i)=>
+    '<button class="small'+(i===ti?" primary":"")+'" onclick="setFcTier('+i+')">'+n+
+    ' <span class="muted" style="font-size:11px">'+tiers[i]+'R</span></button>').join("");
+
+  const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
+  const out = $("fc_out");
+  if(isNaN(P) || isNaN(S)){ out.innerHTML = '<div class="fcsub" style="margin-top:8px">Type a price and a stop. Long or short is read from which side the stop sits.</div>'; return; }
+  const side = fcSide();
+  if(!side){ out.innerHTML = '<div class="err">Stop and price can’t be the same.</div>'; return; }
+  const den = side*(P-S);
+
+  const accts = g ? groupMembers(root.active) : [acctInView()];
+  const rows = accts.map(m=>{
+    const R = rUnitOf(m), mult = (g ? root.groups[root.active].settings.tiers : settingsFor(m).tiers)[ti];
+    const qR = Math.floor(R*mult/den);
+    const free = bpFree(m);
+    const qBP = P>0 ? Math.floor(free/P) : 0;
+    const q = Math.min(qR, qBP);
+    return { m, R, mult, q, qR, capped:qBP<qR, cost:q*P,
+             alloc: root.portfolios[m].settings.aum>0 ? q*P/root.portfolios[m].settings.aum*100 : 0 };
+  });
+  const total = rows.reduce((a,r)=>a+r.q, 0);
+  const anyCapped = rows.some(r=>r.capped);
+
+  out.innerHTML =
+    '<div class="row" style="align-items:flex-end;margin-top:10px;gap:14px">' +
+      '<div><div class="fcbig">'+fmtQ(total)+'</div>' +
+      '<div class="fcsub">shares '+(side>0?"long":"short")+' &middot; risk/share <b>'+fmt$(den)+'</b>' +
+      (g ? " &middot; across "+rows.length+" account"+(rows.length===1?"":"s") : " &middot; cost <b>"+fmt$(rows[0].cost)+"</b> ("+rows[0].alloc.toFixed(0)+"% of equity)") +
+      '</div></div>' +
+      '<button class="small primary" style="margin-left:auto" onclick="fcToNewTrade()">Send to New Trade &rarr;</button>' +
+    '</div>' +
+    (g ? '<div class="scroll" style="margin-top:9px"><table><tr><th>Account</th><th class="num">Shares</th><th class="num">Risk</th><th class="num">Cost</th><th class="num">Allocation</th></tr>' +
+      rows.map(r=>"<tr><td>"+esc(r.m)+"</td>" +
+        "<td class='num'><b style='color:var(--gold);font-size:14px'>"+fmtQ(r.q)+"</b>"+(r.capped?" <span class='muted'>of "+fmtQ(r.qR)+"</span>":"")+"</td>" +
+        "<td class='num'>"+fmt$(r.R*r.mult)+"</td><td class='num'>"+fmt$(r.cost)+"</td>" +
+        "<td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>").join("") + "</table></div>" : "") +
+    (anyCapped ? '<div class="fcsub" style="color:var(--amber)">Capped by buying power &mdash; less than a full '+
+      rows[0].mult+'R'+(g?" in at least one account":"")+'.</div>' : "") +
+    '<div class="fcsub muted">Nothing is recorded. Place the order, then send it across and correct the price to your actual fill.</div>';
+}
+
 window.setMemberMargin = (m,v) => {
   if(root.portfolios[m]) root.portfolios[m].settings.marginX = parseFloat(v)||1;
   save(); render();
@@ -2438,6 +2530,7 @@ function render(){
   renderSections();
   // Mirrored on the desk so the queue is visible from the top of the page, whatever is collapsed.
   $("deskSummary").innerHTML = reviewsDueHtml();
+  renderFastCalc();
   const G = inGroup();
   const open = G ? scopeTrades("open").map(x=>x.t) : state.trades.filter(t=>t.status==="open");
   const heat = renderBook(open) || [];
@@ -2508,6 +2601,8 @@ function bindSettings(){
   }));
   $("compound").addEventListener("change", e=>{ ruleset().compound = e.target.value==="1"; save(); });
   // Margin belongs to the account, not the ruleset — it is a broker arrangement, not a method.
+  ["fc_price","fc_stop"].forEach(id=>$(id).addEventListener("input", renderFastCalc));
+  $("fc_clear").addEventListener("click", clearFc);
   $("marginX").addEventListener("change", e=>{
     const a = acctInView();
     if(root.portfolios[a]) root.portfolios[a].settings.marginX = parseFloat(e.target.value)||1;

@@ -64,6 +64,20 @@ The repo has to be public for Pages to serve it on the free plan. What that publ
 itself and nothing else — your trades never enter the repo, and there is no account, key, or
 personal data in the file. Serving from a private repo needs a paid plan.
 
+## Fast calc
+
+The Desk carries a **Fast calc**: price, stop, tier, share count. No ticker, no concept, no
+checklist, and nothing recorded. It is the question the calculator exists to answer, with nothing in
+front of it.
+
+Long or short is inferred from which side the stop sits, so that is one less field to touch. In a
+group it breaks down per account. It honours buying power exactly as New Trade does, so the number
+you get is the number you would get by committing.
+
+When you are filled, **Send to New Trade** carries the price, stop, side and tier across and puts the
+cursor in the ticker field. Correct the entry to your actual fill and open it. That way you size
+before the order and record after it, without typing the same trade twice.
+
 ## Buying power
 
 R answers how much you may **lose**. It says nothing about how much you may **hold** — and a tight
