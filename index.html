@@ -2252,7 +2252,7 @@ function renderGroupNewTrade(){
         "<td class='num'>"+fmt$(r.aum)+"</td>" +
         // Each account gets the price it was actually filled at; blank means the shared entry above.
         // Cent steps: fills on a liquid name differ by pennies, so that is what the arrows should nudge.
-        "<td class='num'><input id='gpx_"+i+"' type='number' step='0.01' value='"+
+        "<td class='num'><input id='gfill_"+i+"' type='number' step='0.01' value='"+
           (gPx[r.m]>0 ? gPx[r.m] : "")+"' placeholder='"+P+"' title='Fill for "+esc(r.m)+
           " &mdash; blank uses the entry above' style='width:88px;padding:4px 7px;font-size:13px;text-align:right'"+
           " oninput=\"setMemberPxAt("+i+", this.value)\"></td>" +
@@ -2292,7 +2292,7 @@ function paintGroupCalc(rows, P, S, side, ti){
     $("gq_"+i).innerHTML = r.skipped
       ? "<span class='muted'>0 &mdash; too small</span>"
       : "<b style='color:var(--gold)'>"+fmtQ(r.q)+"</b>";
-    const px = $("gpx_"+i); if(px) px.style.color = (gPx[r.m]>0) ? "var(--gold)" : "";
+    const px = $("gfill_"+i); if(px) px.style.color = (gPx[r.m]>0) ? "var(--gold)" : "";
     $("gcost_"+i).textContent = fmt$(r.cost);
     $("galloc_"+i).textContent = r.alloc.toFixed(1)+"%";
     const bp = $("gbp_"+i);
