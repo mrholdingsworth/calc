@@ -4,6 +4,26 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+*From the pre-1.0 review, 2026-09-01. Everything else on that list was fixed; these were deferred
+deliberately.*
+
+- **`deleteTrade` deletes from `state`, not from the trade's own account.** `getTrade`/`acctOf`
+  search every portfolio, but the delete filters `state.trades`. Not reachable today — group cards
+  use `gDelete`, and `tradeCard` only renders in account mode — so it is latent, not live. One line:
+  filter `root.portfolios[acctOf(id)].trades` instead. Do it before adding any new delete call site.
+
+- **Shares (override) is silently ignored in group mode.** The field renders and accepts input;
+  `openGroupTrade` never reads it. Either hide it when a group is active or honour it as a per
+  account override. Low urgency — sizing in a group is the whole point of the R fan-out.
+
+- **Recomputation cost.** `derive()` replays the full event log and is called from ~26 sites;
+  `bpFree → bpUsed → derive` runs for every open trade, per member, on every keystroke in New Trade.
+  A memo keyed on `t.events.length` plus the last event's timestamp would kill most of it.
+
+- **`render()` rebuilds everything on every action** — all open cards, the whole closed table with
+  its textareas, all nine SVG charts. Fine at a few dozen trades; the fix when it matters is to
+  split render into per-section renderers and call only what changed.
+
 - **Section collapse state is stored per account — decide whether it should be.** Reported
   2026-09-01 as "switching accounts minimised the Desk, once, then never again". Not a startup or
   restart bug; it reproduces every time. `collapsed:{desk,new,open,tally,charts,data}` lives on
@@ -35,6 +55,40 @@ Running list. Newest at the top of each section.
   accounting stays with the broker's 1099-B.
 
 ## Decided / done
+
+### 2026-09-01 — pre-1.0 review pass
+
+- **Marks refresh the whole book.** `refreshMarks`, `pollMarks` and the boot refresh all read
+  `state.trades`, which in a group is the *first member only* — every other account kept stale
+  prices, falsifying its open P/L, heat, buying power and vol check. Now `allOpenTrades()` across
+  every portfolio, deduplicated by ticker: one request per distinct symbol applied to every position
+  holding it, so four accounts in one name is one call. `429` now reads "rate limited" rather than
+  "failed".
+- **Cold-streak brake spans the scope** (`scopeTrades`), not the first member. Still advisory.
+- **Wash-sale check spans every account** and names the one the loss was in — the rule follows the
+  taxpayer, not the book, and the cross-account case is the one people miss.
+- **Apostrophes in account names no longer break their row controls.** New `jsq()` escapes for JS
+  *then* for HTML; `esc()` alone produced `&#39;`, which the parser decoded back before JS parsed
+  the handler. Fixed at all five remaining sites.
+- **Save failures are loud.** `save()` returns a boolean and raises a persistent red banner naming
+  the error, with an Export my book button that bypasses storage entirely. Silent failure was the
+  worst outcome in the file: correct on screen, gone on reload.
+- **Schema version.** `root.v = SCHEMA`, stamped on new books and backfilled in `normalize()`.
+- **Storage key renamed** `cal.v1` → `rcalc.v1`, read across once on load with the old entry left
+  untouched as a fallback, and an amber confirmation banner so the migration is visible.
+- **Import confirms** before replacing a non-empty book, stating what is discarded and what arrives,
+  and pointing at Download .json first — the box holds the incoming data, not a copy of yours.
+- **Backup nudge**: amber label on the Desk header at `BACKUP_DAYS` (6) since the last real backup.
+  Only Download and Copy count; Export to box only puts JSON on screen.
+- **Heat cap and cold streak stopped claiming enforcement they never had.** Both say "flagged, not
+  blocked", and the heat breach now also lands under the Open trade button, where the decision is.
+- **Member opt-outs are loud**: amber count plus the names, and a line saying they persist.
+- **Money carries cents, and up to four decimals when the number has them.** One `MONEY` format for
+  `fmt$`/`fmtP`. `roundPx` takes the tick from the price typed for that trade, so 110.25 gets cent
+  stops and 1.1155 keeps four decimals — a flat 4dp rule produced unplaceable prices like 110.2563.
+- Removed the duplicated `live marks` section header and the last `cal-` filename.
+
+### Earlier
 
 - 2026-09-01 — **ADR % at entry** box on each open position. Needed a new stored field: `t.adr` is
   live and editable, so editing it destroyed the figure the stop and size were chosen against.

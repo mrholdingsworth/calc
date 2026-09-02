@@ -211,6 +211,8 @@ details[open] summary::before{content:"\25BE  "}
 
 <div class="wrap">
 
+<div id="saveAlert" style="grid-column:1/-1"></div>
+
 <nav class="rail" id="rail" aria-label="Sections">
   <a href="#sec-desk">Desk</a>
   <a href="#sec-new">New Trade</a>
@@ -314,6 +316,7 @@ details[open] summary::before{content:"\25BE  "}
   </div>
   <div class="err" id="nt_err"></div>
   <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
+  <div id="nt_heat" style="display:none;color:var(--red);font-size:12.5px;margin-top:5px"></div>
 
   <details id="nt_plan" open>
     <summary>Plan &amp; hinges &mdash; the commitment (decided now, not later)</summary>
@@ -481,7 +484,15 @@ const LOSS_TAGS = [
   { v:"noise",        t:"Stopped by noise — it worked after I was out" },
   { v:"violation",    t:"Rule violation — I broke my own process" }
 ];
-const KEY = "cal.v1";
+// SCHEMA is stamped onto every saved book. Until now migrations were inferred from absent fields,
+// which works exactly until two of them need ordering. LEGACY_KEYS are read once if the current key
+// is empty and are then left untouched, so a bad migration can never be the thing that loses a book.
+// Set by renderBook, read by New Trade: the heat cap is a book-level fact that matters most at the
+// moment you are about to add to the book.
+let overHeat = null;
+const KEY = "rcalc.v1";
+const LEGACY_KEYS = ["cal.v1"];
+const SCHEMA = 1;
 let root = null, state = null;
 
 function defaults(){
@@ -499,7 +510,7 @@ function groupDefaults(){
   return { settings:g, members:[] };
 }
 function newRoot(){
-  return { active:"Trading", focus:null, order:["Trading"],
+  return { v:SCHEMA, active:"Trading", focus:null, order:["Trading"],
            portfolios:{ Trading:defaults() }, groups:{} };
 }
 
@@ -566,7 +577,13 @@ function groupLegs(gid, status){
 }
 function load(){
   try{
-    const raw = localStorage.getItem(KEY);
+    let raw = localStorage.getItem(KEY);
+    // One-time read-across from the old key. The old entry is left exactly as it is, so if anything
+    // here is wrong the original book is still sitting in the browser untouched.
+    if(raw==null) for(const k of LEGACY_KEYS){
+      raw = localStorage.getItem(k);
+      if(raw!=null){ migratedFrom = k; break; }
+    }
     const p = raw ? JSON.parse(raw) : null;
     if(!p) root = newRoot();
     else if(p.portfolios && p.active) root = p;
@@ -594,6 +611,7 @@ function migrateNames(){
   }
 }
 function normalize(){
+  if(root.v == null) root.v = SCHEMA;                 // stamp anything that predates versioning
   if(!root.portfolios || !Object.keys(root.portfolios).length) root.portfolios = newRoot().portfolios;
   if(!Array.isArray(root.order)) root.order = Object.keys(root.portfolios);
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
@@ -649,19 +667,80 @@ function normalize(){
   if(root.focus && !(isGroup(root.active) && groupMembers(root.active).indexOf(root.focus)>=0)) root.focus = null;
   state = root.portfolios[acctInView()] || root.portfolios[root.order.find(isAccount)] || defaults();
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(root)); }catch(e){} }
+// A save that fails silently is the worst outcome in the app: everything on screen stays correct
+// while nothing survives a reload, and you find out at the next page load. So failure is loud and
+// stays on screen until a save succeeds.
+let saveBroken = null, migratedFrom = null;
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(root));
+    if(saveBroken){ saveBroken = null; renderSaveAlert(); }
+    return true;
+  }catch(e){
+    saveBroken = (e && e.name) || "error";
+    renderSaveAlert();
+    return false;
+  }
+}
+function renderSaveAlert(){
+  const el = $("saveAlert");
+  if(!el) return;
+  el.innerHTML = saveBroken
+    ? '<div class="banner red">Your last change was <b>not saved</b> &mdash; browser storage is full or blocked ('+
+      esc(saveBroken)+'). Everything on screen is correct, but none of it will survive a reload. ' +
+      'Back it up now, then free space or use a different browser. ' +
+      '<button class="small" style="margin-left:8px" onclick="rescueBook()">Export my book</button></div>'
+    : (migratedFrom
+      ? '<div class="banner amber">Your book was moved from the old storage key <b>'+esc(migratedFrom)+
+        '</b> to <b>'+esc(KEY)+'</b>. Everything came across, and the old copy has been left exactly where ' +
+        'it was as a fallback. Check your accounts and trades look right, then dismiss this. ' +
+        '<button class="small" style="margin-left:8px" onclick="dismissMigration()">Looks right</button></div>'
+      : "");
+}
+window.dismissMigration = () => { migratedFrom = null; renderSaveAlert(); };
+// Deliberately does not touch localStorage: this runs precisely when localStorage is refusing.
+window.rescueBook = () => {
+  $("io").value = JSON.stringify(root,null,1);
+  if(state.settings.collapsed) state.settings.collapsed.data = false;
+  renderSections();
+  $("sec-data").scrollIntoView({block:"start"});
+  $("io").select();
+  $("io_err").className = "okmsg";
+  $("io_err").textContent = "Your whole book is here. Copy it out and save it to a file before you reload this page.";
+};
 
 /* ========================= format ========================= */
-const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits: Math.abs(v)>=1000?0:2});
+// Money always carries cents, and carries up to four decimals when the number genuinely has them.
+// A name quoting 1.1155 against a 1.1125 stop has its whole edge inside the third and fourth
+// decimal; rounding those away silently reprices the trade. maximumFractionDigits also absorbs
+// float noise on its own — 9.350000000000001 rounds back to 9.35 and prints as two decimals.
+const MONEY = {minimumFractionDigits:2, maximumFractionDigits:4};
+const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined, MONEY);
 const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
 const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
-const fmtP = v => "$" + Number(v).toLocaleString(undefined,{maximumFractionDigits:4});
-// Snap a computed stop to a price you could actually enter as an order, so the button's
-// label and the level it applies are the same number.
-const roundPx = v => Math.abs(v)>=1 ? Math.round(v*100)/100 : Math.round(v*10000)/10000;
+const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefined, MONEY);
+// Snap a computed stop to a price you could actually enter as an order, so the button's label and
+// the level it applies are the same number. The tick comes from the price you typed for this trade
+// rather than a fixed threshold: a name entered at 110.25 gets cent stops, one entered at 1.1155
+// keeps all four decimals. A flat 4dp rule would hand you 110.2563, which no broker will take.
+const decimalsOf = v => {
+  const s = String(Math.round(Math.abs(v)*1e4)/1e4), i = s.indexOf(".");
+  return i<0 ? 0 : s.length-i-1;
+};
+const tickRef = t => { const e0 = t && t.events && t.events.find(e=>e.type==="entry");
+  return e0 ? e0.price : (t ? t.last : null); };
+const roundPx = (v, ref) => {
+  const m = Math.pow(10, Math.min(4, Math.max(2, decimalsOf(ref==null ? v : ref))));
+  return Math.round(v*m)/m;
+};
 const cls  = v => v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : "");
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
+// A name going into an inline handler is JS source inside an HTML attribute, so it needs escaping
+// twice, in that order. esc() alone is not enough and is in fact the trap: it turns an apostrophe
+// into &#39;, the parser turns that back into an apostrophe before JS ever sees the attribute, and
+// the handler is a syntax error. Escaping for JS first survives that round trip.
+const jsq = s => esc(String(s==null?"":s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
 
 /* ========================= core math ========================= */
 // 1R in dollars, right now, from live AUM.
@@ -1084,7 +1163,7 @@ function renderSettings(){
   $("aumCell").style.display = g ? "none" : "";
   $("marginCell").style.display = g ? "none" : "";
   if(!g){
-    $("aum").value = "$" + state.settings.aum.toLocaleString(undefined,{maximumFractionDigits:0});
+    $("aum").value = fmt$(state.settings.aum);
     $("marginX").value = String(marginXOf(acctInView()));
   }
   $("rpct").value = s.rPct;
@@ -1104,14 +1183,14 @@ function renderSettings(){
           const R = rUnitOf(m);
           return "<tr><td>"+esc(m)+"</td>" +
             "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
-              fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+esc(m).replace(/'/g,"\\'")+"',this.value)\"></td>" +
-            "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+esc(m).replace(/'/g,"\'")+"',this.value)\">" +
+              fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
+            "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\">" +
               [1,2,4,6].map(x=>"<option value='"+x+"'"+(marginXOf(m)===x?" selected":"")+">"+(x===1?"Cash":x+"&times;")+"</option>").join("") +
             "</select></td>" +
             "<td class='num'>"+fmt$(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmt$(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
-            "<td class='num'><button class='small' onclick=\"focusMember('"+esc(m).replace(/'/g,"\\'")+"')\">Open</button></td></tr>";
+            "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(m)+"')\">Open</button></td></tr>";
         }).join("") + "</table>"
       : "<div class='muted'>No accounts in this group yet &mdash; use Members above.</div>";
   } else eq.style.display = "none";
@@ -1282,17 +1361,37 @@ const WASH_DAYS = 30;
 function washWarning(ticker){
   const tk = String(ticker||"").trim().toUpperCase();
   if(!tk) return null;
-  const hits = state.trades.filter(t=>
-    t.status==="closed" && t.ticker===tk && derive(t).realized < 0 &&
-    daysBetween(t.closedAt || t.createdAt, Date.now()) <= WASH_DAYS
-  ).sort((a,b)=>(b.closedAt||0)-(a.closedAt||0));
+  // Every account, not just the one in view: the rule is about the taxpayer, not the book. A loss
+  // in one account and a re-entry in another is the case people miss, and into an IRA it is the
+  // expensive one — the disallowed loss is not deferred, it is gone. So the account is named.
+  const hits = [];
+  Object.keys(root.portfolios).forEach(a=>{
+    (root.portfolios[a].trades||[]).forEach(t=>{
+      if(t.status==="closed" && t.ticker===tk && derive(t).realized < 0 &&
+         daysBetween(t.closedAt || t.createdAt, Date.now()) <= WASH_DAYS) hits.push({a, t});
+    });
+  });
   if(!hits.length) return null;
-  const t = hits[0];
+  hits.sort((x,y)=>(y.t.closedAt||0)-(x.t.closedAt||0));
+  const { a, t } = hits[0];
   const ago = daysBetween(t.closedAt || t.createdAt, Date.now());
+  const elsewhere = hits.some(h=>h.a !== acctInView());
   return "Wash sale: you closed " + esc(tk) + " at " + fmtR(derive(t).realized/t.rUnit) + " " +
     (ago===0 ? "today" : ago===1 ? "yesterday" : ago+" days ago") +
+    " in <b>" + esc(a) + "</b>" +
     (hits.length>1 ? " (and "+(hits.length-1)+" more loss"+(hits.length>2?"es":"")+" in the window)" : "") +
-    ". Re-entering inside " + WASH_DAYS + " days disallows that loss for tax — and is worth a second thought besides.";
+    ". Re-entering inside " + WASH_DAYS + " days disallows that loss for tax — and is worth a second thought besides." +
+    (elsewhere ? " The rule follows you across accounts, not just this one." : "");
+}
+// The cap is breached on the book, but the decision it bears on is made here.
+function renderHeatNotice(){
+  const el = $("nt_heat");
+  if(!el) return;
+  el.innerHTML = overHeat
+    ? "Open heat is <b>"+overHeat.heatR.toFixed(2)+"R</b> against your "+overHeat.cap+
+      "R cap. Your rule says nothing new opens until that is back under. Not blocked &mdash; your call."
+    : "";
+  el.style.display = overHeat ? "" : "none";
 }
 function updateWash(){
   const el = $("nt_wash"), msg = washWarning($("nt_tk").value);
@@ -1559,8 +1658,8 @@ function tradeCard(t){
         '</div>' +
         ((be!=null || trail!=null) ? '<div class="row" style="margin-top:6px">' +
           '<span class="muted" style="align-self:center">jump to:</span>' +
-          (be!=null ? '<button class="small" title="The stop that makes this whole sequence net zero" onclick="stopTo(\''+t.id+'\','+roundPx(be)+')">breakeven '+fmtP(roundPx(be))+'</button>' : "") +
-          ((trail!=null && (d.stop==null || t.side*(trail-d.stop)>0)) ? '<button class="small" title="Trail one unit of your entry risk behind the last price" onclick="stopTo(\''+t.id+'\','+roundPx(trail)+')">1R trail '+fmtP(roundPx(trail))+'</button>' : "") +
+          (be!=null ? '<button class="small" title="The stop that makes this whole sequence net zero" onclick="stopTo(\''+t.id+'\','+roundPx(be,tickRef(t))+')">breakeven '+fmtP(roundPx(be,tickRef(t)))+'</button>' : "") +
+          ((trail!=null && (d.stop==null || t.side*(trail-d.stop)>0)) ? '<button class="small" title="Trail one unit of your entry risk behind the last price" onclick="stopTo(\''+t.id+'\','+roundPx(trail,tickRef(t))+')">1R trail '+fmtP(roundPx(trail,tickRef(t)))+'</button>' : "") +
         '</div>' : "") +
         '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(t.adr!=null?"now "+t.adr+"%":"not set")+'</span></div>' +
         '<div class="row">' +
@@ -1752,6 +1851,31 @@ const reviewDue = t => t.status==="closed" &&
   daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS;
 const reviewDueIn = t => REVIEW_DAYS - daysBetween(t.closedAt || t.createdAt, Date.now());
 const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
+/* ---- backup nudge ---- */
+// The whole book lives in one browser. Clearing site data takes it, and there is no copy anywhere
+// else, so the age of the last real backup is worth a standing label rather than a line in a hint.
+// Only Download and Copy count: "Export to box" puts the JSON on screen without it leaving the page.
+const BACKUP_DAYS = 6;
+const backupName = () => "r-calculator-book-"+new Date().toISOString().slice(0,10)+".json";
+window.markBackedUp = () => { root.lastBackup = Date.now(); save(); renderBackupBadge(); };
+function backupAgeDays(){ return root.lastBackup ? daysBetween(root.lastBackup, Date.now()) : null; }
+function backupDue(){
+  const anyTrades = Object.values(root.portfolios).some(p=>p.trades.length);
+  if(!anyTrades) return false;
+  const d = backupAgeDays();
+  return d==null || d >= BACKUP_DAYS;
+}
+function backupHtml(){
+  if(!backupDue()) return "";
+  const d = backupAgeDays();
+  return '<span style="color:var(--amber);font-weight:600">Back up &mdash; ' +
+    (d==null ? "never exported" : "last export "+d+" day"+(d===1?"":"s")+" ago") + "</span>";
+}
+function renderBackupBadge(){
+  const el = $("deskSummary");
+  if(el) el.innerHTML = [reviewsDueHtml(), backupHtml()].filter(Boolean).join(' <span class="vbar">|</span> ');
+}
+
 // One renderer for the badge, so the desk and the Closed Trades header can never disagree.
 function reviewsDueHtml(){
   const n = reviewsDueCount();
@@ -2051,7 +2175,7 @@ function renderGroupClosed(){
           "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
           "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
           "<td>"+lossTagSelect(x.t)+"</td>" +
-          "<td class='num'><button class='small' onclick=\"focusMember('"+esc(x.acct).replace(/'/g,"\'")+"')\">Open</button></td></tr>";
+          "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
       }).join("") + "</table></div></td></tr>";
     return "<tr"+(due?" class='reviewdue'":"")+">" +
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
@@ -2313,8 +2437,16 @@ function repaintGroupCalc(){
 
 function paintGroupCalc(rows, P, S, side, ti){
   const taking = rows.filter(r=>r.on && !r.skipped);
-  $("nt_calans").textContent = taking.length + " of " + rows.length + " accounts · " +
-    fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total";
+  // Opting an account out survives the open and the reload, so an untick made once for one trade
+  // silently governs every trade after it. That deserves to be loud, not a quieter count.
+  const off = rows.filter(r=>!r.on);
+  $("nt_calans").innerHTML =
+    (off.length ? '<span style="color:var(--amber)">'+taking.length+" of "+rows.length+" accounts</span>"
+                : taking.length+" of "+rows.length+" accounts") +
+    " &middot; " + fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total" +
+    (off.length ? '<div style="color:var(--amber);font-size:12.5px;font-weight:600;font-family:var(--sans)">' +
+      "Unticked: "+off.map(r=>esc(r.m)).join(", ")+" &mdash; and they stay unticked for every trade " +
+      "until you tick them back.</div>" : "");
 
   // One risk per share, because sizing is settled at the shared entry regardless of where each
   // account actually filled.
@@ -2522,7 +2654,7 @@ function groupTradeCard(gid, legs){
       "<td class='num'>"+fmt$(s.cost)+"</td>" +
       "<td class='num'>"+fmt$(s.value)+"</td>" +
       "<td class='num'>"+s.alloc.toFixed(1)+"%</td>" +
-      "<td class='num'><button class='small' onclick=\"focusMember('"+esc(x.acct).replace(/'/g,"\\'")+"')\">Open</button></td></tr>";
+      "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
   }).join("");
 
   const totalRow = "<tr style='border-top:1px solid var(--line2)'><td><b>Group</b></td>" +
@@ -2592,7 +2724,7 @@ function groupTradeCard(gid, legs){
         '<div class="row"><input type="number" step="any" id="gstp_'+gid+'" placeholder="price" onkeydown="if(event.key===\'Enter\')gMoveStop('+q()+')">' +
         '<button class="small primary" onclick="gMoveStop('+q()+')">Move</button></div>' +
         (be!=null ? '<div class="row" style="margin-top:6px"><span class="muted" style="align-self:center">jump to:</span>' +
-          '<button class="small" onclick="gstp_'+gid+'.value='+roundPx(be)+';gMoveStop('+q()+')">breakeven '+fmtP(roundPx(be))+'</button></div>' : "") +
+          '<button class="small" onclick="gstp_'+gid+'.value='+roundPx(be,tickRef(first))+';gMoveStop('+q()+')">breakeven '+fmtP(roundPx(be,tickRef(first)))+'</button></div>' : "") +
         '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(first.adr!=null?"now "+first.adr+"%":"not set")+'</span></div>' +
         '<div class="row"><input type="number" step="0.1" id="gadr_'+gid+'" placeholder="% of price" style="max-width:110px">' +
         '<button class="small" onclick="gSetAdr('+q()+')">Set</button></div></div>' +
@@ -2635,6 +2767,7 @@ function refreshBtnHtml(staleN, hasKey){
 
 function renderBook(open){
   const hb = $("bookBar");
+  overHeat = null;
   if(!open.length){
     hb.innerHTML = '<div class="card">' + openHead() +
 '</div>';   // the empty-state line lives in #openTrades, inside the collapsible body
@@ -2646,18 +2779,26 @@ function renderBook(open){
   const houseN = heat.filter(h=>h.seq<=1e-4 && h.d.Q>0).length;
   const totPL = heat.reduce((s,h)=>s+h.d.realized+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
   const stale = heat.filter(h=>isStale(h.t)).length;
-  const cap = state.settings.heatCap;
+  const cap = settingsFor(acctInView()).heatCap;
   const overCap = heatR > cap;
+  overHeat = overCap ? {heatR, cap} : null;      // read by New Trade, which is where it matters
 
-  const recent = state.trades.filter(t=>t.status==="closed").sort((a,b)=>(b.closedAt||0)-(a.closedAt||0)).slice(0,5);
+  // Across whatever is in view, so a group reads its own last five rather than the first member's.
+  const recent = scopeTrades("closed").map(x=>x.t)
+    .sort((a,b)=>(b.closedAt||0)-(a.closedAt||0)).slice(0,5);
   const streakR = recent.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
-  const coldHit = recent.length>=3 && streakR <= -state.settings.coldR;
+  const coldHit = recent.length>=3 && streakR <= -settingsFor(acctInView()).coldR;
 
   hb.innerHTML =
+    // Both of these state your rule and flag the breach. Neither blocks the Open button — that is
+    // deliberate, and saying so is the honest version. The old wording claimed an enforcement the
+    // code never had, which is worse than no warning: it invites you to trust it.
     (overCap ? '<div class="banner red">Heat cap breached: '+heatR.toFixed(2)+"R open against your "+cap+
-      "R cap. This is a survival lever &mdash; no new trades and no adds until heat comes back under it (trim, tighten, or let stops ratchet).</div>" : "") +
+      "R cap. Your rule is no new trades and no adds until it comes back under &mdash; trim, tighten, " +
+      "or let stops ratchet. Flagged here and on the New Trade button; not blocked.</div>" : "") +
     (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
-      " closed trades (threshold &minus;"+state.settings.coldR+"R). The lever here is stepping back and reviewing &mdash; never resizing R to win it back.</div>" : "") +
+      " closed trades (threshold &minus;"+settingsFor(acctInView()).coldR+"R). The lever here is stepping back and reviewing &mdash; " +
+      "never resizing R to win it back. Flagged, not blocked.</div>" : "") +
 '<div class="card">' + openHead(refreshBtnHtml(stale, !!root.finnhub)) +
     '<div class="hint" id="refreshStatus"></div>' +
     '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
@@ -2711,12 +2852,15 @@ function render(){
   renderSettings();
   renderSections();
   // Mirrored on the desk so the queue is visible from the top of the page, whatever is collapsed.
-  $("deskSummary").innerHTML = reviewsDueHtml();
+  renderBackupBadge();
+  renderSaveAlert();
   renderFastCalc();
   const G = inGroup();
   const open = G ? scopeTrades("open").map(x=>x.t) : state.trades.filter(t=>t.status==="open");
   const heat = renderBook(open) || [];
   heat.sort((a,b)=> b.seqR - a.seqR);
+  renderHeatNotice();                       // renderBook decides it; New Trade is where it lands
+  updateWash();                             // spans every account, so it can go stale on a tab switch
 
   if(G){
     // One card per group trade, holding all its legs. A leg opened in a single account still gets
@@ -2807,19 +2951,21 @@ function bindSettings(){
     // Always put the book in the box too: some sandboxed viewers block page-initiated downloads,
     // and a button that silently does nothing is worse than no button.
     $("io").value = json;
+    const name = backupName();
     let started = false;
     try{
       const blob = new Blob([json], {type:"application/json"});
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = "cal-book-"+new Date().toISOString().slice(0,10)+".json";
+      a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
       started = true;
     }catch(e){}
+    if(started) markBackedUp();
     $("io_err").className = "okmsg";
     $("io_err").textContent = started
-      ? "Saving cal-book-"+new Date().toISOString().slice(0,10)+".json. If no file appeared, this viewer blocks downloads — your whole book is in the box above, so copy it out."
+      ? "Saving "+name+". If no file appeared, this viewer blocks downloads — your whole book is in the box above, so copy it out."
       : "This viewer blocks downloads. Your whole book is in the box above — copy it out and save it yourself.";
   });
   $("copyBtn").addEventListener("click", async ()=>{
@@ -2827,6 +2973,7 @@ function bindSettings(){
     $("io").value = json;
     try{
       await navigator.clipboard.writeText(json);
+      markBackedUp();
       $("io_err").className = "okmsg"; $("io_err").textContent = "Copied to the clipboard.";
     }catch(e){
       $("io").select();
@@ -2861,9 +3008,27 @@ function bindSettings(){
 function applyImport(){
   try{
     const p = JSON.parse($("io").value);
-    if(p.portfolios && p.active) root = p;
-    else if(p.settings && p.trades) root.portfolios[root.active] = p;
-    else throw 0;
+    const whole = !!(p.portfolios && p.active);
+    if(!whole && !(p.settings && p.trades)) throw 0;
+
+    // Clearing data asks twice and keeps a copy; importing over the same book used to ask nothing,
+    // which made one stray click on a populated box exactly as destructive and completely silent.
+    const nTrades = whole
+      ? Object.values(root.portfolios).reduce((n,x)=>n+x.trades.length, 0)
+      : (root.portfolios[root.active] ? root.portfolios[root.active].trades.length : 0);
+    if(nTrades){
+      const scopeTxt = whole
+        ? nTrades+" trade(s) across "+Object.keys(root.portfolios).length+" account(s)"
+        : nTrades+' trade(s) in "'+root.active+'"';
+      const incoming = whole
+        ? Object.values(p.portfolios).reduce((n,x)=>n+((x.trades||[]).length), 0)+" trade(s)"
+        : ((p.trades||[]).length)+" trade(s)";
+      if(!confirm("Import replaces what you have: "+scopeTxt+" will be discarded and replaced with "+
+                  incoming+".\n\nThis cannot be undone, and the box holds the incoming data, not a "+
+                  "copy of yours. Cancel and use Download .json first if you are not certain.\n\nContinue?")) return;
+    }
+    if(whole) root = p;
+    else root.portfolios[root.active] = p;
     normalize(); save(); render();
     $("io_err").className = "okmsg"; $("io_err").textContent = "Imported.";
   }catch(e){
@@ -2872,40 +3037,65 @@ function applyImport(){
 }
 
 /* ========================= live marks ========================= */
-
-/* ========================= live marks ========================= */
 // Optional. Marks only ever move t.last — never a stop, a size, or a decision.
+//
+// Refresh is deliberately book-wide rather than scoped to the tab you happen to be on. A mark is a
+// fact about a ticker, not about a tab, and a position left unmarked in another account quietly
+// falsifies its open P/L, its heat, and the buying power it is consuming. One request per distinct
+// ticker, applied to every position holding it — four accounts in the same name is one call, not
+// four, which matters against a 60-a-minute free tier.
 let refreshing = false;
 window.refreshMarks = refreshMarks;
+function allOpenTrades(){
+  const out = [];
+  Object.keys(root.portfolios).forEach(a=>{
+    (root.portfolios[a].trades||[]).forEach(t=>{ if(t.status==="open") out.push(t); });
+  });
+  return out;
+}
 async function refreshMarks(){
   if(refreshing) return;
   const key = root.finnhub;
-  const open = state.trades.filter(t=>t.status==="open");
+  const open = allOpenTrades();
   // The status line lives inside the book bar, which is absent when nothing is open.
   const say = m => { const st = $("refreshStatus"); if(st) st.textContent = m; };
   if(!key){ say("No Finnhub key set — add one under Data Management, or keep setting marks by hand."); return; }
   if(!open.length){ say("No open trades to refresh."); return; }
+
+  const byTicker = new Map();
+  open.forEach(t=>{
+    const k = String(t.ticker||"").toUpperCase();
+    if(!byTicker.has(k)) byTicker.set(k, []);
+    byTicker.get(k).push(t);
+  });
+
   refreshing = true;
-  say("Refreshing " + open.length + " ticker(s)…");
+  const dup = open.length - byTicker.size;
+  say("Refreshing " + byTicker.size + " ticker(s) across " + open.length + " position(s)…");
   const results = [];
-  for(const t of open){
+  for(const [tk, legs] of byTicker){
     try{
-      const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(t.ticker)+"&token="+encodeURIComponent(key));
+      const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(tk)+"&token="+encodeURIComponent(key));
+      if(res.status===429) throw new Error("rate limited");
       if(!res.ok) throw new Error("HTTP "+res.status);
       const j = await res.json();
-      if(j && typeof j.c==="number" && j.c>0){ t.last = j.c; t.lastMarkTs = Date.now(); results.push(t.ticker+" "+fmtP(j.c)); }
-      else results.push(t.ticker+": no quote");
-    }catch(err){ results.push(t.ticker+": failed"); }
+      if(j && typeof j.c==="number" && j.c>0){
+        const now = Date.now();
+        legs.forEach(t=>{ t.last = j.c; t.lastMarkTs = now; });
+        results.push(tk+" "+fmtP(j.c)+(legs.length>1 ? " ("+legs.length+" positions)" : ""));
+      } else results.push(tk+": no quote");
+    }catch(err){ results.push(tk+": "+((err&&err.message==="rate limited") ? "rate limited" : "failed")); }
   }
   save(); render();
-  const allFailed = results.length && results.every(r=>/failed$/.test(r));
+  const allFailed = results.length && results.every(r=>/(failed|rate limited)$/.test(r));
   say("Marks as of " + new Date().toLocaleTimeString() + " — " + results.join(" · ") +
+    (dup>0 ? "  ("+dup+" duplicate position(s) updated without extra calls.)" : "") +
     (allFailed ? "  Every request failed. In a sandboxed preview outside connections are blocked — use the hosted page. Otherwise check the key." : ""));
   refreshing = false;
 }
 function pollMarks(){
   if(!root.finnhub) return;
-  if(!state.trades.some(t=>t.status==="open")) return;
+  if(!allOpenTrades().length) return;
   const ae = document.activeElement;
   if(ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA")) return;  // don't re-render under the cursor
   refreshMarks();
@@ -2968,7 +3158,7 @@ function initRail(){
 /* ========================= boot ========================= */
 load(); bindSettings(); render(); initRail();
 tickClock(); setInterval(tickClock, 1000);
-if(root.finnhub && state.trades.some(t=>t.status==="open")) refreshMarks();
+if(root.finnhub && allOpenTrades().length) refreshMarks();
 setInterval(pollMarks, 60000);
 </script>
 </body>

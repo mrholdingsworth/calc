@@ -49,7 +49,9 @@ on absolute value. A position with no ADR set can only drag it down, so the numb
 stated next to it rather than left silent.
 
 **Survival levers**, deliberately outside per-trade sizing: a max open heat cap in R across the book,
-and a cold-streak brake on the last five closes.
+and a cold-streak brake on the last five closes. Both **flag and do not block** — the heat breach
+appears on the book bar *and* under the Open trade button, and the wording says plainly that the
+decision stays yours. A warning that claims to stop you and then doesn't is worse than no warning.
 
 ## Running it
 
@@ -121,10 +123,41 @@ prices for open tickers. Refreshes on demand from the Open Positions header and 
 holding off while you have a field focused. Without a key everything else works — set marks by hand.
 A mark only ever moves the last price: never a stop, a size, or a decision.
 
+A refresh covers **every open position in every account**, not just the tab you are on: a mark is a
+fact about a ticker, and a position left unmarked elsewhere quietly falsifies its P/L, its heat and
+the buying power it is consuming. Requests are deduplicated by symbol, so four accounts holding one
+name costs one call, not four.
+
 ## Your data
 
-`localStorage`, this browser, this origin. Clearing site data wipes it, and a different browser or
-machine will not see it. Use **Export / Download .json** to back up and to move between machines.
+`localStorage`, this browser, this origin, under the key `rcalc.v1`. Clearing site data wipes it, and
+a different browser or machine will not see it. Use **Export / Download .json** to back up and to
+move between machines.
+
+Three things guard it:
+
+**A failed save is loud.** If storage is full or blocked, a red banner says so and stays until a save
+succeeds, with a button that dumps your whole book into the export box without touching storage. The
+alternative — carrying on silently — leaves the screen correct and the disk empty, and you find out
+at the next reload.
+
+**Backups are chased.** Six days after your last Download or Copy, an amber label appears on the Desk
+header. "Export to box" does not count: it puts the JSON on screen without it leaving the page.
+
+**Import asks first.** Replacing a non-empty book states what will be discarded and what is arriving.
+The box holds the *incoming* data at that moment, not a copy of yours, so take a Download first.
+
+Every saved book carries a schema version (`v`), so future changes to the format can migrate rather
+than guess.
+
+## Prices and money
+
+Money always shows cents, and up to four decimals when the number genuinely has them — a name
+quoting 1.1155 against a 1.1125 stop keeps its whole edge in the third and fourth decimal.
+
+Computed stops (breakeven, the 1R trail) snap to the tick implied by *the price you typed for that
+trade*: enter at 110.25 and you get cent stops, enter at 1.1155 and you keep four decimals. A flat
+four-decimal rule would hand you 110.2563, which no broker will accept.
 
 ## What the tally and charts measure
 
@@ -174,7 +207,10 @@ early and being shaken out of something that went on to work; neither is visible
 ## Wash-sale flag
 
 Naming a ticker you closed at a loss within the last 30 days raises an amber line under the Open
-trade button. It is a flag and nothing more: no lots, no adjusted basis, no attempt to reproduce what
+trade button. It looks across **every account**, not just the one in view, and names the account the
+loss was in — the rule follows the taxpayer rather than the book, and a loss in one account against a
+re-entry in another is the case that gets missed. Into an IRA it is the expensive one: the disallowed
+loss is not deferred, it is gone. It is a flag and nothing more: no lots, no adjusted basis, no attempt to reproduce what
 your broker's 1099-B already does correctly. It does not block the trade. Worth heeding for two
 reasons — the disallowed loss, and the fact that a fast re-entry into a name that just beat you is
 often revenge rather than a setup.
