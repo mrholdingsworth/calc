@@ -87,14 +87,22 @@ button.small{padding:4px 10px;font-size:12px}
 .okmsg{color:var(--green);font-size:12px;margin-top:5px}
 
 .fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:10px}
-/* A label that wraps to two lines must not shove its own control out of line with the row.
-   Each cell is a column and the control is pushed to the bottom, so controls share a baseline. */
+/* A label that wraps to two lines must not shove its own control out of line with the row. Each
+   cell is a column, and the auto margin sits above the LABEL rather than above the control: that
+   pushes label and input down together, so controls share a baseline and every label sits on the
+   line directly above its own box instead of floating at the top of a tall cell. */
 .fields>div{display:flex;flex-direction:column}
-.fields>div>input,.fields>div>select{margin-top:auto}
-/* The whole trade on one row once there is width for it, so opening a position is one glance
-   rather than two. Below this it falls back to the wrapping auto-fit grid above. */
+.fields>div>label{margin-top:auto}
+/* One row once there is width for it, so the whole thing is one glance rather than two. Below this
+   both fall back to the wrapping auto-fit grid above.
+   New Trade: Tier carries "A — 0.5R ($500.00)" and needs the room; Concept gives it up, being the
+   one field with nothing to truncate. */
 @media(min-width:1120px){
-  .fields.oneline{grid-template-columns:96px 116px minmax(150px,1fr) 116px 116px 92px 116px}
+  .fields.oneline{grid-template-columns:92px 168px minmax(120px,1fr) 112px 112px 88px 112px}
+  /* Desk: the tier boxes hold "0.25" and need almost nothing, which is what buys the row. Compound
+     is sized to keep its label on two lines like its neighbours — at three it alone set the row
+     height and cost 14px across the whole panel. */
+  .fields.deskrow{grid-template-columns:minmax(116px,1.2fr) minmax(146px,1.4fr) 90px 74px 74px 74px 132px 96px 118px}
 }
 .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:10px}
 .metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
@@ -247,7 +255,7 @@ details[open] summary::before{content:"\25BE  "}
   </div>
   <div id="body_desk">
   <div class="tabs" id="tabs" style="margin-top:10px"></div>
-  <div class="fields">
+  <div class="fields deskrow">
     <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
     <div id="marginCell"><label for="marginX">Margin</label>
       <select id="marginX">

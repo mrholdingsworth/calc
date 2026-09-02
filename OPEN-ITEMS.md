@@ -63,6 +63,18 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-09-01 — layout
+
+- **Labels are bottom-justified.** The auto margin moved from above the input to above the *label*,
+  so label and input travel down together. A label that wraps to two lines no longer leaves its
+  one-line neighbours floating at the top of a tall cell — every label now sits on the line directly
+  above its own box, and the controls still share a baseline.
+- **Desk is one row of nine** (`.fields.deskrow`). The tier boxes hold "0.25" and were sized down to
+  74px, which is what buys the row. Compound was widened to 132px purely to keep its label on two
+  lines like its neighbours: at three it alone set the row height and cost 14px across the panel.
+- **New Trade: Tier widened to 168px, Concept gave up the width.** Tier carries
+  "A &mdash; 0.5R ($500.00)" and was truncating; Concept is the one field with nothing to lose.
+
 ### 2026-09-01 — after the review
 
 - **No Side field on New Trade.** The stop already carries the direction — below the entry is a
