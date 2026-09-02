@@ -152,12 +152,31 @@ than guess.
 
 ## Prices and money
 
-Money always shows cents, and up to four decimals when the number genuinely has them — a name
-quoting 1.1155 against a 1.1125 stop keeps its whole edge in the third and fourth decimal.
+Three scales, because one rule cannot serve all three:
+
+| | Shown as | Used for |
+|---|---|---|
+| **Equity** | whole dollars | portfolio value, buying power |
+| **Money** | always cents | risk, cost, position value, P/L, an R in dollars |
+| **Price** | up to 4 decimals | quotes, stops, risk per share, daily range |
+
+Cents on a six-figure balance are noise and cost a column of width on every row. The fourth decimal
+on a price is the opposite: at 1.1155 against a 1.1125 stop, risk per share is $0.003, and rounding
+to cents prints that as $0.00 and sizes the trade off nothing.
 
 Computed stops (breakeven, the 1R trail) snap to the tick implied by *the price you typed for that
 trade*: enter at 110.25 and you get cent stops, enter at 1.1155 and you keep four decimals. A flat
 four-decimal rule would hand you 110.2563, which no broker will accept.
+
+## No Side field
+
+There is no long/short control. The stop says which way you are trading — below the entry is a long,
+above it a short — and Fast calc has always read it that way, so New Trade does too. A direction you
+can set independently of your stop is a direction you can set wrong, silently, and then size against.
+
+The inferred side shows as a LONG/SHORT pill on the sizing answer, so it is never a guess you cannot
+see. Entry and stop at the same price is the one combination refused, because that is the only one
+that carries no direction at all.
 
 ## What the tally and charts measure
 

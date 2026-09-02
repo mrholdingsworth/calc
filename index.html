@@ -91,6 +91,11 @@ button.small{padding:4px 10px;font-size:12px}
    Each cell is a column and the control is pushed to the bottom, so controls share a baseline. */
 .fields>div{display:flex;flex-direction:column}
 .fields>div>input,.fields>div>select{margin-top:auto}
+/* The whole trade on one row once there is width for it, so opening a position is one glance
+   rather than two. Below this it falls back to the wrapping auto-fit grid above. */
+@media(min-width:1120px){
+  .fields.oneline{grid-template-columns:96px 116px minmax(150px,1fr) 116px 116px 92px 116px}
+}
 .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:10px}
 .metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
 .metric .k{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
@@ -290,11 +295,13 @@ details[open] summary::before{content:"\25BE  "}
     <div class="head" style="margin-bottom:0">02 &middot; New Trade</div>
   </div>
   <div id="body_new">
-  <div class="fields" style="margin-top:10px">
+  <!-- No Side field: the stop already says which way you are trading, exactly as it does in Fast
+       calc, and a direction you can set independently of your stop is a direction you can set
+       wrong. The inferred side is shown on the sizing answer below. -->
+  <div class="fields oneline" style="margin-top:10px">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
-    <div><label for="nt_side">Side</label><select id="nt_side"><option value="1">Long</option><option value="-1">Short</option></select></div>
     <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
-    <div style="grid-column:span 2"><label for="nt_concept">Concept <span class="vbar">|</span> setup</label><input id="nt_concept" type="text" placeholder="mean reversion, multiday mover"></div>
+    <div><label for="nt_concept">Concept <span class="vbar">|</span> setup</label><input id="nt_concept" type="text" placeholder="mean reversion"></div>
     <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
     <div><label for="nt_adr">ADR %</label><input id="nt_adr" type="number" step="0.1" placeholder="8.5"></div>
@@ -710,12 +717,19 @@ window.rescueBook = () => {
 };
 
 /* ========================= format ========================= */
-// Money always carries cents, and carries up to four decimals when the number genuinely has them.
-// A name quoting 1.1155 against a 1.1125 stop has its whole edge inside the third and fourth
-// decimal; rounding those away silently reprices the trade. maximumFractionDigits also absorbs
-// float noise on its own — 9.350000000000001 rounds back to 9.35 and prints as two decimals.
+// Three scales, because one rule cannot serve all three.
+//
+//   fmtE  equity and buying power — whole dollars. Cents on a six-figure balance are noise, and
+//         they cost a column's worth of width on every row that carries one.
+//   fmt$  every other aggregate: risk, cost, value, P/L, an R in dollars. Always cents, never more.
+//   fmtP  anything priced per share — a quote, a stop, risk per share, a daily range. Up to four
+//         decimals, because a name quoting 1.1155 against a 1.1125 stop keeps its entire edge in
+//         the third and fourth, and 2dp would round risk-per-share to $0.00.
+//
+// maximumFractionDigits absorbs float noise on its own: 9.350000000000001 prints as 9.35.
 const MONEY = {minimumFractionDigits:2, maximumFractionDigits:4};
-const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined, MONEY);
+const fmtE = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
 const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
 const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
 const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefined, MONEY);
@@ -1070,7 +1084,7 @@ window.editGroupMembers = (g) => {
     const mine = owner===g, taken = owner && !mine;
     return '<label class="chk" style="'+(taken?"opacity:.5;cursor:not-allowed":"")+'">' +
       '<input type="checkbox" data-acct="'+esc(a)+'"'+(mine?" checked":"")+(taken?" disabled":"")+'>' +
-      '<span><b>'+esc(a)+'</b> <span class="muted">'+fmt$(root.portfolios[a].settings.aum)+
+      '<span><b>'+esc(a)+'</b> <span class="muted">'+fmtE(root.portfolios[a].settings.aum)+
       " &middot; "+root.portfolios[a].trades.filter(t=>t.status==="open").length+" open</span>" +
       (taken?' <span style="color:var(--amber)">already in '+esc(owner)+'</span>':"") + '</span></label>';
   }).join("");
@@ -1163,7 +1177,7 @@ function renderSettings(){
   $("aumCell").style.display = g ? "none" : "";
   $("marginCell").style.display = g ? "none" : "";
   if(!g){
-    $("aum").value = fmt$(state.settings.aum);
+    $("aum").value = fmtE(state.settings.aum);
     $("marginX").value = String(marginXOf(acctInView()));
   }
   $("rpct").value = s.rPct;
@@ -1183,11 +1197,11 @@ function renderSettings(){
           const R = rUnitOf(m);
           return "<tr><td>"+esc(m)+"</td>" +
             "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
-              fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
+              fmtE(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
             "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\">" +
               [1,2,4,6].map(x=>"<option value='"+x+"'"+(marginXOf(m)===x?" selected":"")+">"+(x===1?"Cash":x+"&times;")+"</option>").join("") +
             "</select></td>" +
-            "<td class='num'>"+fmt$(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmt$(bpFree(m))+" free</div></td>" +
+            "<td class='num'>"+fmtE(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmtE(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
             "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(m)+"')\">Open</button></td></tr>";
@@ -1198,7 +1212,7 @@ function renderSettings(){
   $("runitBox").innerHTML = g
     ? "One ruleset &middot; " + groupMembers(g).length + " account" + (groupMembers(g).length===1?"":"s") +
       ' <span class="muted">&mdash; each sizes off its own equity above</span>'
-    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(state.settings.aum) + ")</span>";
+    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmtE(state.settings.aum) + ")</span>";
 
   const sel = $("nt_tier").value !== "" ? $("nt_tier").value : "1";
   $("nt_tier").innerHTML = TIERS.map((n,i)=>
@@ -1217,8 +1231,6 @@ window.fcToNewTrade = () => {
   clearFills();                              // a new setup, so no account carries an old fill
   $("nt_entry").value = $("fc_price").value;
   $("nt_stop").value = $("fc_stop").value;
-  const side = fcSide();
-  if(side) $("nt_side").value = String(side);
   $("nt_tier").value = String(root.fcTier==null ? 1 : root.fcTier);
   if(state.settings.collapsed) state.settings.collapsed.new = false;
   renderSections();
@@ -1226,11 +1238,13 @@ window.fcToNewTrade = () => {
   $("sec-new").scrollIntoView({block:"start"});
   setTimeout(()=>$("nt_tk").focus(), 60);
 };
-function fcSide(){
-  const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
-  if(isNaN(P) || isNaN(S) || P===S) return 0;
-  return S < P ? 1 : -1;                       // stop below price is a long, above it a short
-}
+// Stop below the price is a long, above it a short. One rule, used by Fast calc and New Trade
+// alike — the stop already carries the direction, so asking for it separately only creates a way
+// for the two to disagree.
+const sideFrom = (P, S) => (isNaN(P) || isNaN(S) || P===S) ? 0 : (S < P ? 1 : -1);
+function fcSide(){ return sideFrom(parseFloat($("fc_price").value), parseFloat($("fc_stop").value)); }
+function ntSide(){ return sideFrom(parseFloat($("nt_entry").value), parseFloat($("nt_stop").value)); }
+const sidePill = s => '<span class="pill '+(s>0?"long":"short")+'">'+(s>0?"LONG":"SHORT")+'</span> ';
 
 function renderFastCalc(){
   const ti = root.fcTier==null ? 1 : root.fcTier;
@@ -1263,7 +1277,7 @@ function renderFastCalc(){
   out.innerHTML =
     '<div class="row" style="align-items:flex-end;margin-top:10px;gap:14px">' +
       '<div><div class="fcbig">'+fmtQ(total)+'</div>' +
-      '<div class="fcsub">shares '+(side>0?"long":"short")+' &middot; risk/share <b>'+fmt$(den)+'</b>' +
+      '<div class="fcsub">shares '+(side>0?"long":"short")+' &middot; risk/share <b>'+fmtP(den)+'</b>' +
       (g ? " &middot; across "+rows.length+" account"+(rows.length===1?"":"s") : " &middot; cost <b>"+fmt$(rows[0].cost)+"</b> ("+rows[0].alloc.toFixed(0)+"% of equity)") +
       '</div></div>' +
       '<button class="small primary" style="margin-left:auto" onclick="fcToNewTrade()">Send to New Trade &rarr;</button>' +
@@ -1292,15 +1306,15 @@ window.setMemberAum = (m,v) => {
 function newTradeCal(){
   if(inGroup()) return renderGroupNewTrade();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
-  const den = side*(P-S);
-  if(!(den>0)){
+  if(!side){
     $("nt_calbox").style.display="none";
-    $("nt_err").textContent = "Stop must be below entry for longs, above entry for shorts.";
+    $("nt_err").textContent = "Entry and stop can't be the same price — the stop is what tells this which way you are trading.";
     return null;
   }
+  const den = side*(P-S);
   const mult = state.settings.tiers[ti];
   const R = rUnitNow(), b = R*mult;
   const acct = acctInView();
@@ -1314,17 +1328,17 @@ function newTradeCal(){
   const q = Math.min(qR, qBP);
 
   $("nt_calbox").style.display = "block";
-  $("nt_calans").innerHTML = fmtQ(q) + " shares" +
+  $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
     (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— capped by buying power</span>' : "");
   $("nt_calsub").innerHTML =
-    "Risk per share <b>" + fmt$(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
+    "Risk per share <b>" + fmtP(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
     " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)" +
     (capped
       ? '<br><span style="color:var(--amber)">R alone wants <b>'+fmtQ(qR)+"</b> shares ("+fmt$(qR*P)+
-        "), but only <b>"+fmt$(free)+"</b> of buying power is free"+
-        (marginXOf(acct)===1 ? " (cash account — no margin)" : " ("+marginXOf(acct)+"&times; on "+fmt$(state.settings.aum)+")")+
+        "), but only <b>"+fmtE(free)+"</b> of buying power is free"+
+        (marginXOf(acct)===1 ? " (cash account — no margin)" : " ("+marginXOf(acct)+"&times; on "+fmtE(state.settings.aum)+")")+
         ". At "+fmtQ(q)+" shares this risks <b>"+ (q*den/R).toFixed(2) +"R</b>, not "+mult+"R.</span>"
-      : '<br><span class="muted">Buying power free: '+fmt$(free)+" of "+fmt$(buyingPower(acct))+
+      : '<br><span class="muted">Buying power free: '+fmtE(free)+" of "+fmtE(buyingPower(acct))+
         (marginXOf(acct)===1 ? " (cash account)" : " ("+marginXOf(acct)+"&times;)")+"</span>");
 
   $("nt_targets").innerHTML = q>0
@@ -1334,7 +1348,7 @@ function newTradeCal(){
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
   if(a){
-    let html = '<span style="color:'+a.color+';font-weight:600">Daily vol check: ADR '+adr+"% ("+fmt$(a.adrD)+") = "+
+    let html = '<span style="color:'+a.color+';font-weight:600">Daily vol check: ADR '+adr+"% ("+fmtP(a.adrD)+") = "+
       Math.round(a.pctOfGap)+"% of your stop gap &mdash; the stop is "+a.adrs.toFixed(1)+" ADRs away.</span> ";
     if(a.adrs<1.5){
       const safeStop = P - side*1.5*a.adrD;
@@ -1416,7 +1430,7 @@ function openTrade(){
   if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
   const calQ = newTradeCal();
   const q = $("nt_qty").value ? parseFloat($("nt_qty").value) : calQ;
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
@@ -1505,7 +1519,7 @@ function tradeCard(t){
     const tighter = d.stop==null || t.side*(trail-d.stop)>0;
     const seqAtTrail = t.side*(d.avg-trail)*d.Q - d.realized;
     trailNote = tighter
-      ? "1R trail from "+fmtP(t.last)+": <b>"+fmtP(trail)+"</b> (1R/share = "+fmt$(riskPS)+", from your entry risk). " +
+      ? "1R trail from "+fmtP(t.last)+": <b>"+fmtP(trail)+"</b> (1R/share = "+fmtP(riskPS)+", from your entry risk). " +
         (seqAtTrail<=0 ? "At that stop the sequence <b>locks "+fmtR(-seqAtTrail/R)+"</b> &mdash; worst case is a win."
                        : "At that stop the sequence still risks "+fmtR(seqAtTrail/R).replace("+",""))
       : "1R trail would be "+fmtP(trail)+" &mdash; your current stop "+fmtP(d.stop)+" is already tighter. The trail never auto-loosens; but if the name has fallen back into noise and honest invalidation now sits wider, widening via Move is a legitimate, logged decision.";
@@ -1518,7 +1532,7 @@ function tradeCard(t){
     const a = adrAudit(t.last, t.adr, dist);
     adrHtml = a
       ? '<div class="metric"><div class="k">Daily vol check</div><div class="v" style="color:'+a.color+'">'+a.adrs.toFixed(1)+
-        ' ADRs</div><div class="r">ADR '+t.adr+"% ("+fmt$(a.adrD)+") = "+Math.round(a.pctOfGap)+"% of stop distance"+(a.adrs<1?" &mdash; inside one day's range":"")+"</div></div>"
+        ' ADRs</div><div class="r">ADR '+t.adr+"% ("+fmtP(a.adrD)+") = "+Math.round(a.pctOfGap)+"% of stop distance"+(a.adrs<1?" &mdash; inside one day's range":"")+"</div></div>"
       : '<div class="metric"><div class="k">Daily vol check</div><div class="v neg">stop breached</div><div class="r">last is past the stop</div></div>';
   }
 
@@ -1595,7 +1609,7 @@ function tradeCard(t){
         if(!(aum0>0)) return '<div class="metric"><div class="k">Allocation</div><div class="v" style="color:var(--mut)">&mdash;</div><div class="r">no equity recorded at open</div></div>';
         const pct = t.last*d.Q/aum0*100;
         return '<div class="metric"><div class="k">Allocation</div><div class="v">'+pct.toFixed(1)+'%</div>' +
-               '<div class="r">of '+fmt$(aum0)+' equity at open</div></div>';
+               '<div class="r">of '+fmtE(aum0)+' equity at open</div></div>';
       })() +
       (function(){
         // The volatility you signed up for, kept separate from the live ADR because that one is
@@ -1605,7 +1619,7 @@ function tradeCard(t){
           '<div class="v" style="color:var(--mut)">&mdash;</div><div class="r">none set when this opened</div></div>';
         const moved = t.adr>0 && Math.abs(t.adr-a0) > 1e-9;
         return '<div class="metric"><div class="k">ADR % at entry</div><div class="v">'+a0+'%</div>' +
-          '<div class="r">&asymp; '+fmt$((e0 ? e0.price : d.avg)*a0/100)+' a day per share' +
+          '<div class="r">&asymp; '+fmtP((e0 ? e0.price : d.avg)*a0/100)+' a day per share' +
           (moved ? ' &middot; <span style="color:var(--amber)">now '+t.adr+'%</span>' : "") +
           '</div></div>';
       })() +
@@ -2386,12 +2400,12 @@ function groupSizeRows(P, S, side, ti){
 // away the input the cursor is sitting in.
 function renderGroupNewTrade(){
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
-  if(!(side*(P-S)>0)){
+  if(!side){
     $("nt_calbox").style.display="none";
-    $("nt_err").textContent = "Stop must be below entry for longs, above entry for shorts.";
+    $("nt_err").textContent = "Entry and stop can't be the same price — the stop is what tells this which way you are trading.";
     return null;
   }
   const rows = groupSizeRows(P,S,side,ti);
@@ -2409,7 +2423,7 @@ function renderGroupNewTrade(){
         // Shares first and in gold: it is the number you act on, everything else is why.
         "<td class='num' id='gq_"+i+"' style='font-size:15px'></td>" +
         "<td>"+esc(r.m)+"</td>" +
-        "<td class='num'>"+fmt$(r.aum)+"</td>" +
+        "<td class='num'>"+fmtE(r.aum)+"</td>" +
         // Each account gets the price it was actually filled at; blank means the shared entry above.
         // Cent steps: fills on a liquid name differ by pennies, so that is what the arrows should nudge.
         "<td class='num'><input id='gfill_"+i+"' type='number' step='0.01' value='"+
@@ -2428,7 +2442,7 @@ function renderGroupNewTrade(){
 
 function repaintGroupCalc(){
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
   if(isNaN(P) || isNaN(S) || !(side*(P-S)>0) || !$("grow_0")) return null;
   const rows = groupSizeRows(P,S,side,ti);
   paintGroupCalc(rows, P, S, side, ti);
@@ -2440,7 +2454,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   // Opting an account out survives the open and the reload, so an untick made once for one trade
   // silently governs every trade after it. That deserves to be loud, not a quieter count.
   const off = rows.filter(r=>!r.on);
-  $("nt_calans").innerHTML =
+  $("nt_calans").innerHTML = sidePill(side) +
     (off.length ? '<span style="color:var(--amber)">'+taking.length+" of "+rows.length+" accounts</span>"
                 : taking.length+" of "+rows.length+" accounts") +
     " &middot; " + fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total" +
@@ -2451,7 +2465,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   // One risk per share, because sizing is settled at the shared entry regardless of where each
   // account actually filled.
   const mult0 = rows.length ? rows[0].mult : 1;
-  $("nt_calsub").innerHTML = "Risk per share <b>"+fmt$(side*(P-S))+"</b>" +
+  $("nt_calsub").innerHTML = "Risk per share <b>"+fmtP(side*(P-S))+"</b>" +
     " &middot; every account sizes off its own equity at "+TIERS[ti]+" ("+mult0+"R)";
 
   rows.forEach((r,i)=>{
@@ -2464,7 +2478,7 @@ function paintGroupCalc(rows, P, S, side, ti){
     $("gcost_"+i).textContent = fmt$(r.cost);
     $("galloc_"+i).textContent = r.alloc.toFixed(1)+"%";
     const bp = $("gbp_"+i);
-    bp.textContent = fmt$(r.free);
+    bp.textContent = fmtE(r.free);
     bp.style.color = r.capped ? "var(--amber)" : "";
     bp.title = r.capped ? ("R alone wants "+fmtQ(r.qR)+" shares here") : "";
   });
@@ -2474,7 +2488,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   const den0 = side*(P-S);
   const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
   $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">targets'+
-    (overridden ? " at "+fmt$(P) : "")+':</span>' +
+    (overridden ? " at "+fmtP(P) : "")+':</span>' +
     ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den0/mult0, hit:false})));
 
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
@@ -2488,7 +2502,7 @@ function paintGroupCalc(rows, P, S, side, ti){
     : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
   // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
   if(badRows.length) vol += '<br><span style="color:var(--amber)">Fill is already past the stop for: '+
-    badRows.map(r=>esc(r.m)+" ("+fmt$(r.px)+")").join(", ")+" &mdash; check the entry. These still open.</span>";
+    badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+" &mdash; check the entry. These still open.</span>";
   if(skipped.length) vol += '<br><span style="color:var(--amber)">Skipped: '+skipped.map(r=>esc(r.m)).join(", ")+
     " &mdash; no room at this stop, on risk or on buying power. Nothing is opened for them.</span>";
   if(cappedRows.length) vol += '<br><span style="color:var(--amber)">Capped by buying power: '+
@@ -2500,7 +2514,7 @@ function paintGroupCalc(rows, P, S, side, ti){
 function openGroupTrade(){
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = parseInt($("nt_side").value), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
   const rows = renderGroupNewTrade();
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(!rows){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
@@ -2820,7 +2834,7 @@ function renderBook(open){
           });
           const pct = eq>0 ? dollars/eq*100 : 0;
           return '<div class="metric"><div class="k">Weighted ADR</div>' +
-            '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmt$(dollars)+
+            '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmtE(dollars)+
             ' of ordinary daily movement' +
             (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without ADR</span>" : "") +
             '</div></div>';
@@ -2834,7 +2848,7 @@ function renderBook(open){
           const pct = bp>0 ? used/bp*100 : 0;
           const col = pct>=100 ? "var(--red)" : (pct>=80 ? "var(--amber)" : "var(--green)");
           return '<div class="metric"><div class="k">Buying power used</div><div class="v" style="color:'+col+'">'+
-            pct.toFixed(0)+'%</div><div class="r">'+fmt$(used)+" of "+fmt$(bp)+" &middot; "+fmt$(Math.max(0,bp-used))+" free</div></div>";
+            pct.toFixed(0)+'%</div><div class="r">'+fmtE(used)+" of "+fmtE(bp)+" &middot; "+fmtE(Math.max(0,bp-used))+" free</div></div>";
         })() +
         '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
       '</div>' +
@@ -2937,7 +2951,7 @@ function bindSettings(){
   });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
-  ["nt_entry","nt_stop","nt_side","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  ["nt_entry","nt_stop","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
   [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
   updateGate();

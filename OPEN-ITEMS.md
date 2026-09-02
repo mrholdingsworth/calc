@@ -4,6 +4,13 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Dividends received on an open trade.** Add a per-trade dividend amount so cash paid while the
+  position is held is part of its result. Questions to settle first: does it count toward realized
+  P/L and therefore the R multiple, or sit beside it as a separate line? It is not risk-financed, so
+  letting it finance an add through the constant-risk formula would be wrong — probably it should
+  land in `events` as its own type, be excluded from the add budget, and be reported both inside
+  total return and separately. Long positions receive, shorts pay.
+
 *From the pre-1.0 review, 2026-09-01. Everything else on that list was fixed; these were deferred
 deliberately.*
 
@@ -55,6 +62,19 @@ deliberately.*
   accounting stays with the broker's 1099-B.
 
 ## Decided / done
+
+### 2026-09-01 — after the review
+
+- **No Side field on New Trade.** The stop already carries the direction — below the entry is a
+  long, above it a short — so `sideFrom()` now serves both Fast calc and New Trade. A direction you
+  can set independently of your stop is a direction you can set wrong. The inferred side shows as a
+  LONG/SHORT pill on the sizing answer, and matching entry and stop is the one refused case.
+- **New Trade fits one row** above 1120px (`.fields.oneline`), falling back to the wrapping grid
+  below that. Seven fields, inputs sharing a baseline, no horizontal overflow.
+- **Money split into three scales.** `fmtE` whole dollars for equity and buying power, where cents
+  are noise and cost a column of width; `fmt$` always exactly cents for risk, cost, value, P/L and R
+  in dollars; `fmtP` up to four decimals for anything per share. That last one is not cosmetic — at
+  1.1155 against a 1.1125 stop, risk per share is $0.003, and two decimals printed it as $0.00.
 
 ### 2026-09-01 — pre-1.0 review pass
 
