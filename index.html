@@ -475,7 +475,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.1
+  version <span class="vbar">|</span> 1.1.1
 </p>
 
 </div><!-- /.main -->
@@ -658,6 +658,11 @@ function normalize(){
       // Only the live ADR was ever stored, so that is the best available stand-in. Exact for any
       // trade whose ADR was never edited, which is most of them.
       if(t.adrAtOpen==null && t.adr>0) t.adrAtOpen = t.adr;
+      // A closed trade had its whole realised total folded in by the old close-only rule. An open
+      // one had nothing folded in, so it starts at zero and the next realising event catches up
+      // any trims taken before this version — which is the correction, not a side effect of it.
+      if(t.compounded == null) t.compounded =
+        (t.status==="closed" && Array.isArray(t.events)) ? derive(t).realized : 0;
     });
     if(!Array.isArray(pf.cashFlows)) pf.cashFlows = [];   // additive; no migration needed
   });
@@ -812,12 +817,32 @@ function riskAtStop(t,d){ return (d.stop==null || d.Q<=0) ? 0 : t.side*(d.avg-d.
 
 // Constant-risk pyramid. Total allowed risk = budget + what you have already banked.
 // The open position consumes some of it at the new stop; the remainder finances the add.
-function maxAdd(t,d,Pa,S){
+function maxAdd(t,d,Pa,S,acct){
   const den = t.side*(Pa-S);
   if(!(den>0)) return {ok:false, msg:"Stop must be on the risk side of the add price."};
   const b = state.settings.sizeMode==="be" ? 0 : budget(t,d);
-  const q = (b + d.realized - t.side*(d.avg-S)*d.Q) / den;
-  return {ok:true, q:Math.max(0, Math.floor(q))};
+  const qRisk = Math.max(0, Math.floor((b + d.realized - t.side*(d.avg-S)*d.Q) / den));
+  // R says how much more you may lose; buying power says how much more you may hold. An add was
+  // only ever checked against the first of those, so a tight stop could hand you a position the
+  // account could not pay for — the same trap New Trade has always guarded against.
+  const free = bpFree(acct || acctOf(t.id));
+  const qBP = Pa>0 ? Math.floor(free/Pa) : 0;
+  return {ok:true, q:Math.min(qRisk,qBP), qRisk, qBP, free, capped: qBP < qRisk};
+}
+
+// Realised P/L reaches equity as it is realised, not only at the close. Each trade remembers how
+// much of its own realised total has already been folded in, so a trim, a close, an undo and an
+// override all move equity by the difference and none of them can count the same money twice.
+function syncCompound(t, acct){
+  acct = acct || acctOf(t.id);
+  const pf = root.portfolios[acct];
+  if(!pf || !settingsFor(acct).compound) return 0;
+  const now = derive(t).realized;
+  const delta = now - (t.compounded || 0);
+  if(!delta) return 0;
+  pf.settings.aum = Math.round((pf.settings.aum + delta)*100)/100;
+  t.compounded = now;
+  return delta;
 }
 
 // Size you would take if you were flat right now.
@@ -1721,12 +1746,21 @@ function tradeCard(t){
     const lm = maxAdd(t,d,t.last,d.stop);
     if(!lm.ok) return '<div class="calsub">'+lm.msg+'</div>';
     const beMode = state.settings.sizeMode==="be";
+    const bpNote = lm.capped
+      ? '<div class="calsub" style="color:var(--amber)">Buying power is the binding constraint here, not R: risk alone allows <b>'+
+        fmtQ(lm.qRisk)+"</b> shares, but only "+fmtE(lm.free)+" is free.</div>"
+      : "";
     if(lm.q>0) return '<div class="calans">Max add right now: '+fmtQ(lm.q)+" sh @ "+fmtP(t.last)+'</div>' +
       '<div class="calsub">At the current stop '+fmtP(d.stop)+", adding this keeps the whole sequence's worst case at or under " +
       (beMode ? "<b>breakeven</b> &mdash; a stop-out nets $0, and only banked profit is at work" : "<b>"+d.mult+"R</b>") +
-      ". <b>Tighten the stop on a signal and this number grows</b> &mdash; the stop move is what re-sizes your risk.</div>";
+      ". <b>Tighten the stop on a signal and this number grows</b> &mdash; the stop move is what re-sizes your risk.</div>" + bpNote;
     return '<div class="calans">Max add right now: 0 sh</div><div class="calsub">' +
-      (beMode
+      // Which of the two zeroed it changes the remedy entirely, so name the one that did.
+      (lm.qRisk>0
+        ? "Risk allows <b>"+fmtQ(lm.qRisk)+"</b> more shares, but only "+fmtE(lm.free)+
+          " of buying power is free &mdash; not enough for one share at "+fmtP(t.last)+
+          ". Close something, trim, or raise the margin setting."
+        : beMode
         ? "No banked cushion beyond the current stop risk &mdash; in B/E mode there is nothing to spend. Bank profit or tighten the stop first."
         : "The position consumes the full "+d.mult+"R budget at stop "+fmtP(d.stop)+". No signal &rarr; no stop move &rarr; no add. Tighten on structure, trim, or upsize the budget.") +
       "</div>";
@@ -1881,8 +1915,11 @@ window.liveAdd = id => {
   errEl.textContent = "";
   $("addq_"+id).placeholder = r.q+" (max)";
   $("calmsg_"+id).innerHTML = "Max add at "+fmtP(Pa)+" with stop "+fmtP(S)+": <b>"+fmtQ(r.q)+" shares</b> &mdash; the sequence worst case at that stop stays at or under "+modeLabel(t,d)+". " +
-    (r.q===0 ? "Zero: nothing to spend at this stop in the current mode. Tighten the stop or trim first."
-             : "Leave qty blank and hit Add to take the maximum.");
+    (r.q===0
+      ? (r.qRisk>0 ? "Zero on buying power, not on risk: "+fmtE(r.free)+" free will not cover one share at "+fmtP(Pa)+"."
+                   : "Zero: nothing to spend at this stop in the current mode. Tighten the stop or trim first.")
+      : "Leave qty blank and hit Add to take the maximum.") +
+    (r.capped ? ' <span style="color:var(--amber)">Capped by buying power &mdash; risk alone allows '+fmtQ(r.qRisk)+".</span>" : "");
 };
 window.doAdd = id => {
   const t = getTrade(id), d = derive(t);
@@ -1911,7 +1948,9 @@ window.doTrim = (id, frac) => {
   if(isNaN(q) || q<=0){ errEl.textContent = "Enter a quantity (or use 25% / 50%)."; return; }
   if(q>d.Q) q = d.Q;
   t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
-  t.last = P; t.lastMarkTs = Date.now(); save(); render();
+  t.last = P; t.lastMarkTs = Date.now();
+  syncCompound(t);                       // banked profit is equity the moment it is banked
+  save(); render();
 };
 window.moveStop = id => {
   const t = getTrade(id), v = parseFloat($("stp_"+id).value);
@@ -1938,6 +1977,7 @@ window.doAdjust = id => {
   if(isNaN(q) && isNaN(a)){ errEl.textContent = "Enter a position size or an average price — a blank field keeps its current value."; return; }
   if(!isNaN(q) && q<0){ errEl.textContent = "Position size can't be negative (side is fixed on the trade)."; return; }
   t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
+  syncCompound(t);                       // an override of size or average price moves realised too
   save(); render();
 };
 window.undoEvent = id => {
@@ -1947,7 +1987,9 @@ window.undoEvent = id => {
   const e = t.events[t.events.length-1];
   const desc = e.type + (e.qty!=null?" "+fmtQ(e.qty):"") + (e.price!=null?" @ "+fmtP(e.price):"") + (e.stop!=null?" · stop "+fmtP(e.stop):"");
   if(!confirm("Undo the last event ("+desc+")? It is removed from the log.")) return;
-  t.events.pop(); save(); render();
+  t.events.pop();
+  syncCompound(t);                       // undoing a trim takes its profit back out of equity
+  save(); render();
 };
 window.deleteTrade = id => {
   const t = getTrade(id);
@@ -1962,10 +2004,9 @@ window.closeTrade = id => {
   if(isNaN(P)){ errEl.textContent = "Enter the exit price."; return; }
   if(d.Q>0) t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
   t.status = "closed"; t.closedAt = Date.now(); t.last = P; t.lastMarkTs = Date.now();
-  const fin = derive(t);
-  // Compound into the account that actually held the trade, not whatever tab is open.
-  const pf = root.portfolios[acctOf(id)];
-  if(pf && settingsFor(acctOf(id)).compound) pf.settings.aum = Math.round((pf.settings.aum + fin.realized)*100)/100;
+  // Folds in whatever this trade has not already banked into equity, not its whole realised
+  // total -- trims along the way have already contributed their share.
+  syncCompound(t, acctOf(id));
   save(); render();
 };
 window.toggleCard = id => { const t = getTrade(id); if(t){ t.collapsed = !t.collapsed; save(); render(); } };
@@ -2721,7 +2762,7 @@ window.gAdd = gid => {
   legsOf(gid).forEach(x=>{
     const d = derive(x.t), stop = isNaN(S) ? d.stop : S;
     if(stop==null) return;
-    const r = maxAdd(x.t, d, Pa, stop);
+    const r = maxAdd(x.t, d, Pa, stop, x.acct);
     if(!r.ok || r.q<=0){ zero.push(x.acct); return; }
     x.t.events.push({type:"add", qty:r.q, price:Pa, stop:stop, ts:Date.now()});
     x.t.last = Pa; x.t.lastMarkTs = Date.now(); any = true;
@@ -2743,7 +2784,7 @@ window.gTrim = (gid, frac) => {
     if(q<=0) return;
     const P = isNaN(P0) ? x.t.last : P0;
     x.t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
-    x.t.last = P; x.t.lastMarkTs = Date.now(); any = true;
+    x.t.last = P; x.t.lastMarkTs = Date.now(); syncCompound(x.t, x.acct); any = true;
   });
   err.textContent = any ? "" : "That percentage rounds to zero shares in every account.";
   if(any){ save(); render(); }
@@ -2756,8 +2797,7 @@ window.gClose = gid => {
     const d = derive(x.t);
     if(d.Q>0) x.t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
     x.t.status="closed"; x.t.closedAt=Date.now(); x.t.last=P; x.t.lastMarkTs=Date.now();
-    const fin = derive(x.t), pf = root.portfolios[x.acct];
-    if(settingsFor(x.acct).compound) pf.settings.aum = Math.round((pf.settings.aum + fin.realized)*100)/100;
+    syncCompound(x.t, x.acct);
   });
   save(); render();
 };

@@ -22,6 +22,12 @@ at the moment it opens** — later AUM changes never retroactively resize an ope
 where risk-per-share is the distance from entry to the stop. Widen the stop and the share count
 falls to hold dollar risk constant. That is the whole point: width is free.
 
+**Realised P/L reaches equity as it is realised**, not only at the close. Trim into strength and the
+banked profit is in your portfolio value — and therefore in your buying power and your next R unit —
+immediately. Unrealised P/L never moves it: every decision stays cost-based. Each trade tracks how
+much of its own realised total has already been folded in, so a trim, a close, an undo and an
+override all move equity by the difference and none of them can count the same money twice.
+
 **Constant-risk pyramiding.** At every add, the calculator recomputes from scratch rather than stacking risk:
 
 ```
@@ -95,7 +101,13 @@ a share that is a $200,000 position on a $100,000 account.
 Each account carries a margin setting: **Cash** (1x), or 2x, 4x, 6x. Buying power is equity times
 that multiple, and open positions consume it at their current mark. Sizing takes the **smaller** of
 what R allows and what buying power allows, and says so plainly when the second one binds — including
-what fraction of an R you are actually taking as a result. The book bar carries buying power used
+what fraction of an R you are actually taking as a result.
+
+**Adds are held to the same ceiling.** A tight stop makes the constant-risk formula generous in
+share terms, and it used to be checked against risk alone — on a $100,000 cash account fully
+deployed, a 10c stop would offer 9,000 more shares of a $100 name. The add now takes the smaller of
+the two as well, names which one is binding, and distinguishes "no room on risk" from "no room on
+cash", because the remedy is different: the first wants a stop move, the second wants a close. The book bar carries buying power used
 across whatever is in view, amber past 80% and red at 100%.
 
 This is a ceiling, not a broker calculation. There are no maintenance requirements, no per-security

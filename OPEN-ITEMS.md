@@ -63,6 +63,23 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-09-19 — v1.1.1, three bug fixes
+
+- **Trimming now moves the portfolio value.** Realised P/L only reached equity at the close, so a
+  trim banked profit the book could not see. New `syncCompound(t, acct)` folds in the difference
+  between a trade's realised total and the part already counted, tracked on `t.compounded`. Wired
+  into trim, close, undo, adjust, and both group equivalents, so no path can double count. Backfill:
+  closed trades start at their realised total (the old close already added it), open trades at zero,
+  so the next realising event catches up any pre-existing trims — that is the correction, not a side
+  effect of it. Unrealised P/L still never moves equity; decisions stay cost-based.
+- **Buying power after a trim** was a symptom of the above, not a separate fault: `bpUsed` fell
+  correctly with the share count, but total buying power is equity × margin, and the equity half was
+  frozen. It tracks now.
+- **Adds respect buying power.** `maxAdd` had no buying-power term at all — on a fully deployed
+  $100,000 cash account, a 10c stop offered 9,000 more shares of a $100 name, about $900,000 of
+  stock. It now takes the smaller of risk and cash, reports which is binding, and separates "no room
+  on risk" from "no room on cash" since the remedies differ. Group adds pass their own account.
+
 ### 2026-09-19 — v1.1
 
 - **Deposit / Withdraw on the Desk.** Manual AUM editing fought the compounding mechanism: a broker
