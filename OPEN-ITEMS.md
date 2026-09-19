@@ -4,6 +4,37 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **A third add mode: lock in profit.** Today an add can be sized to risk a full R (`"r"`) or to
+  leave the sequence at breakeven (`"be"`). Missing is the case in between — add *some* size, but not
+  so much that a stop-out takes the whole trade back to zero. Currently done by hand.
+
+  It is not a new mechanism. Both existing modes are one formula with one term changed. Solving for
+  the sequence's worst case at the new stop, where `target` is what you keep if stopped:
+
+  ```
+  q = ( realized − side*(avg-S)*Q − target ) / ( side*(addPrice-S) )
+  ```
+
+  `target = −budget` is 1R mode, `target = 0` is B/E, and the missing mode is simply `target = +L`.
+  In `maxAdd` the existing `b` term is `−target`, so the change is passing a signed target instead
+  of a one-sided budget.
+
+  Verified against a worked case (long, 100 sh at avg 100, realized 0, 1R = $1,000, add at 110, new
+  stop 105): 1R → 300 sh → avg 107.50 → −$1,000 at the stop. B/E → 100 sh → avg 105.00 → $0.
+  Lock +0.25R → 50 sh → avg 103.33 → +$250. Each recomputed from the resulting average, so the
+  formula holds at all three points.
+
+  Questions to settle before building:
+  - **Unit.** R fits the app, and it makes the mode scale per account in a group for free, since
+    each leg multiplies by its own `rUnit`. Show the dollar equivalent beside it.
+  - **Scope.** `sizeMode` currently lives in `state.settings` — global and sticky. A lock amount may
+    want to be per trade instead: 0.5R on a conviction add, 0.25R on a speculative one.
+  - **UI.** The three modes are one number on a continuum, so the 1R / B/E pair could collapse into
+    a single "worst case at the new stop" control rather than gaining a third button.
+  - **The unreachable case.** If the position does not already lock at least `L` at the new stop,
+    `q` comes out negative. Clamp to zero and say why — "you cannot add anything here and still keep
+    +0.5R; tighten the stop first" — rather than showing a bare 0 as though the budget were spent.
+
 - **Dividends received on an open trade.** Add a per-trade dividend amount so cash paid while the
   position is held is part of its result. Questions to settle first: does it count toward realized
   P/L and therefore the R multiple, or sit beside it as a separate line? It is not risk-financed, so
