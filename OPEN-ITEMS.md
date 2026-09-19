@@ -4,6 +4,36 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Extension check: am I chasing?** Your use of ADR differs from the memoir's, and both are worth
+  having because they measure different distances with the same unit:
+
+  | | Numerator | Question | Bad when |
+  |---|---|---|---|
+  | present (Russo) | stop distance | is my stop outside the noise? | under ~1.5 ADR |
+  | new (yours) | distance already travelled | am I late? | over ~0.5 ADR |
+
+  They are orthogonal — a well-placed stop on a chased entry, or a well-timed entry with a stop
+  sitting inside the noise, are both possible — so this adds to the vocabulary rather than replacing
+  anything. **Open question: does the 1.5-ADR floor stay?** If it goes, the "band" framing in the
+  max-stop-width item below loses one of its two edges and that entry needs rewriting.
+
+  Reference point to settle, since it changes the number:
+  - **from the day's low** (long) or high (short) — how much of a normal day's move is already behind
+    you. Most directly answers "am I chasing".
+  - **from the open** — ignores an overnight gap, which may be the point or may hide it.
+  - **from the prior close** — counts the gap as travel. Right for gap-and-go, wrong for a name that
+    gapped and then based for two hours.
+
+  Data: `refreshMarks` already receives this. Finnhub `/quote` documents `h`, `l`, `o` and `pc`
+  alongside `c`, and the code reads only `c` (see the fetch in the live-marks section). Confirm
+  against a live response, then capture the rest and the check costs no extra calls.
+
+  Two placement notes. A pre-trade check needs a quote for a ticker that is not yet a position, so
+  New Trade would fetch on ticker entry — one call, on demand. And it cannot live in Fast calc at
+  all, which has no ticker field by design; that stays a pure price-stop-tier tool.
+
+  Without a key: a manual "ADRs extended" input, or day high/low fields.
+
 - **A stop that is too wide, and a size that is too small.** Two requested guards that turn out to
   be one constraint seen from opposite ends. Both are ceilings on risk per share:
 
@@ -30,6 +60,10 @@ Running list. Newest at the top of each section.
   1.5 ADRs); this one flags *too wide*. Together they are a band, and on a volatile enough name the
   band is empty — a 12% ADR wants a stop around 18% wide, which a 5% rule forbids. That is not two
   warnings, it is one conclusion: **this stock is too volatile for your rules.** Say that, once.
+
+  **Depends on the extension item above.** The band has two edges only while the 1.5-ADR floor is a
+  rule you keep. Decide that first: if ADR becomes purely an extension measure, the floor goes, and
+  the max-stop-width rule stands alone with nothing to collide with.
 
   Implementation notes: both parameters are method, not account — they belong in `GROUP_KEYS`
   alongside `rPct`, `tiers`, `heatCap` and `coldR`. Surface in New Trade, Fast calc, and per account
