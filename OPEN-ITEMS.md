@@ -4,6 +4,39 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **A stop that is too wide, and a size that is too small.** Two requested guards that turn out to
+  be one constraint seen from opposite ends. Both are ceilings on risk per share:
+
+  ```
+  max stop %   ->  risk/share <= (maxPct/100) * price      e.g. 5% of a $10 entry = $0.50
+  min size     ->  risk/share <= budget / minShares        e.g. $500 budget / 100 sh = $5.00
+  ```
+
+  They bind at opposite ends of the price range and cross at
+  `price = 100 * budget / (maxPct * minShares)` — $100 for a $500 budget, a 5% rule and a 100-share
+  floor. Below that the percentage rule binds, above it the share floor does. Checked: at $10 the
+  rules allow $0.50 and $5.00; at $200, $10.00 and $5.00; at $100 both give $5.00 exactly.
+
+  So do **not** build two independent warnings. Compute one number — the widest stop this trade
+  supports — and name whichever rule produced it. Simpler to read and it cannot contradict itself.
+
+  Why each matters, since the reasons differ:
+  - A stop too **wide** means a 1R win needs an implausibly large move. It is a statement about
+    whether the trade can pay, not about whether the risk is acceptable — the risk is 1R either way.
+  - A size too **small** means the position cannot be managed: a 25% trim of 8 shares is 2 shares,
+    and fixed costs stop being noise. It is about manageability, not about risk.
+
+  Watch the collision with the ADR audit. That one flags a stop *too tight* for normal noise (under
+  1.5 ADRs); this one flags *too wide*. Together they are a band, and on a volatile enough name the
+  band is empty — a 12% ADR wants a stop around 18% wide, which a 5% rule forbids. That is not two
+  warnings, it is one conclusion: **this stock is too volatile for your rules.** Say that, once.
+
+  Implementation notes: both parameters are method, not account — they belong in `GROUP_KEYS`
+  alongside `rPct`, `tiers`, `heatCap` and `coldR`. Surface in New Trade, Fast calc, and per account
+  in the group table, since a small account can fail a share floor that a large one passes. Warn,
+  never block, consistent with the heat cap. The group sizer's existing "0 — too small" line is the
+  degenerate case of the same idea and should fold into it.
+
 - **A third add mode: lock in profit.** Today an add can be sized to risk a full R (`"r"`) or to
   leave the sequence at breakeven (`"be"`). Missing is the case in between — add *some* size, but not
   so much that a stop-out takes the whole trade back to zero. Currently done by hand.
