@@ -63,6 +63,17 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-09-19 — v1.1
+
+- **Deposit / Withdraw on the Desk.** Manual AUM editing fought the compounding mechanism: a broker
+  balance carries unrealised P/L on open positions, so keying it in double-counted that money when
+  they closed. Cash movements are deltas now, recorded in `pf.cashFlows` and listed under the Desk
+  with the equity each produced. The dialog previews new equity and new 1R, and warns (does not
+  block) when a withdrawal leaves less buying power than open positions are standing on. Removing a
+  movement reverses the equity and deletes the record rather than offsetting it. Per-account buttons
+  in the group equity table. `cashFlows` is additive and backfilled in `normalize()`, so SCHEMA
+  stays 1 — bumping it without a migration to point at would be noise.
+
 ### 2026-09-01 — layout
 
 - **Labels are bottom-justified.** The auto margin moved from above the input to above the *label*,

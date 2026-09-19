@@ -274,7 +274,11 @@ details[open] summary::before{content:"\25BE  "}
     <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
   </div>
   <div class="scroll" id="groupEquity" style="display:none;margin-top:14px"></div>
-  <div class="calans" id="runitBox" style="font-size:16px;margin-top:14px"></div>
+  <div class="row" style="align-items:center;margin-top:14px">
+    <div class="calans" id="runitBox" style="font-size:16px"></div>
+    <span id="cashBtns" style="margin-left:auto"></span>
+  </div>
+  <div id="cashBox"></div>
 
   <div class="fastcalc">
     <div class="row" style="align-items:flex-end">
@@ -471,7 +475,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.0
+  version <span class="vbar">|</span> 1.1
 </p>
 
 </div><!-- /.main -->
@@ -655,6 +659,7 @@ function normalize(){
       // trade whose ADR was never edited, which is most of them.
       if(t.adrAtOpen==null && t.adr>0) t.adrAtOpen = t.adr;
     });
+    if(!Array.isArray(pf.cashFlows)) pf.cashFlows = [];   // additive; no migration needed
   });
   // groups
   if(root.finnhub==null){
@@ -1204,13 +1209,18 @@ function renderSettings(){
     const members = groupMembers(g);
     eq.style.display = "";
     eq.innerHTML = members.length
-      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th>Margin</th><th class='num'>Buying power</th><th class='num'>1R</th>" +
+      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th>Cash</th><th>Margin</th><th class='num'>Buying power</th><th class='num'>1R</th>" +
         "<th class='num'>"+TIERS[0]+"</th><th class='num'>"+TIERS[1]+"</th><th class='num'>"+TIERS[2]+"</th><th></th></tr>" +
         members.map(m=>{
           const R = rUnitOf(m);
           return "<tr><td>"+esc(m)+"</td>" +
             "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
               fmtE(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
+            // Each account moves its own cash: one group order does not imply one transfer.
+            '<td style="white-space:nowrap"><button class="small" title="Deposit into '+esc(m)+
+              '" onclick="openCash(\''+jsq(m)+'\',\'deposit\')">+</button> ' +
+              '<button class="small" title="Withdraw from '+esc(m)+
+              '" onclick="openCash(\''+jsq(m)+'\',\'withdraw\')">&minus;</button></td>' +
             "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\">" +
               [1,2,4,6].map(x=>"<option value='"+x+"'"+(marginXOf(m)===x?" selected":"")+">"+(x===1?"Cash":x+"&times;")+"</option>").join("") +
             "</select></td>" +
@@ -1303,6 +1313,136 @@ function renderFastCalc(){
     (anyCapped ? '<div class="fcsub" style="color:var(--amber)">Capped by buying power &mdash; less than a full '+
       rows[0].mult+'R'+(g?" in at least one account":"")+'.</div>' : "") +
     '<div class="fcsub muted">Nothing is recorded. Place the order, then send it across and correct the price to your actual fill.</div>';
+}
+
+/* ========================= cash in and out ========================= */
+// Equity already moves on its own: closing a trade compounds its realised P/L into AUM. Typing a
+// new total by hand fights that mechanism, because a broker balance carries the *unrealised* P/L of
+// everything still open — key that in and the same money is counted twice the moment those
+// positions close. A deposit or a withdrawal is a delta instead: it adjusts whatever the number
+// happens to be at the time, leaves compounding alone, and is recorded so that money arriving is
+// never later mistaken for money earned.
+//
+// The manual AUM field stays, for correcting a figure that was wrong to begin with. That is a
+// different job from moving cash, and it is the only one it should be used for now.
+const cashFlows = acct => { const pf = root.portfolios[acct]; return (pf && pf.cashFlows) || []; };
+const cashAmount = () => parseFloat(String($("cashAmt").value).replace(/[^0-9.]/g,""));
+
+window.openCash = (acct, kind) => {
+  const pf = root.portfolios[acct];
+  if(!pf) return;
+  const dep = kind === "deposit";
+  $("modalTitle").textContent = (dep ? "Deposit into " : "Withdraw from ") + acct;
+  $("modalBody").innerHTML =
+    '<div class="fields"><div><label for="cashAmt">Amount</label>' +
+      '<input id="cashAmt" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>' +
+      '<div style="grid-column:span 2"><label for="cashNote">Note <span class="muted">(optional)</span></label>' +
+      '<input id="cashNote" type="text" placeholder="'+(dep?"transfer in, dividend sweep":"transfer out, tax payment")+'"></div></div>' +
+    '<div class="calsub" id="cashPrev" style="margin-top:12px"></div>' +
+    '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
+      '<button class="small" onclick="closeModal()">Cancel</button>' +
+      '<button class="small primary" id="cashGo" disabled onclick="applyCash(\''+jsq(acct)+'\',\''+kind+'\')">' +
+        (dep ? "Deposit" : "Withdraw") + '</button></div>';
+  $("cashAmt").addEventListener("input", ()=>previewCash(acct, kind));
+  $("cashAmt").addEventListener("keydown", e=>{ if(e.key==="Enter" && !$("cashGo").disabled) applyCash(acct, kind); });
+  previewCash(acct, kind);
+  $("modal").style.display = "flex";
+  setTimeout(()=>$("cashAmt").focus(), 30);
+};
+
+// Says what the money does before it does it: the new equity, the new R unit, and whether the
+// withdrawal leaves less buying power than the open positions are already standing on.
+window.previewCash = (acct, kind) => {
+  const pf = root.portfolios[acct], el = $("cashPrev"), btn = $("cashGo");
+  if(!pf || !el) return;
+  const v = cashAmount();
+  if(!(v > 0)){
+    el.innerHTML = '<span class="muted">Enter an amount.</span>';
+    btn.disabled = true; return;
+  }
+  const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
+  if(next <= 0){
+    el.innerHTML = '<span style="color:var(--red)">That would leave '+esc(acct)+' at '+fmtE(next)+
+      '. Withdraw less than the equity.</span>';
+    btn.disabled = true; return;
+  }
+  const rNext = next * settingsFor(acct).rPct/100;
+  const used = bpUsed(acct), bpNext = next * marginXOf(acct);
+  el.innerHTML = "Equity " + fmtE(pf.settings.aum) + " &rarr; <b>" + fmtE(next) + "</b>" +
+    " &middot; 1R " + fmt$(rUnitOf(acct)) + " &rarr; <b>" + fmt$(rNext) + "</b>" +
+    '<div class="muted" style="margin-top:4px">Open trades keep the R unit they locked at entry. ' +
+    'This only changes what you size from here.</div>' +
+    (bpNext < used
+      ? '<div style="color:var(--amber);margin-top:6px">Open positions are standing on '+fmtE(used)+
+        ', more than the '+fmtE(bpNext)+' of buying power this leaves. Nothing is blocked &mdash; ' +
+        'you would simply be over-extended until something closes.</div>'
+      : "");
+  btn.disabled = false;
+};
+
+window.applyCash = (acct, kind) => {
+  const pf = root.portfolios[acct];
+  const v = cashAmount();
+  if(!pf || !(v > 0)) return;
+  const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
+  if(next <= 0) return;
+  pf.settings.aum = next;
+  pf.cashFlows.push({ type:kind, amount:v, note:$("cashNote").value.trim(), ts:Date.now(), aumAfter:next });
+  closeModal(); save(); render();
+};
+
+// Reversing is the only sane correction for a mistyped amount: a compensating movement in the other
+// direction would leave two wrong entries in the record rather than none.
+window.undoCash = (acct, i) => {
+  const pf = root.portfolios[acct];
+  const f = pf && pf.cashFlows[i];
+  if(!f) return;
+  const next = Math.round((pf.settings.aum + (f.type==="deposit" ? -f.amount : f.amount))*100)/100;
+  if(!confirm("Remove this "+f.type+" of "+fmtE(f.amount)+" from "+acct+"?\n\nEquity goes from "+
+              fmtE(pf.settings.aum)+" to "+fmtE(next)+". The record of it is deleted, not offset.")) return;
+  pf.settings.aum = next;
+  pf.cashFlows.splice(i,1);
+  save(); render();
+};
+
+function renderCash(){
+  const btns = $("cashBtns"), box = $("cashBox");
+  if(!btns || !box) return;
+  // In a group each account moves its own cash, so the buttons live per row in the equity table.
+  const a = acctInView();
+  btns.innerHTML = (inGroup() || !a) ? "" :
+    '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'deposit\')">Deposit</button>' +
+    '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'withdraw\')">Withdraw</button>';
+
+  const rows = [];
+  scope().forEach(acct=>cashFlows(acct).forEach((f,i)=>rows.push({acct, f, i})));
+  if(!rows.length){ box.innerHTML = ""; return; }
+  rows.sort((x,y)=>y.f.ts - x.f.ts);
+  const inTot  = rows.reduce((s,r)=>s + (r.f.type==="deposit"  ? r.f.amount : 0), 0);
+  const outTot = rows.reduce((s,r)=>s + (r.f.type==="withdraw" ? r.f.amount : 0), 0);
+  const net = inTot - outTot;
+
+  box.innerHTML = '<details style="margin-top:10px"><summary>Cash in and out &mdash; ' +
+    rows.length + " movement" + (rows.length===1?"":"s") + ", net " +
+    (net>=0 ? "+" : "&minus;") + fmtE(Math.abs(net)) + "</summary>" +
+    '<div class="scroll" style="margin-top:8px"><table>' +
+    "<tr><th>Date</th>" + (inGroup() ? "<th>Account</th>" : "") +
+    "<th>Movement</th><th class='num'>Amount</th><th class='num'>Equity after</th><th>Note</th><th></th></tr>" +
+    rows.map(r=>{
+      const dep = r.f.type === "deposit";
+      return "<tr><td>"+new Date(r.f.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td>" +
+        (inGroup() ? "<td>"+esc(r.acct)+"</td>" : "") +
+        '<td class="'+(dep?"pos":"neg")+'">'+(dep?"Deposit":"Withdrawal")+"</td>" +
+        '<td class="num '+(dep?"pos":"neg")+'">'+(dep?"+":"&minus;")+fmtE(r.f.amount)+"</td>" +
+        "<td class='num'>"+fmtE(r.f.aumAfter)+"</td>" +
+        "<td>"+esc(r.f.note||"")+"</td>" +
+        "<td class='num'><button class='small danger' title='Remove this movement and put the equity back' " +
+          'onclick="undoCash(\''+jsq(r.acct)+"',"+r.i+')">&#10005;</button></td></tr>';
+    }).join("") + "</table></div>" +
+    '<div class="muted" style="margin-top:6px">Deposits and withdrawals never touch your R multiples, ' +
+    'your per-trade % of equity, or the equity curve &mdash; those are all measured against the equity ' +
+    'each trade was sized against, so money moving in or out cannot flatter or flatten the record.</div>' +
+    "</details>";
 }
 
 window.setMemberMargin = (m,v) => {
@@ -2881,6 +3021,7 @@ function render(){
   // Mirrored on the desk so the queue is visible from the top of the page, whatever is collapsed.
   renderBackupBadge();
   renderSaveAlert();
+  renderCash();
   renderFastCalc();
   const G = inGroup();
   const open = G ? scopeTrades("open").map(x=>x.t) : state.trades.filter(t=>t.status==="open");

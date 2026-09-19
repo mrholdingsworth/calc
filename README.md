@@ -128,6 +128,31 @@ fact about a ticker, and a position left unmarked elsewhere quietly falsifies it
 the buying power it is consuming. Requests are deduplicated by symbol, so four accounts holding one
 name costs one call, not four.
 
+## Cash in and out
+
+Equity already moves on its own: closing a trade compounds its realised P/L into AUM. Typing a new
+total by hand fights that, because a broker balance carries the **unrealised** P/L of everything
+still open — key that in and the same money is counted twice the moment those positions close.
+
+**Deposit** and **Withdraw** apply a delta instead. They adjust whatever the number happens to be,
+leave compounding alone, and record the movement. Before you commit, the dialog states the new
+equity, the new R unit, and — on a withdrawal — whether you would be left with less buying power than
+your open positions are already standing on. That last one warns rather than blocks.
+
+Open trades keep the R unit they locked at entry, so money arriving never resizes a sequence already
+running. In a group each account moves its own cash, from its own row: one group order does not imply
+one transfer.
+
+Every movement is listed under the Desk with the equity it produced, and can be removed — which puts
+the equity back and deletes the record, rather than leaving two wrong entries offsetting each other.
+
+None of it touches your R multiples, your per-trade % of equity, or the equity curve. Those are all
+measured against the equity each trade was sized against, so money moving in or out can neither
+flatter nor flatten the record.
+
+The manual AUM field stays, for correcting a figure that was wrong to begin with. That is a different
+job from moving cash, and it is the only one it should be used for now.
+
 ## Your data
 
 `localStorage`, this browser, this origin, under the key `rcalc.v1`. Clearing site data wipes it, and
