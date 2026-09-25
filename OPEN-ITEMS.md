@@ -21,21 +21,34 @@ Running list. Newest at the top of each section.
     which narratives actually paid, which is valuable — but it is a schema change and a second
     taxonomy to maintain at entry, and the notebook is worth having on its own first.
 
-- **Draw the pre-trade checkboxes properly.** The four checks under New Trade are the last native
-  controls in the app: `accent-color` on a browser-default square, in a UI where every other control
-  is `panel2` on a `line2` border with a radius. They look borrowed.
+- **The pre-trade checks are Russo's, not yours — direction deferred, 2026-09-24.** The four checks
+  do not describe how Steve trades, and as a hard gate they are friction on the app's primary
+  workflow. `updateGate()` disables Open trade until `checksDone()===4`, so every trade requires
+  agreeing to someone else's checklist before it can be recorded at all.
 
-  `appearance:none` on `.chk input`, then a 16px box matching the button treatment — `var(--panel2)`,
-  `1px solid var(--line2)`, ~5px radius — with a CSS-drawn tick on `:checked`, blue fill, dark tick
-  in `#04101f` to match `button.primary`. Hover brightens the border, `:focus-visible` keeps a real
-  outline so the gate stays keyboard-operable.
+  Same problem as the **rules panel** item below: memoir content occupying the place his own system
+  should. If the checklist becomes user-defined, that item is closed by this one — a checklist at the
+  point of decision is a better home for rules than a panel you read once.
 
-  **Blue, not gold**, for the checked state: blue is the app's colour for things you operate, gold
-  for values and emphasis — and `.chk b` already puts gold *inside* these labels, so a gold box would
-  compete with the words it sits beside. Blue box, gold emphasis, clean separation.
+  Three paths, put to him and deliberately left open:
+  1. **User-defined list, still blocking** — his rules, still gating.
+  2. **User-defined list, non-blocking** — unticked items warn instead, matching the flag-don't-block
+     stance already taken by the heat cap and the cold-streak brake.
+  3. **Removed entirely** — ticker, price, stop, open.
 
-  Worth adding while in there: `.chk:has(input:checked){color:var(--tx)}` so ticked rows brighten
-  from `--sub` to full text. The gate becomes visible progress rather than four identical lines.
+  **The data model matters whichever way it goes.** `t.checks` is a fixed `[bool,bool,bool,bool]`,
+  and `bookStats` derives "Planned at entry %" from `t.checks.every(Boolean)`. Once the list is
+  user-defined and variable in length, that statistic compares trades taken under different
+  checklists and quietly means nothing. Store the text alongside the state — `t.checks` becomes
+  `[{text, ticked}]`, migrating the old booleans against the current four — so a trade always records
+  which questions it was actually asked.
+
+  Secondary, and only if checks survive in some form: they are also the last native controls in the
+  app, `accent-color` on a browser-default square among controls that are all `panel2` on a `line2`
+  border with a radius. `appearance:none`, a 16px box matching the button treatment, CSS-drawn tick,
+  blue fill — blue not gold, since `.chk b` already puts gold inside these labels and a gold box
+  would compete with the words beside it. Plus `.chk:has(input:checked){color:var(--tx)}` to turn the
+  gate into visible progress. Cosmetic; worthless if the checks are going away.
 
 - **Interactive calendar: journal entries and daily P/L.** By some distance the largest item on this
   list — a month grid, each day carrying its result and a note you can write.
@@ -210,6 +223,10 @@ deliberately.*
 - **Rules panel — rebuild around your own system.** The paraphrased seven-part "bible" was pulled
   out of the page. The original markup is parked in `_parked/bible.html` so nothing is lost.
   Re-add later, rewritten to your own rules rather than the memoir's.
+
+  **Settle the pre-trade checks first** (see above). If that checklist becomes user-defined, it is
+  the better home for these rules — a rule you tick at the moment of decision beats a rule in a panel
+  you read once — and this item closes without separate work.
 
 ## Ruled out
 
