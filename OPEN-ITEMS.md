@@ -21,12 +21,21 @@ Running list. Newest at the top of each section.
     which narratives actually paid, which is valuable — but it is a schema change and a second
     taxonomy to maintain at entry, and the notebook is worth having on its own first.
 
-- **New Trade checkboxes: give the group "Take" boxes the styled treatment.** Two checkbox looks
-  exist in that panel — `.chk` (styled label, blue accent) on the pre-trade checks, and bare browser
-  defaults on the group sizing table. Steve had no preference, so: keep blue and bring the bare ones
-  up to match. Blue is already the app's colour for things you operate — buttons, focus rings, the
-  active rail link, the sizing box — while gold marks values and emphasis. A gold checkbox would
-  read as a highlighted value rather than a control. Small change; `.chk` largely exists already.
+- **Draw the pre-trade checkboxes properly.** The four checks under New Trade are the last native
+  controls in the app: `accent-color` on a browser-default square, in a UI where every other control
+  is `panel2` on a `line2` border with a radius. They look borrowed.
+
+  `appearance:none` on `.chk input`, then a 16px box matching the button treatment — `var(--panel2)`,
+  `1px solid var(--line2)`, ~5px radius — with a CSS-drawn tick on `:checked`, blue fill, dark tick
+  in `#04101f` to match `button.primary`. Hover brightens the border, `:focus-visible` keeps a real
+  outline so the gate stays keyboard-operable.
+
+  **Blue, not gold**, for the checked state: blue is the app's colour for things you operate, gold
+  for values and emphasis — and `.chk b` already puts gold *inside* these labels, so a gold box would
+  compete with the words it sits beside. Blue box, gold emphasis, clean separation.
+
+  Worth adding while in there: `.chk:has(input:checked){color:var(--tx)}` so ticked rows brighten
+  from `--sub` to full text. The gate becomes visible progress rather than four identical lines.
 
 - **Interactive calendar: journal entries and daily P/L.** By some distance the largest item on this
   list — a month grid, each day carrying its result and a note you can write.
