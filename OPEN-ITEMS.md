@@ -4,6 +4,57 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Top themes — a scanning notebook.** What you spot while scanning: a narrative or group that is
+  moving, written down fast and kept in front of you when you size. Manually entered and tracked;
+  nothing derived from the trade history.
+
+  - **A theme is not a concept.** The existing `concept` field is structure — "mean reversion,
+    multiday mover". A theme is narrative — "uranium", "datacentre power". They are orthogonal, and
+    one trade can carry both. Do not fold either into the other.
+  - **Entry has to be fast**, because scanning is fast. Name, and optionally a line of note and a few
+    tickers. Anything that takes a form is a thing you will stop doing by Thursday.
+  - **Tracked means a lifecycle.** A theme is noticed, runs, and fades. Carry the date it was added
+    and let it be retired without being deleted, so "what was I watching in March" still answers.
+  - **Placement**: the Desk, above or beside Fast calc — it is pre-trade context, and it should be
+    visible without expanding anything. Collapsible once the list gets long.
+  - **Open, deliberately not decided**: whether trades gain a `theme` field. It would let you ask
+    which narratives actually paid, which is valuable — but it is a schema change and a second
+    taxonomy to maintain at entry, and the notebook is worth having on its own first.
+
+- **New Trade checkboxes: give the group "Take" boxes the styled treatment.** Two checkbox looks
+  exist in that panel — `.chk` (styled label, blue accent) on the pre-trade checks, and bare browser
+  defaults on the group sizing table. Steve had no preference, so: keep blue and bring the bare ones
+  up to match. Blue is already the app's colour for things you operate — buttons, focus rings, the
+  active rail link, the sizing box — while gold marks values and emphasis. A gold checkbox would
+  read as a highlighted value rather than a control. Small change; `.chk` largely exists already.
+
+- **Interactive calendar: journal entries and daily P/L.** By some distance the largest item on this
+  list — a month grid, each day carrying its result and a note you can write.
+
+  What is derivable today, and what is not:
+  - **Realised P/L per day is free.** Closed trades carry `closedAt`, and `renderCharts` already
+    builds exactly this map (`byDay`) for the time-series charts. Lift that out and the calendar has
+    its numbers with no new storage.
+  - **Mark-to-market daily change is not.** The book has no daily equity snapshots, only marks taken
+    whenever a refresh happened to run. It cannot be reconstructed backwards. If you want it, the
+    app has to start writing a daily equity stamp from that release on, and the calendar stays
+    realised-only for everything before it. Worth deciding early — it is the one part that cannot be
+    retrofitted.
+  - **Cash movements already carry dates** (`cashFlows`, v1.1). Mark them on the calendar: a deposit
+    day explains an equity jump that was not performance, which is exactly the confusion a
+    P/L calendar would otherwise create.
+
+  Design questions:
+  - **Store.** `root.journal` keyed `YYYY-MM-DD`, global rather than per account — a journal is about
+    the trader, not the book. It should survive switching tabs.
+  - **Make the day click through.** A bare diary is worth little; a day that lists the trades closed
+    on it, with their R multiples, is worth a lot. That link is most of the value.
+  - **It would be a fourth note field**, alongside a trade's re-trade review and its 30-day review.
+    Decide how they relate before building, or the same thought gets written in three places. The
+    30-day-due count could surface on the calendar rather than only in headers.
+  - **Colour.** Resist a green/red heat map by instinct — R, not dollars, is the unit everywhere else
+    here, and a day of +0.5R on a small book should not read paler than +$800 on a large one.
+
 - **Extension check: am I chasing?** Your use of ADR differs from the memoir's, and both are worth
   having because they measure different distances with the same unit:
 
