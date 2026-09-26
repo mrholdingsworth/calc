@@ -50,6 +50,56 @@ Running list. Newest at the top of each section.
   would compete with the words beside it. Plus `.chk:has(input:checked){color:var(--tx)}` to turn the
   gate into visible progress. Cosmetic; worthless if the checks are going away.
 
+- **A JSON export shaped for an AI to coach from.** Distinct from the existing export, which is the
+  raw `root` — settings, event logs, internal ids — and makes a model re-derive everything before it
+  can say anything. A coaching export should ship the *derived* view instead: one record per closed
+  trade carrying R multiple, days held, entry and exit, the tier and concept, the plan written at
+  entry, the loss tag, the re-trade note and the 30-day review.
+
+  The insight lives in the **pairs**, not the numbers. What you said you would do against what you
+  did; the exit against what the 30-day review later said about it; the concept claimed at entry
+  against how that concept actually performs. Those are what this book has and a broker statement
+  never will, and they are what a model can actually say something useful about. Ship the aggregates
+  too — the three win rates, days held winners vs losers, the loss-tag split, planned-at-entry % —
+  so the model is not recomputing what the app already knows.
+
+  - **Anonymise option.** A full book carries account names and dollar balances. A "normalise to R"
+    mode — no account names, no dollars, everything in R and percentages — makes it safe to paste
+    anywhere without losing anything that matters to the analysis, since R is the unit of the whole
+    system anyway.
+  - **Scope control.** Whole book, last N trades, one concept, or a date range. A year of trades is a
+    lot of tokens, and coaching is usually about a stretch, not a lifetime.
+  - Cheap next to the broker item below, and it raises the value of data already collected. If both
+    are wanted, this one first.
+
+- **Broker API integration — pull fills instead of typing them.** Two problems, and the second is
+  the one that decides whether this is worth it.
+
+  **Architecture.** The app is a static file on GitHub Pages with no server, no build step and no
+  dependencies. Most broker APIs need an OAuth redirect and a client secret held somewhere that is
+  not the browser, and will not accept cross-origin calls from an arbitrary page. Brokers differ a
+  great deal here — some expose a locally-run gateway that a browser can reach, others are
+  server-only — so this needs checking against the specific broker before anything is designed.
+  Worth being clear about the stakes either way: the Finnhub key already stored can read quotes, and
+  a broker credential can read positions and in some cases place orders. That is a different class of
+  secret to be keeping in `localStorage` on a public origin.
+
+  **A CSV import gets most of the benefit and collides with none of it.** Every broker exports trade
+  history to file. A mapper from broker rows into the event model is ordinary work inside the
+  existing architecture, needs no credentials, and removes the same typing.
+
+  **The hard part is not fetching, it is that a broker gives fills, not intent.** A statement says
+  200 shares left at 104. It cannot say whether that was a planned trim into strength or a panic, and
+  the model here is built on that difference: `entry / add / trim / close / stop`. Worse, an imported
+  trade arrives without the fields that make this book worth keeping — tier, concept, ADR, the plan
+  and its hinges, the pre-trade checks, and the R unit and equity locked at open. Those are inputs
+  from you, and no import reconstructs them.
+
+  So the realistic shape is **import fills, then attach meaning**: prices and quantities arrive
+  automatically, a review step assigns the rest. Which also means the honest version of this item is
+  "remove the typing of numbers", not "remove the journalling" — and the journalling was always the
+  part that pays.
+
 - **Interactive calendar: journal entries and daily P/L.** By some distance the largest item on this
   list — a month grid, each day carrying its result and a note you can write.
 
