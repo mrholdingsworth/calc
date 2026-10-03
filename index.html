@@ -189,6 +189,10 @@ details[open] summary::before{content:"\25BE  "}
 /* The desk's working surface: price, stop, tier, share count. No ticker, no plan, no record. */
 .fastcalc{margin-top:14px;padding:12px 14px;border:1px solid rgba(176,141,63,.35);
           border-radius:12px;background:rgba(176,141,63,.06)}
+/* Equal columns, not content-width buttons. The labels differ in length — "2R" against "0.5R" —
+   so a flex row re-widths itself the moment a tier value is edited, and the thing you were about to
+   click moves. Three equal cells with a floor keep the group still. */
+#fc_tiers{display:grid;grid-template-columns:repeat(3,minmax(84px,1fr));gap:6px;align-items:center}
 .fcbig{font-family:var(--mono);font-size:30px;font-weight:700;color:var(--gold);line-height:1.1}
 .fcsub{font-size:12.5px;color:var(--sub);margin-top:3px}
 .fcsub b{color:var(--tx)}
@@ -287,7 +291,7 @@ details[open] summary::before{content:"\25BE  "}
         <input id="fc_price" type="number" step="any" placeholder="entry"></div>
       <div style="max-width:130px"><label for="fc_stop">Stop</label>
         <input id="fc_stop" type="number" step="any" placeholder="invalidation"></div>
-      <div><label>Tier</label><div class="row" id="fc_tiers"></div></div>
+      <div><label>Tier</label><div id="fc_tiers"></div></div>
       <button class="small" id="fc_clear" title="Clear">&#10005;</button>
     </div>
     <div id="fc_out"></div>
@@ -475,7 +479,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.1.1
+  version <span class="vbar">|</span> 1.1.2
 </p>
 
 </div><!-- /.main -->
@@ -1784,7 +1788,18 @@ function tradeCard(t){
       '<div class="metric"><div class="k">Last price</div><div class="v">'+fmtP(t.last)+'</div><div class="r">'+(d.Q>0?"now "+fmtR(totR):"")+markAgeHtml(t)+'</div></div>' +
       '<div class="metric"><div class="k">Open P/L</div><div class="v '+cls(openPL)+'">'+fmt$(openPL)+'</div><div class="r">'+fmtR(openPL/R)+'</div></div>' +
       '<div class="metric"><div class="k">Realized</div><div class="v '+cls(d.realized)+'">'+fmt$(d.realized)+'</div><div class="r">'+fmtR(d.realized/R)+'</div></div>' +
-      '<div class="metric"><div class="k">Loss if stopped</div><div class="v '+cls(-ras)+'">'+fmt$(-ras)+'</div><div class="r">'+fmtR(-ras/R)+' open</div></div>' +
+      (function(){
+        // Once the stop sits the right side of the average, being stopped out pays you. Labelling
+        // that "Loss if stopped" over a green positive number is a contradiction the reader has to
+        // unpick every time, so the word follows the sign and carries the colour with it.
+        const atStop = -ras;
+        const good = atStop > 1e-4, bad = atStop < -1e-4;
+        return '<div class="metric">' +
+          '<div class="k"'+(good?' style="color:var(--green)"':bad?' style="color:var(--red)"':"")+'>' +
+            (good ? "Gain if stopped" : bad ? "Loss if stopped" : "Breakeven if stopped") + '</div>' +
+          '<div class="v '+cls(atStop)+'">'+fmt$(atStop)+'</div>' +
+          '<div class="r">'+fmtR(atStop/R)+' open</div></div>';
+      })() +
       '<div class="metric"><div class="k">Sequence at stop</div><div class="v '+cls(-seq)+'">'+fmt$(-seq)+'</div><div class="r">realized &minus; stop risk</div></div>' +
       '<div class="metric"><div class="k">Total (mark)</div><div class="v '+cls(d.realized+openPL)+'">'+fmt$(d.realized+openPL)+'</div><div class="r">'+fmtR(totR)+'</div></div>' +
       // Capital committed, what it is worth now, and how much of the book it is standing on. Sizing
