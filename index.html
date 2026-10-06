@@ -479,7 +479,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.1.2
+  version <span class="vbar">|</span> 1.1.3
 </p>
 
 </div><!-- /.main -->
@@ -2337,8 +2337,12 @@ function statsHtml(A){
   const p = a => (Math.round(1000*a/A.n)/10).toFixed(1)+"%";
   const gap = Math.round(100*(A.wins-A.decisive)/A.n);
   return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
-    '<div class="metric" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+SCRATCH_HI+'R. '+WIN_R+'R+: paid for a full loss.">' +
-      '<div class="k">Win rate &mdash; raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+WIN_R+'R</div>' +
+    // Two columns: this tile carries three rates where its neighbours carry one number, and at a
+    // single column both the definitions and the values ran past the edge.
+    '<div class="metric" style="grid-column:span 2" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+SCRATCH_HI+'R. '+WIN_R+'R+: paid for a full loss.">' +
+      // Name on one line, the three definitions on the next, so the break never lands mid-word.
+      '<div class="k">Win rate</div>' +
+      '<div class="k" style="white-space:nowrap">raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+WIN_R+'R</div>' +
       '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div>' +
       '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>'
                      : "each stricter than the last") + '</div></div>' +
