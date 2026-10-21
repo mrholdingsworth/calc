@@ -207,6 +207,7 @@ details[open] summary::before{content:"\25BE  "}
 .spark{width:100%;height:86px;display:block;margin-top:10px}
 .hint{font-size:11.5px;color:var(--mut);margin-top:6px}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(min-width:900px){.split3{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:660px){.split{grid-template-columns:1fr}.wrap{padding:16px 12px 60px}}
 .four{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px;margin:0 0 20px}
 .four div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
@@ -343,7 +344,7 @@ details[open] summary::before{content:"\25BE  "}
 
   <details id="nt_plan" open>
     <summary>Plan &amp; hinges &mdash; the commitment (decided now, not later)</summary>
-    <div class="split" style="margin-top:10px">
+    <div class="split split3" style="margin-top:10px">
       <div><label for="nt_cut_if">If Y happens &rarr; cut</label><input id="nt_cut_if" type="text" placeholder="closes back above prior range high"></div>
       <div><label for="nt_wait_if">If Z happens &rarr; wait</label><input id="nt_wait_if" type="text" placeholder="drifts sideways inside 1 ADR"></div>
       <div><label for="nt_exit">Exit plan (where the thesis has resolved)</label><input id="nt_exit" type="text" placeholder="measured move / prior range low"></div>
@@ -478,7 +479,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.2
+  version <span class="vbar">|</span> 1.2.1
 </p>
 
 </div><!-- /.main -->
@@ -1484,16 +1485,20 @@ function newTradeCal(){
   $("nt_calbox").style.display = "block";
   $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
     (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— capped by buying power</span>' : "");
+  // Four labelled numbers rather than a sentence to parse. The capped case is the one thing that
+  // genuinely needs a line of prose, because the remedy is not obvious from the figures.
   $("nt_calsub").innerHTML =
-    "Risk per share <b>" + fmtP(den) + "</b> &middot; budget <b>" + mult + "R = " + fmt$(b) + "</b>" +
-    " &middot; position value <b>" + fmt$(q*P) + "</b> (" + (state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(0) : "0") + "% of AUM)" +
-    (capped
-      ? '<br><span style="color:var(--amber)">R alone wants <b>'+fmtQ(qR)+"</b> shares ("+fmt$(qR*P)+
-        "), but only <b>"+fmtE(free)+"</b> of buying power is free"+
-        (marginXOf(acct)===1 ? " (cash account — no margin)" : " ("+marginXOf(acct)+"&times; on "+fmtE(state.settings.aum)+")")+
-        ". At "+fmtQ(q)+" shares this risks <b>"+ (q*den/R).toFixed(2) +"R</b>, not "+mult+"R.</span>"
-      : '<br><span class="muted">Buying power free: '+fmtE(free)+" of "+fmtE(buyingPower(acct))+
-        (marginXOf(acct)===1 ? " (cash account)" : " ("+marginXOf(acct)+"&times;)")+"</span>");
+    '<div class="statrow" style="margin-top:8px">' +
+      '<div class="metric"><div class="k">Risk '+VBAR+' share</div><div class="v">'+fmtP(den)+'</div>' +
+        '<div class="r">'+mult+'R = '+fmt$(b)+'</div></div>' +
+      '<div class="metric"><div class="k">Cost</div><div class="v">'+fmt$(q*P)+'</div>' +
+        '<div class="r">'+(state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(1)+'% of equity' : "")+'</div></div>' +
+      '<div class="metric"><div class="k">BP free</div>' +
+        '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmtE(free)+'</div>' +
+        '<div class="r">of '+fmtE(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
+      '<div class="metric"><div class="k">Risk taken</div><div class="v">'+(q*den/R).toFixed(2)+'R</div>' +
+        '<div class="r">'+(capped ? '<span style="color:var(--amber)">R wants '+fmtQ(qR)+' sh</span>' : "as intended")+'</div></div>' +
+    '</div>';
 
   $("nt_targets").innerHTML = q>0
     ? '<span class="muted" style="align-self:center">targets:</span>' + ladderHtml(ladder(side,P,q,R,null,TARGETS))
@@ -1502,18 +1507,12 @@ function newTradeCal(){
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
   if(a){
-    let html = '<span style="color:'+a.color+';font-weight:600">Daily vol check: ADR '+adr+"% ("+fmtP(a.adrD)+") = "+
-      Math.round(a.pctOfGap)+"% of your stop gap &mdash; the stop is "+a.adrs.toFixed(1)+" ADRs away.</span> ";
-    if(a.adrs<1.5){
-      const safeStop = P - side*1.5*a.adrD;
-      const safeQ = Math.floor(b/(1.5*a.adrD));
-      html += "One normal day covers " + (a.pctOfGap>=100 ? "<b>more than your whole stop</b>" : "most of your stop") +
-        " &mdash; that is shakeout territory. For 1.5 ADRs of room: stop <b>" + fmtP(safeStop) +
-        "</b>, size becomes <b>" + fmtQ(safeQ) + " shares</b> at the same " + mult + "R risk.";
-    } else html += "Normal daily noise should not reach your stop.";
+    let html = '<span style="color:'+a.color+';font-weight:600">'+a.adrs.toFixed(1)+' ADRs to stop</span>';
+    if(a.adrs<1.5) html += ' &mdash; inside daily noise. For 1.5: stop <b>'+fmtP(P - side*1.5*a.adrD)+
+      '</b>, <b>'+fmtQ(Math.floor(b/(1.5*a.adrD)))+'</b> shares.';
     $("nt_vol").innerHTML = html;
   } else {
-    $("nt_vol").innerHTML = '<span class="muted">Enter ADR % to audit this stop against daily volatility before you commit. Under 1.5 ADRs of room and you are paying for tightness with your win rate.</span>';
+    $("nt_vol").innerHTML = '<span class="muted">ADR % not set.</span>';
   }
   return q;
 }
@@ -1678,15 +1677,20 @@ function tradeCard(t){
       : "1R trail would be "+fmtP(trail)+" &mdash; your current stop "+fmtP(d.stop)+" is already tighter. The trail never auto-loosens; but if the name has fallen back into noise and honest invalidation now sits wider, widening via Move is a legitimate, logged decision.";
   }
 
-  // volatility check against the live stop
-  let adrHtml = '<div class="metric"><div class="k">Daily vol check</div><div class="v" style="color:var(--mut)">&mdash;</div><div class="r">set ADR % below</div></div>';
+  // Volatility, as one tile: how many normal days sit between the mark and the stop, over the ADR
+  // the trade was actually sized against. Two tiles for one idea was a tile too many.
+  const a0 = t.adrAtOpen;
+  const adrSub = a0!=null
+    ? "ADR "+a0+"% at entry"+(t.adr>0 && Math.abs(t.adr-a0)>1e-9 ? ' <span style="color:var(--amber)">now '+t.adr+'%</span>' : "")
+    : "no ADR at entry";
+  const adrTile = (v,colour) => '<div class="metric"><div class="k">Daily vol</div><div class="v"'+
+    (colour?' style="color:'+colour+'"':'')+'>'+v+'</div><div class="r">'+adrSub+'</div></div>';
+  let adrHtml = adrTile("&mdash;","var(--mut)");
   if(t.adr && d.stop!=null && d.Q>0){
-    const dist = t.side*(t.last-d.stop);
-    const a = adrAudit(t.last, t.adr, dist);
-    adrHtml = a
-      ? '<div class="metric"><div class="k">Daily vol check</div><div class="v" style="color:'+a.color+'">'+a.adrs.toFixed(1)+
-        ' ADRs</div><div class="r">ADR '+t.adr+"% ("+fmtP(a.adrD)+") = "+Math.round(a.pctOfGap)+"% of stop distance"+(a.adrs<1?" &mdash; inside one day's range":"")+"</div></div>"
-      : '<div class="metric"><div class="k">Daily vol check</div><div class="v neg">stop breached</div><div class="r">last is past the stop</div></div>';
+    const a = adrAudit(t.last, t.adr, t.side*(t.last-d.stop));
+    adrHtml = a ? adrTile(a.adrs.toFixed(1)+" ADRs", a.color)
+                : '<div class="metric"><div class="k">Daily vol</div><div class="v neg">stop breached</div>'+
+                  '<div class="r">'+adrSub+'</div></div>';
   }
 
   const head =
@@ -1729,49 +1733,32 @@ function tradeCard(t){
   }).join("");
 
   return '<div class="card">' + head +
+    // Six tiles, grouped by the question each answers rather than one per stored number.
     '<div class="statrow">' +
-      '<div class="metric"><div class="k">Position</div><div class="v">'+fmtQ(d.Q)+'</div><div class="r">avg '+fmtP(d.avg)+'</div></div>' +
-      '<div class="metric"><div class="k">Stop</div><div class="v">'+(d.stop!=null?fmtP(d.stop):"&mdash;")+'</div><div class="r">'+(be!=null?"b/e stop "+fmtP(be):"")+'</div></div>' +
-      '<div class="metric"><div class="k">Last price</div><div class="v">'+fmtP(t.last)+'</div><div class="r">'+(d.Q>0?"now "+fmtR(totR):"")+markAgeHtml(t)+'</div></div>' +
-      '<div class="metric"><div class="k">Open P/L</div><div class="v '+cls(openPL)+'">'+fmt$(openPL)+'</div><div class="r">'+fmtR(openPL/R)+'</div></div>' +
-      '<div class="metric"><div class="k">Realized</div><div class="v '+cls(d.realized)+'">'+fmt$(d.realized)+'</div><div class="r">'+fmtR(d.realized/R)+'</div></div>' +
+      '<div class="metric"><div class="k">Position</div><div class="v">'+fmtQ(d.Q)+'</div>' +
+        '<div class="r">avg '+fmtP(d.avg)+' &middot; cost '+fmt$(d.avg*d.Q)+(t.side<0?" (proceeds)":"")+'</div></div>' +
       (function(){
-        // Once the stop sits the right side of the average, being stopped out pays you. Labelling
-        // that "Loss if stopped" over a green positive number is a contradiction the reader has to
-        // unpick every time, so the word follows the sign and carries the colour with it.
-        const atStop = -ras;
-        const good = atStop > 1e-4, bad = atStop < -1e-4;
+        const aum0 = t.aumAtOpen, val = t.last*d.Q;
+        return '<div class="metric"><div class="k">Value</div><div class="v">'+fmt$(val)+'</div>' +
+          '<div class="r">last '+fmtP(t.last)+
+          (aum0>0 ? ' &middot; '+(val/aum0*100).toFixed(1)+'% of equity' : "")+markAgeHtml(t)+'</div></div>';
+      })() +
+      '<div class="metric"><div class="k">Stop</div><div class="v">'+(d.stop!=null?fmtP(d.stop):"&mdash;")+'</div>' +
+        '<div class="r">'+(be!=null?"b/e "+fmtP(be):"&mdash;")+'</div></div>' +
+      (function(){
+        // The word follows the sign and carries the colour: "Loss if stopped" over a green number
+        // is a contradiction the reader has to unpick every time.
+        const atStop = -ras, good = atStop > 1e-4, bad = atStop < -1e-4;
         return '<div class="metric">' +
           '<div class="k"'+(good?' style="color:var(--green)"':bad?' style="color:var(--red)"':"")+'>' +
             (good ? "Gain if stopped" : bad ? "Loss if stopped" : "Breakeven if stopped") + '</div>' +
           '<div class="v '+cls(atStop)+'">'+fmt$(atStop)+'</div>' +
-          '<div class="r">'+fmtR(atStop/R)+' open</div></div>';
+          '<div class="r">'+fmtR(atStop/R)+' &middot; sequence '+fmt$(-seq)+'</div></div>';
       })() +
-      '<div class="metric"><div class="k">Sequence at stop</div><div class="v '+cls(-seq)+'">'+fmt$(-seq)+'</div><div class="r">realized &minus; stop risk</div></div>' +
-      '<div class="metric"><div class="k">Total (mark)</div><div class="v '+cls(d.realized+openPL)+'">'+fmt$(d.realized+openPL)+'</div><div class="r">'+fmtR(totR)+'</div></div>' +
-      // Capital committed, what it is worth now, and how much of the book it is standing on. Sizing
-      // never looks at these — they answer "how concentrated am I", which R alone does not.
-      '<div class="metric"><div class="k">Position cost</div><div class="v">'+fmt$(d.avg*d.Q)+'</div><div class="r">'+fmtQ(d.Q)+' &times; '+fmtP(d.avg)+(t.side<0?" (proceeds)":"")+'</div></div>' +
-      '<div class="metric"><div class="k">Current value</div><div class="v">'+fmt$(t.last*d.Q)+'</div><div class="r">at last mark '+fmtP(t.last)+'</div></div>' +
-      (function(){
-        const aum0 = t.aumAtOpen;
-        if(!(aum0>0)) return '<div class="metric"><div class="k">Allocation</div><div class="v" style="color:var(--mut)">&mdash;</div><div class="r">no equity recorded at open</div></div>';
-        const pct = t.last*d.Q/aum0*100;
-        return '<div class="metric"><div class="k">Allocation</div><div class="v">'+pct.toFixed(1)+'%</div>' +
-               '<div class="r">of '+fmtE(aum0)+' equity at open</div></div>';
-      })() +
-      (function(){
-        // The volatility you signed up for, kept separate from the live ADR because that one is
-        // editable — this is the number the stop and the size were chosen against.
-        const a0 = t.adrAtOpen;
-        if(a0==null) return '<div class="metric"><div class="k">ADR % at entry</div>' +
-          '<div class="v" style="color:var(--mut)">&mdash;</div><div class="r">none set when this opened</div></div>';
-        const moved = t.adr>0 && Math.abs(t.adr-a0) > 1e-9;
-        return '<div class="metric"><div class="k">ADR % at entry</div><div class="v">'+a0+'%</div>' +
-          '<div class="r">&asymp; '+fmtP((e0 ? e0.price : d.avg)*a0/100)+' a day per share' +
-          (moved ? ' &middot; <span style="color:var(--amber)">now '+t.adr+'%</span>' : "") +
-          '</div></div>';
-      })() +
+      '<div class="metric" style="grid-column:span 2"><div class="k">Open '+VBAR+' realized</div>' +
+        '<div class="v" style="font-size:15px"><span class="'+cls(openPL)+'">'+fmt$(openPL)+'</span>'+VBAR+
+          '<span class="'+cls(d.realized)+'">'+fmt$(d.realized)+'</span></div>' +
+        '<div class="r">total '+fmt$(d.realized+openPL)+' &middot; '+fmtR(totR)+'</div></div>' +
       adrHtml +
     '</div>' +
 
@@ -1794,7 +1781,7 @@ function tradeCard(t){
         '<button class="small" onclick="doTrim(\''+t.id+'\',0.5)">50% ('+fmtQ(Math.floor(d.Q*0.5))+')</button>' +
         '<button class="small primary" onclick="doTrim(\''+t.id+'\',null)">Trim</button></div>' +
         '<div class="err" id="trerr_'+t.id+'"></div>' +
-        '<div class="muted" style="margin-top:5px">The wiggle rule: will this be here at this price or better later?</div></div>' +
+        '</div>' +
 
       '<div class="action"><div class="t">Stop</div>' +
         '<div class="sublbl">Move stop to <span class="muted">'+(d.stop!=null?"now "+fmtP(d.stop):"none set")+'</span></div>' +
@@ -1814,32 +1801,24 @@ function tradeCard(t){
         '</div>' +
         '</div>' +
 
-      '<div class="action"><div class="t">Risk budget (R)</div><div class="row">' +
-        '<input type="number" step="0.05" id="rb_'+t.id+'" placeholder="'+d.mult+'R now" style="max-width:86px" onkeydown="if(event.key===\'Enter\')setBudget(\''+t.id+'\')">' +
-        '<button class="small" onclick="budgetTo(\''+t.id+'\',0.25)">.25</button>' +
-        '<button class="small" onclick="budgetTo(\''+t.id+'\',0.5)">.5</button>' +
-        '<button class="small" onclick="budgetTo(\''+t.id+'\',1)">1</button>' +
-        '<button class="small" onclick="budgetTo(\''+t.id+'\',2)">2</button>' +
-        '<button class="small primary" onclick="setBudget(\''+t.id+'\')">Set</button></div>' +
-        '<div class="err" id="rberr_'+t.id+'"></div>' +
-        '<div class="muted" style="margin-top:5px">Start small, upsize on further confirmation. Logged either way.</div></div>' +
-
       '<div class="action"><div class="t">Close all</div><div class="row">' +
         '<input type="number" step="any" id="clp_'+t.id+'" placeholder="price" onkeydown="if(event.key===\'Enter\')closeTrade(\''+t.id+'\')">' +
         '<button class="small danger" onclick="closeTrade(\''+t.id+'\')">Close</button></div>' +
         '<div class="err" id="clerr_'+t.id+'"></div></div>' +
 
-      '<div class="action"><div class="t">Adjust (override)</div><div class="row">' +
-        '<input type="number" step="any" id="ajq_'+t.id+'" placeholder="'+fmtQ(d.Q)+' sh" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
-        '<input type="number" step="any" id="aja_'+t.id+'" placeholder="avg '+fmtP(d.avg)+'" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
-        '<button class="small" onclick="doAdjust(\''+t.id+'\')">Apply</button></div>' +
-        '<div class="err" id="ajerr_'+t.id+'"></div>' +
-        '<div class="muted" style="margin-top:5px">Force the position or average price to match your broker. The stop is set above.</div></div>' +
     '</div>' +
 
     '<svg class="spark" viewBox="0 0 560 120">'+svgLine(d.series.map(s=>s.val), {labels:d.series.map(s=>s.label)})+'</svg>' +
     '<div class="muted" style="text-align:center">sequence P/L in R, marked at each event</div>' +
-    '<details><summary>Event log ('+t.events.length+')</summary><div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th></tr>'+rows+'</table></div></details>' +
+    '<details><summary>Event log ('+t.events.length+') &amp; corrections</summary>' +
+      '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th></tr>'+rows+'</table></div>' +
+      // A rare correction tool, out of the row of things done every day.
+      '<div class="actions" style="margin-top:8px">' +       '<div class="action"><div class="t">Adjust (override)</div><div class="row">' +
+        '<input type="number" step="any" id="ajq_'+t.id+'" placeholder="'+fmtQ(d.Q)+' sh" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
+        '<input type="number" step="any" id="aja_'+t.id+'" placeholder="avg '+fmtP(d.avg)+'" onkeydown="if(event.key===\'Enter\')doAdjust(\''+t.id+'\')">' +
+        '<button class="small" onclick="doAdjust(\''+t.id+'\')">Apply</button></div>' +
+        '<div class="err" id="ajerr_'+t.id+'"></div>' +
+        '<div class="muted" style="margin-top:5px">Force the position or average price to match your broker. The stop is set above.</div></div>' + '</div></details>' +
   '</div>';
 }
 
@@ -1870,14 +1849,6 @@ window.stopTo = (id,v) => { const t = getTrade(id); t.events.push({type:"stop", 
 window.setAdr = id => {
   const t = getTrade(id), v = parseFloat($("adr_"+id).value);
   if(t && !isNaN(v) && v>0){ t.adr = v; save(); render(); }
-};
-window.budgetTo = (id,v) => { $("rb_"+id).value = v; setBudget(id); };
-window.setBudget = id => {
-  const t = getTrade(id), d = derive(t), v = parseFloat($("rb_"+id).value), errEl = $("rberr_"+id);
-  if(isNaN(v) || v<=0){ errEl.textContent = "Enter a positive R multiple (0.25, 0.5, 1 …)."; return; }
-  if(v===d.mult){ errEl.textContent = "Budget is already "+v+"R."; return; }
-  t.events.push({type:"budget", mult:v, price:t.last, ts:Date.now()});
-  save(); render();
 };
 window.doAdjust = id => {
   const t = getTrade(id), errEl = $("ajerr_"+id);
@@ -2661,9 +2632,6 @@ window.gMoveStop = gid => { const v = parseFloat($("gstp_"+gid).value);
   if(isNaN(v)) return; gEach(gid,t=>t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()})); };
 window.gSetAdr = gid => { const v = parseFloat($("gadr_"+gid).value);
   if(!(v>0)) return; gEach(gid,t=>{ t.adr=v; }); };
-window.gSetBudget = gid => { const v = parseFloat($("grb_"+gid).value);
-  if(!(v>0)) return; gEach(gid,t=>t.events.push({type:"budget", mult:v, price:t.last, ts:Date.now()})); };
-window.gBudgetTo = (gid,v) => { $("grb_"+gid).value = v; gSetBudget(gid); };
 // Trims broadcast as a fraction, never a share count — the accounts hold different sizes.
 window.gTrim = (gid, frac) => {
   const P0 = parseFloat($("gtrp_"+gid).value);
@@ -2810,7 +2778,7 @@ function groupTradeCard(gid, legs){
         '<button class="small" onclick="gTrim('+q()+',0.5)">50%</button>' +
         '<button class="small primary" onclick="gTrim('+q()+',null)">Trim</button></div>' +
         '<div class="err" id="gtrerr_'+gid+'"></div>' +
-        '<div class="muted" style="margin-top:5px">A percentage, not a share count — the accounts hold different sizes.</div></div>' +
+        '</div>' +
 
       '<div class="action"><div class="t">Stop</div>' +
         '<div class="sublbl">Move stop to <span class="muted">'+(d0.stop!=null?"now "+fmtP(d0.stop):"none set")+'</span></div>' +
@@ -2821,14 +2789,6 @@ function groupTradeCard(gid, legs){
         '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(first.adr!=null?"now "+first.adr+"%":"not set")+'</span></div>' +
         '<div class="row"><input type="number" step="0.1" id="gadr_'+gid+'" placeholder="% of price" style="max-width:110px">' +
         '<button class="small" onclick="gSetAdr('+q()+')">Set</button></div></div>' +
-
-      '<div class="action"><div class="t">Risk budget (R)</div><div class="row">' +
-        '<input type="number" step="0.05" id="grb_'+gid+'" placeholder="'+d0.mult+'R now" style="max-width:86px">' +
-        '<button class="small" onclick="gBudgetTo('+q()+',0.25)">.25</button>' +
-        '<button class="small" onclick="gBudgetTo('+q()+',0.5)">.5</button>' +
-        '<button class="small" onclick="gBudgetTo('+q()+',1)">1</button>' +
-        '<button class="small" onclick="gBudgetTo('+q()+',2)">2</button>' +
-        '<button class="small primary" onclick="gSetBudget('+q()+')">Set</button></div></div>' +
 
       '<div class="action"><div class="t">Close all accounts</div><div class="row">' +
         '<input type="number" step="any" id="gclp_'+gid+'" placeholder="price">' +

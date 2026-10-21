@@ -320,6 +320,25 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-21 — v1.2.1, compaction
+
+- **Risk budget (R) removed** from both cards, with `setBudget`/`budgetTo`/`gSetBudget`/`gBudgetTo`.
+  Inert once adds went: its only effect was changing a pill from "0.5R budget" to "1R budget" while
+  nothing read the number, so it could contradict what the trade was actually sized at. `derive()`
+  and both event logs still replay historical `budget` events.
+- **Position card: thirteen metric tiles down to six**, grouped by the question each answers rather
+  than one per stored number. Position (with cost), Value (with last and % of equity), Stop (with
+  b/e), If stopped (with R and sequence), Open ⎪ realized spanning two columns (with total and R),
+  Daily vol (with the ADR at entry). Every figure survives; one row at desktop width instead of two.
+- **Actions: six down to four** — Mark, Trim, Stop, Close. One clean row. **Adjust (override) moved
+  into the event-log disclosure**, which is where a correction belongs rather than beside the things
+  done daily.
+- **New Trade sizing answer is four labelled tiles**, not a paragraph: Risk ⎪ share, Cost, BP free,
+  Risk taken. The capped case keeps one line of prose, being the only part where the remedy is not
+  obvious from the figures. Vol line cut to "0.8 ADRs to stop" plus the 1.5-ADR alternative.
+- **Plan fields get three columns** rather than two and an orphan (`.split3`, above 900px).
+- Dropped two explanatory lines under Trim on both cards, per the terse-copy preference.
+
 ### 2026-09-19 — v1.1.1, three bug fixes
 
 - **Trimming now moves the portfolio value.** Realised P/L only reached equity at the close, so a
