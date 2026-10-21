@@ -320,6 +320,23 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-21 — v1.2.4, targets are whole-sequence
+
+- **Reported as a wrong +1R target; the arithmetic was right and the definition was wrong.** Steve
+  computed +1R on a 0.5R position as entry + 2× the stop distance ($32.17) and the app showed
+  $33.04. Reproduced: the open-card ladder divided by the *current* share count, so a 33% trim
+  raised the target. Confirmed by solving for the inputs — every fit implied a trim of 33.3–33.7%.
+- **The real fault was that the ladder was the only R figure in the app ignoring realised profit.**
+  A closed trade's multiple is `realized/rUnit`; Total (mark) is `(realized+open)/rUnit`. Only the
+  ladder quoted "another full R on what is left". `ladder()` now takes `realized` and prices
+  `avg + side*(k*rUnit − realized)/Q`.
+- **The practical size of it**, on his trade (≈$97k, 285 sh, 96 trimmed at $33.72): the position was
+  already at **+1.91R**, and the ladder said 2R was $35.60 — $1.88 away. The true 2R was **$33.95**,
+  23 cents away. That is a hold-or-exit decision, not a rounding difference.
+- Unchanged where nothing is realised, so an untouched position still quotes $32.17. Group card
+  sums realised across legs. Dropped "from avg $X" from the label, which implied an anchor the
+  ladder no longer uses.
+
 ### 2026-10-21 — v1.2.3, initial risk
 
 - **New tile: Initial risk**, between Stop and If-stopped, so the three stop-related tiles read in

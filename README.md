@@ -33,6 +33,12 @@ stopped or closed. Constant-risk pyramiding and its breakeven variant were remov
 not suit the way this book is traded, and carrying them made the sizing model answer to two masters.
 Trades opened before that still replay their adds correctly; nothing in the record was rewritten.
 
+**Targets are whole-sequence.** A +1R rung is the price at which *the trade* reaches 1R, banked
+profit included — not the price at which the shares still open make another full R by themselves.
+That matters once you have trimmed: with a third taken off at a good price, the naive reading
+quotes a 2R target nearly two dollars further away than the real one, because it silently discards
+the R already in hand. Every other R figure here is whole-sequence, so this one is too.
+
 **Sequence at stop** is `risk-at-stop − realized`. When it goes negative the sequence cannot lose,
 and the card flips to *house money*.
 

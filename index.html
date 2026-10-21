@@ -484,7 +484,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.2.3
+  version <span class="vbar">|</span> 1.2.4
 </p>
 
 </div><!-- /.main -->
@@ -855,10 +855,16 @@ function stats(t){
 // Informational only: the app never acts on these, and nothing is pre-placed.
 const TARGETS = [1,2];
 // Price levels at whole R multiples of the locked risk unit.
-function ladder(side, avg, Q, rUnit, last, mults){
+// Targets are whole-sequence, because that is what R means everywhere else here: a closed trade's
+// multiple is realized/rUnit, and Total (mark) is (realized+open)/rUnit. Without the banked term a
+// trimmed position quotes the price at which the REMAINING shares make another full R, which on a
+// position already carrying realised profit overstates the move still needed -- badly, once the
+// trim was a large one.
+function ladder(side, avg, Q, rUnit, last, mults, realized){
   if(!(Q>0)) return [];
+  const banked = realized || 0;
   return mults.map(k=>{
-    const price = avg + side*k*rUnit/Q;
+    const price = avg + side*(k*rUnit - banked)/Q;
     const hit = last!=null && side*(last-price) >= 0;
     return {k, price, hit};
   });
@@ -1768,8 +1774,8 @@ function tradeCard(t){
     // The 1R trail is stop management, not sizing, so it outlives the add box it used to sit in.
     (trailNote ? '<div class="calbox"><div class="calsub">'+trailNote+'</div></div>' : "") +
 
-    (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">targets from avg '+fmtP(d.avg)+':</span>' +
-      ladderHtml(ladder(t.side, d.avg, d.Q, R, t.last, TARGETS))+'</div>' : "") +
+    (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">targets:</span>' +
+      ladderHtml(ladder(t.side, d.avg, d.Q, R, t.last, TARGETS, d.realized))+'</div>' : "") +
     (planBits.length ? '<div class="calsub" style="margin-top:9px">'+planBits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "") +
 
     '<div class="actions actrow">' +
@@ -2737,8 +2743,8 @@ function groupTradeCard(gid, legs){
       if(!(Qall>0)) return "";
       const avgAll = legs.reduce((a,x,i)=>a+agg[i].d.avg*agg[i].d.Q, 0)/Qall;
       const Rall = legs.reduce((a,x)=>a+x.t.rUnit, 0);
-      return '<div class="ladder"><span class="muted" style="align-self:center">targets from avg '+fmtP(avgAll)+':</span>' +
-        ladderHtml(ladder(first.side, avgAll, Qall, Rall, first.last, TARGETS))+'</div>';
+      return '<div class="ladder"><span class="muted" style="align-self:center">targets:</span>' +
+        ladderHtml(ladder(first.side, avgAll, Qall, Rall, first.last, TARGETS, sum("realized")))+'</div>';
     })() +
     // Every leg was opened off one form, so ADR at entry is one number for the whole card.
     '<div class="calsub" style="margin-top:8px">' +
