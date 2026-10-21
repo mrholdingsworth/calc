@@ -320,6 +320,22 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-21 — v1.2.2, the Stop box
+
+- **Jump-to buttons and the ADR setter removed** from the Stop panel on both cards, leaving the
+  price field and Move. `stopTo`, `setAdr` and `gSetAdr` went with them, and so did `roundPx`,
+  `tickRef` and `decimalsOf` — the tick-inference existed only to round those computed stops, so
+  with no computed stop it was dead code.
+- **Action row 122px → 81px.** Removing the content was not what did it: Trim holds five controls to
+  everyone else's two, wrapped to a second line in a 273px panel, and dragged all four panels to
+  that height. `.actions.actrow` proportions the row above 1120px so Trim gets 436px and the rest
+  218px. Nothing wraps now.
+- **The current stop moved into the Stop panel's title**, which removed the sub-label line.
+- **Consequence worth knowing: `t.adr` is now fixed at entry.** The New Trade field sets it and
+  nothing can change it afterwards — `doAdjust` covers quantity and average price only. A mistyped
+  ADR is permanent on that trade. If that bites, the place for it is the Adjust panel in the event
+  log, alongside the other corrections.
+
 ### 2026-10-21 — v1.2.1, compaction
 
 - **Risk budget (R) removed** from both cards, with `setBudget`/`budgetTo`/`gSetBudget`/`gBudgetTo`.

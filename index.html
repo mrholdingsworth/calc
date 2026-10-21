@@ -133,6 +133,11 @@ button.small{padding:4px 10px;font-size:12px}
 .card.tradecollapsed .tradehead{margin-bottom:0}
 .tradehead .tk{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.02em}
 .actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:10px;margin-top:12px}
+/* Trim holds five controls where its neighbours hold two. Left to auto-fit it wrapped to a second
+   line and dragged every panel to that height, so above this width the row is proportioned. */
+@media(min-width:1120px){
+  .actions.actrow{grid-template-columns:minmax(140px,1fr) minmax(300px,2fr) minmax(150px,1fr) minmax(150px,1fr)}
+}
 .action{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
 .action .t{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
 .sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
@@ -479,7 +484,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.2.1
+  version <span class="vbar">|</span> 1.2.2
 </p>
 
 </div><!-- /.main -->
@@ -760,20 +765,6 @@ const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{min
 const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
 const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
 const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefined, MONEY);
-// Snap a computed stop to a price you could actually enter as an order, so the button's label and
-// the level it applies are the same number. The tick comes from the price you typed for this trade
-// rather than a fixed threshold: a name entered at 110.25 gets cent stops, one entered at 1.1155
-// keeps all four decimals. A flat 4dp rule would hand you 110.2563, which no broker will take.
-const decimalsOf = v => {
-  const s = String(Math.round(Math.abs(v)*1e4)/1e4), i = s.indexOf(".");
-  return i<0 ? 0 : s.length-i-1;
-};
-const tickRef = t => { const e0 = t && t.events && t.events.find(e=>e.type==="entry");
-  return e0 ? e0.price : (t ? t.last : null); };
-const roundPx = (v, ref) => {
-  const m = Math.pow(10, Math.min(4, Math.max(2, decimalsOf(ref==null ? v : ref))));
-  return Math.round(v*m)/m;
-};
 const cls  = v => v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : "");
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
@@ -1769,7 +1760,7 @@ function tradeCard(t){
       ladderHtml(ladder(t.side, d.avg, d.Q, R, t.last, TARGETS))+'</div>' : "") +
     (planBits.length ? '<div class="calsub" style="margin-top:9px">'+planBits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "") +
 
-    '<div class="actions">' +
+    '<div class="actions actrow">' +
       '<div class="action"><div class="t">Mark <span class="vbar">|</span> last price</div><div class="row">' +
         '<input type="number" step="any" id="px_'+t.id+'" placeholder="'+t.last+'" onkeydown="if(event.key===\'Enter\')setLast(\''+t.id+'\')">' +
         '<button class="small" onclick="setLast(\''+t.id+'\')">Set</button></div></div>' +
@@ -1783,21 +1774,11 @@ function tradeCard(t){
         '<div class="err" id="trerr_'+t.id+'"></div>' +
         '</div>' +
 
-      '<div class="action"><div class="t">Stop</div>' +
-        '<div class="sublbl">Move stop to <span class="muted">'+(d.stop!=null?"now "+fmtP(d.stop):"none set")+'</span></div>' +
+      '<div class="action"><div class="t">Stop <span class="muted" style="text-transform:none;letter-spacing:0">'+
+          (d.stop!=null?fmtP(d.stop):"none set")+'</span></div>' +
         '<div class="row">' +
           '<input type="number" step="any" id="stp_'+t.id+'" placeholder="price" onkeydown="if(event.key===\'Enter\')moveStop(\''+t.id+'\')">' +
           '<button class="small primary" onclick="moveStop(\''+t.id+'\')">Move</button>' +
-        '</div>' +
-        ((be!=null || trail!=null) ? '<div class="row" style="margin-top:6px">' +
-          '<span class="muted" style="align-self:center">jump to:</span>' +
-          (be!=null ? '<button class="small" title="The stop that makes this whole sequence net zero" onclick="stopTo(\''+t.id+'\','+roundPx(be,tickRef(t))+')">breakeven '+fmtP(roundPx(be,tickRef(t)))+'</button>' : "") +
-          ((trail!=null && (d.stop==null || t.side*(trail-d.stop)>0)) ? '<button class="small" title="Trail one unit of your entry risk behind the last price" onclick="stopTo(\''+t.id+'\','+roundPx(trail,tickRef(t))+')">1R trail '+fmtP(roundPx(trail,tickRef(t)))+'</button>' : "") +
-        '</div>' : "") +
-        '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(t.adr!=null?"now "+t.adr+"%":"not set")+'</span></div>' +
-        '<div class="row">' +
-          '<input type="number" step="0.1" id="adr_'+t.id+'" placeholder="% of price" style="max-width:110px" onkeydown="if(event.key===\'Enter\')setAdr(\''+t.id+'\')">' +
-          '<button class="small" onclick="setAdr(\''+t.id+'\')">Set</button>' +
         '</div>' +
         '</div>' +
 
@@ -1844,11 +1825,6 @@ window.moveStop = id => {
   if(isNaN(v)) return;
   t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()});
   save(); render();
-};
-window.stopTo = (id,v) => { const t = getTrade(id); t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()}); save(); render(); };
-window.setAdr = id => {
-  const t = getTrade(id), v = parseFloat($("adr_"+id).value);
-  if(t && !isNaN(v) && v>0){ t.adr = v; save(); render(); }
 };
 window.doAdjust = id => {
   const t = getTrade(id), errEl = $("ajerr_"+id);
@@ -2630,8 +2606,6 @@ window.gSetLast = gid => { const v = parseFloat($("gpx_"+gid).value);
   if(!(v>0)) return; gEach(gid,t=>{ t.last=v; t.lastMarkTs=Date.now(); }); };
 window.gMoveStop = gid => { const v = parseFloat($("gstp_"+gid).value);
   if(isNaN(v)) return; gEach(gid,t=>t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()})); };
-window.gSetAdr = gid => { const v = parseFloat($("gadr_"+gid).value);
-  if(!(v>0)) return; gEach(gid,t=>{ t.adr=v; }); };
 // Trims broadcast as a fraction, never a share count — the accounts hold different sizes.
 window.gTrim = (gid, frac) => {
   const P0 = parseFloat($("gtrp_"+gid).value);
@@ -2737,7 +2711,6 @@ function groupTradeCard(gid, legs){
     "<td class='num'><b>"+fmt$(sum("value"))+"</b></td>" +
     "<td class='num muted'>&mdash;</td><td></td></tr>";
 
-  const be = beStop(first, d0);
   const q = s => "'"+gid+"'";
   return '<div class="card">' + head +
     '<div class="scroll"><table><tr><th>Account</th><th class="num">Shares</th><th class="num">Stop</th>' +
@@ -2766,7 +2739,7 @@ function groupTradeCard(gid, legs){
       '</b>. Every control below is one decision applied to all '+legs.length+
       ' accounts, each computed on its own equity. Open an account to act on it alone.</div>' +
 
-    '<div class="actions">' +
+    '<div class="actions actrow">' +
       '<div class="action"><div class="t">Mark <span class="vbar">|</span> last price</div><div class="row">' +
         '<input type="number" step="any" id="gpx_'+gid+'" placeholder="'+first.last+'" onkeydown="if(event.key===\'Enter\')gSetLast('+q()+')">' +
         '<button class="small" onclick="gSetLast('+q()+')">Set</button></div></div>' +
@@ -2780,15 +2753,11 @@ function groupTradeCard(gid, legs){
         '<div class="err" id="gtrerr_'+gid+'"></div>' +
         '</div>' +
 
-      '<div class="action"><div class="t">Stop</div>' +
-        '<div class="sublbl">Move stop to <span class="muted">'+(d0.stop!=null?"now "+fmtP(d0.stop):"none set")+'</span></div>' +
+      '<div class="action"><div class="t">Stop <span class="muted" style="text-transform:none;letter-spacing:0">'+
+          (d0.stop!=null?fmtP(d0.stop):"none set")+'</span></div>' +
         '<div class="row"><input type="number" step="any" id="gstp_'+gid+'" placeholder="price" onkeydown="if(event.key===\'Enter\')gMoveStop('+q()+')">' +
         '<button class="small primary" onclick="gMoveStop('+q()+')">Move</button></div>' +
-        (be!=null ? '<div class="row" style="margin-top:6px"><span class="muted" style="align-self:center">jump to:</span>' +
-          '<button class="small" onclick="gstp_'+gid+'.value='+roundPx(be,tickRef(first))+';gMoveStop('+q()+')">breakeven '+fmtP(roundPx(be,tickRef(first)))+'</button></div>' : "") +
-        '<div class="sublbl" style="margin-top:9px">Average daily range <span class="muted">'+(first.adr!=null?"now "+first.adr+"%":"not set")+'</span></div>' +
-        '<div class="row"><input type="number" step="0.1" id="gadr_'+gid+'" placeholder="% of price" style="max-width:110px">' +
-        '<button class="small" onclick="gSetAdr('+q()+')">Set</button></div></div>' +
+        '</div>' +
 
       '<div class="action"><div class="t">Close all accounts</div><div class="row">' +
         '<input type="number" step="any" id="gclp_'+gid+'" placeholder="price">' +

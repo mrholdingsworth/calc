@@ -190,9 +190,9 @@ Cents on a six-figure balance are noise and cost a column of width on every row.
 on a price is the opposite: at 1.1155 against a 1.1125 stop, risk per share is $0.003, and rounding
 to cents prints that as $0.00 and sizes the trade off nothing.
 
-Computed stops (breakeven, the 1R trail) snap to the tick implied by *the price you typed for that
-trade*: enter at 110.25 and you get cent stops, enter at 1.1155 and you keep four decimals. A flat
-four-decimal rule would hand you 110.2563, which no broker will accept.
+Stops are typed, not computed: the breakeven and 1R-trail jump buttons were removed in 1.2.2, and
+with them the tick-inference they needed. The 1R trail is still reported on the card — it is a
+number to read and act on, not a button to press.
 
 ## No Side field
 
