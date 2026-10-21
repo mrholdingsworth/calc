@@ -30,22 +30,34 @@ Running list. Newest at the top of each section.
   compute the R unit from protected equity **excluding the position being added to**, leaving the
   sequence math intact. Easy enough — the positions are already iterated.
 
-  Decide before building:
-  - **Symmetric or credit-only?** Credit gains and ignore open losses and the basis flatters itself;
-    that asymmetry is how a basis becomes a ratchet. Symmetric is what "the floor" actually means,
-    but it also means opening a trade immediately lowers R for the next one — which overlaps with
-    what the heat cap already regulates. Two mechanisms governing one thing needs a reason.
-  - **Gap risk is correlated.** Steve's expected-value argument is sound per position, but gaps are
-    not independent: a market-wide gap hits every position at once, against a book that this change
-    makes larger. The errors arrive together, so they cannot be averaged apart.
-  - **Tension with an earlier instruction**, worth reconciling explicitly rather than quietly: on
-    trims he said decisions should be cost-based and unrealised should never move portfolio value.
-    Protected equity is a subset of unrealised — the part a stop protects. Defensible, but it is a
-    revision of that rule, not an exception to it.
-  - **Positions with no stop** contribute nothing protected and should probably bar the basis
-    outright rather than silently counting as zero.
-  - Make it a setting, default `closed`, so it is reversible on a live book. History is safe either
-    way: trades lock `rUnit` and `aumAtOpen` at entry, so no past R multiple moves.
+  **Settled 2026-10-21 — all three objections answered, so this is unblocked:**
+  - **Symmetric.** A new trade lowering the floor for the next one is accepted and wanted. His
+    reasoning: drawdown is held low enough by the rest of the system that one trade cannot move
+    sizing much, and he moves stops up quickly, so the dip is short-lived by construction.
+  - **Correlated gap risk accepted**, on the grounds that the heat cap already limits how many
+    positions can be open at once, which is the exposure that makes a correlated gap dangerous.
+  - **No tension with the cost-based rule — that framing was wrong.** `riskAtStop` reads `avg`,
+    `stop` and `Q`; `t.last` does not appear in it. Protected equity is *mark-independent*: price can
+    run and it does not move, only a stop move or a size change moves it. So this is not "a subset of
+    unrealised". The actual principle, and a cleaner one than cost-based:
+
+    > **Equity responds to decisions, never to the tape.** Closes, trims, stop moves, cash in and out.
+
+    Protected equity satisfies that rule rather than bending it.
+
+  Still to handle when building:
+  - **`bpUsed` is the one place the tape still leaks in** — it marks positions at `t.last`, so a
+    winner consumes more buying power as it rises with nothing having been decided. Under the
+    principle above it arguably belongs at cost (`avg * Q`). Note the wrinkle: cost is right for a
+    cash account, where you own what you paid for, while maintenance requirements on a margin account
+    genuinely are marked. May need to follow `marginX` rather than being one rule.
+  - **Double-counting is the real work**, and it is not a toggle: the R unit must be computed from
+    protected equity **excluding the position being added to**, or a locked gain both raises the
+    budget and finances adds against itself.
+  - **Positions with no stop** contribute nothing protected and should bar the basis outright rather
+    than silently counting as zero.
+  - Ship as a setting, default `closed`, reversible on a live book. History is safe either way:
+    trades lock `rUnit` and `aumAtOpen` at entry, so no past R multiple moves.
 
 - **Top themes — a scanning notebook.** What you spot while scanning: a narrative or group that is
   moving, written down fast and kept in front of you when you size. Manually entered and tracked;
