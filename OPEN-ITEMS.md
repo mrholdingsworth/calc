@@ -320,6 +320,28 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-21 — v1.3, internal R and account R
+
+- **Targets are internal to the trade.** `ladder()` now prices `entry + k × riskPerShare`, so a $10
+  entry stopped at $9.75 targets $10.25 and $10.50 at any size — and they do not move when the
+  position is trimmed or the stop raised. This supersedes v1.2.4 entirely: that fix made the ladder
+  whole-sequence, which was right against the old definition but the definition itself was the
+  problem. Share count, tier and realised profit have all dropped out of the formula.
+- **Closed trades carry both multiples.** `stats()` returns `rmInt` (realised ÷ what the position
+  was built to lose) alongside `rm`. Verified on the stated case: $10 → $11 at half size is 4.00R
+  internal, 2.00R account; at full size 4.00/4.00, at quarter 4.00/1.00.
+- **Statistics and charts are unchanged — account R throughout.** That is deliberate: the account
+  multiple is the one that compounds.
+- **The breach pill moved to internal R**, threshold −1.25 rather than −1.50. On the account
+  multiple a half-size stop-out reads −0.5R and a quarter-size one −0.25R, so the old test almost
+  never fired on small tiers no matter how far past the stop the fill landed. Whether the stop held
+  is an internal-R question by nature.
+
+**Follow-on worth deciding:** `bookStats` "loss discipline" still counts losses at or under 1.2
+*account* R. That has the same flaw the breach pill just had — a half-size trade that blew through
+its stop by 2× shows −1.0R account and passes. It is a question about stops, so it probably wants
+`rmInt`. Not changed, because it moves a published statistic.
+
 ### 2026-10-21 — v1.2.4, targets are whole-sequence
 
 - **Reported as a wrong +1R target; the arithmetic was right and the definition was wrong.** Steve

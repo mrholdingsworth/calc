@@ -33,11 +33,21 @@ stopped or closed. Constant-risk pyramiding and its breakeven variant were remov
 not suit the way this book is traded, and carrying them made the sizing model answer to two masters.
 Trades opened before that still replay their adds correctly; nothing in the record was rewritten.
 
-**Targets are whole-sequence.** A +1R rung is the price at which *the trade* reaches 1R, banked
-profit included — not the price at which the shares still open make another full R by themselves.
-That matters once you have trimmed: with a third taken off at a good price, the naive reading
-quotes a 2R target nearly two dollars further away than the real one, because it silently discards
-the R already in hand. Every other R figure here is whole-sequence, so this one is too.
+## Two R's, and which is which
+
+**Internal R** is the trade's own risk per share. Buy at $10 with a $9.75 stop and 1R is 25c:
+targets sit at $10.25 and $10.50 whatever size you took, and they never move — not when you trim,
+not when you raise the stop. The price at which an idea has paid twice its own risk is a fact about
+the idea.
+
+**Account R** is what that was worth to the book: internal R scaled by the tier you took it at. The
+same $10 → $11 move is 4R internal every time, and 4R, 2R or 1R to the account depending on whether
+you sized it full, half or quarter.
+
+Closed trades show both. **Every statistic and chart uses the account multiple**, because that is
+the one that compounds: what a run of ideas did to the balance, not how good the ideas were.
+
+Read them together. A high internal R with a low account R says you were right and small.
 
 **Sequence at stop** is `risk-at-stop − realized`. When it goes negative the sequence cannot lose,
 and the card flips to *house money*.

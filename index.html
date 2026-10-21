@@ -484,7 +484,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.2.4
+  version <span class="vbar">|</span> 1.3
 </p>
 
 </div><!-- /.main -->
@@ -849,26 +849,29 @@ function stats(t){
 
   // MAE / MFE in R-multiples of the per-share risk taken at entry — size-independent, so trades of
   // different sizes compare directly.
-  return {d, rm, days, rPerDay, aum0, roe, deployed, posPct, riskPS, entryPx, openTs, endTs};
+  // Internal R: realised over what the position was built to lose. Independent of tier, so two
+  // trades taken at different sizes compare as ideas. rm stays the account multiple, and that is
+  // the one every statistic and chart is computed from.
+  const initialRisk = (riskPS>0 && e0) ? riskPS*e0.qty : null;
+  const rmInt = initialRisk ? d.realized/initialRisk : null;
+  return {d, rm, rmInt, initialRisk, days, rPerDay, aum0, roe, deployed, posPct, riskPS, entryPx, openTs, endTs};
 }
 
 // Informational only: the app never acts on these, and nothing is pre-placed.
 const TARGETS = [1,2];
-// Price levels at whole R multiples of the locked risk unit.
-// Targets are whole-sequence, because that is what R means everywhere else here: a closed trade's
-// multiple is realized/rUnit, and Total (mark) is (realized+open)/rUnit. Without the banked term a
-// trimmed position quotes the price at which the REMAINING shares make another full R, which on a
-// position already carrying realised profit overstates the move still needed -- badly, once the
-// trim was a large one.
-function ladder(side, avg, Q, rUnit, last, mults, realized){
-  if(!(Q>0)) return [];
-  const banked = realized || 0;
+// Targets are INTERNAL to the trade: multiples of the risk per share accepted at entry. A $10 entry
+// stopped at $9.75 targets $10.25 and $10.50 whatever the size, and those prices never move -- not
+// when the position is trimmed, not when the stop is raised. The price at which an idea has paid
+// twice its own risk is a fact about the idea. What that is worth to the account is the tier
+// multiple's job, and that is the R the statistics use.
+function ladder(side, entryPx, riskPS, last, mults){
+  if(!(riskPS>0)) return [];
   return mults.map(k=>{
-    const price = avg + side*(k*rUnit - banked)/Q;
-    const hit = last!=null && side*(last-price) >= 0;
-    return {k, price, hit};
+    const price = entryPx + side*k*riskPS;
+    return {k, price, hit: last!=null && side*(last-price) >= 0};
   });
 }
+
 function ladderHtml(rungs){
   return rungs.map(r=>'<span class="rung'+(r.hit?" hit":"")+'">+'+r.k+'R <b>'+fmtP(r.price)+'</b></span>').join("");
 }
@@ -1498,7 +1501,7 @@ function newTradeCal(){
     '</div>';
 
   $("nt_targets").innerHTML = q>0
-    ? '<span class="muted" style="align-self:center">targets:</span>' + ladderHtml(ladder(side,P,q,R,null,TARGETS))
+    ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,TARGETS))
     : "";
 
   const adr = parseFloat($("nt_adr").value);
@@ -1774,8 +1777,8 @@ function tradeCard(t){
     // The 1R trail is stop management, not sizing, so it outlives the add box it used to sit in.
     (trailNote ? '<div class="calbox"><div class="calsub">'+trailNote+'</div></div>' : "") +
 
-    (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">targets:</span>' +
-      ladderHtml(ladder(t.side, d.avg, d.Q, R, t.last, TARGETS, d.realized))+'</div>' : "") +
+    (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">internal targets:</span>' +
+      ladderHtml(ladder(t.side, e0?e0.price:d.avg, riskPS, t.last, TARGETS))+'</div>' : "") +
     (planBits.length ? '<div class="calsub" style="margin-top:9px">'+planBits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "") +
 
     '<div class="actions actrow">' +
@@ -2126,8 +2129,10 @@ function renderClosed(){
         (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
       "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
+      "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt)+
+        (S.rmInt<-1.25?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Lost well beyond the stop it was opened with'>breach</span>":""))+"</td>" +
+      "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
       "<td class='num "+cls(d.realized)+"'>"+fmt$(d.realized)+"</td>" +
-      "<td class='num "+cls(rm)+"'>"+fmtR(rm)+(rm<-1.5?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Loss well beyond 1R'>breach</span>":"")+"</td>" +
       "<td class='num'>"+S.days+"</td>" +
       "<td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
       "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
@@ -2156,7 +2161,7 @@ function renderClosed(){
   }).join("");
 
   tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
-    "<th class='num'>Realized</th><th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
+    "<th class='num' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num'>Realized</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
 
   $("stats").innerHTML = statsHtml(bookStats(closed));
 }
@@ -2249,12 +2254,13 @@ function renderGroupClosed(){
     const due = legs.some(reviewDueLeg);
     const detail = "<tr><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       "<div class='scroll'><table><tr><th>Account</th><th class='num'>1R</th><th class='num'>Realized</th>" +
-      "<th class='num'>R multiple</th><th class='num'>Days</th><th class='num'>R/day</th>" +
+      "<th class='num'>R internal</th><th class='num'>R account</th><th class='num'>Days</th><th class='num'>R/day</th>" +
       "<th class='num'>Position P/L %</th><th class='num'>% equity</th><th>Loss audit</th><th></th></tr>" +
       legs.map(x=>{
         const S = stats(x.t), rm = S.rm;
         return "<tr><td>"+esc(x.acct)+"</td><td class='num'>"+fmt$(x.t.rUnit)+"</td>" +
           "<td class='num "+cls(S.d.realized)+"'>"+fmt$(S.d.realized)+"</td>" +
+          "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
           "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
           "<td class='num'>"+S.days+"</td><td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
           "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
@@ -2558,9 +2564,9 @@ function paintGroupCalc(rows, P, S, side, ti){
   // k*risk-per-share/mult — but it does depend on the fill, so it is quoted off the shared entry.
   const den0 = side*(P-S);
   const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
-  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">targets'+
+  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">internal targets'+
     (overridden ? " at "+fmtP(P) : "")+':</span>' +
-    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den0/mult0, hit:false})));
+    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den0, hit:false})));
 
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
   const skipped = rows.filter(r=>r.on && r.skipped);
@@ -2742,9 +2748,11 @@ function groupTradeCard(gid, legs){
       const Qall = agg.reduce((a,s)=>a+s.d.Q, 0);
       if(!(Qall>0)) return "";
       const avgAll = legs.reduce((a,x,i)=>a+agg[i].d.avg*agg[i].d.Q, 0)/Qall;
+      const fe0 = first.events.find(e=>e.type==="entry");
+      const friskPS = (fe0 && fe0.stop!=null) ? first.side*(fe0.price-fe0.stop) : null;
       const Rall = legs.reduce((a,x)=>a+x.t.rUnit, 0);
-      return '<div class="ladder"><span class="muted" style="align-self:center">targets:</span>' +
-        ladderHtml(ladder(first.side, avgAll, Qall, Rall, first.last, TARGETS, sum("realized")))+'</div>';
+      return '<div class="ladder"><span class="muted" style="align-self:center">internal targets:</span>' +
+        ladderHtml(ladder(first.side, fe0?fe0.price:avgAll, friskPS, first.last, TARGETS))+'</div>';
     })() +
     // Every leg was opened off one form, so ADR at entry is one number for the whole card.
     '<div class="calsub" style="margin-top:8px">' +
