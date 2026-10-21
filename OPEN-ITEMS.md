@@ -4,6 +4,49 @@ Running list. Newest at the top of each section.
 
 ## To do
 
+- **Size off protected equity, not realised-only.** Proposed 2026-10-21: credit the gains already
+  locked in by open stops toward sizing, rather than waiting for the close.
+
+  **This is already the design, one scope down.** `maxAdd` credits locked gains in full — measured on
+  a 1000-share long at avg 100: stop 96 gives 0 shares, stop 104 gives 750, stop 108 gives 4,250,
+  while `rUnit` stays at $1,000 throughout because equity is realised-only. So the reflexivity
+  objection ("tightening a stop raises your own budget") does not apply: the app already works that
+  way inside a sequence and frames it as the point. The question is only whether the sequence
+  boundary is the right place to stop.
+
+  **The strongest argument is one Steve did not make.** Realised-only is not the conservative basis,
+  it is the blind one. Holding a loser stopped $4,000 below average, realised equity reads $100,000
+  while the floor if that stop hits is $96,000 — over-sized against the floor, not under. Three
+  bases, and the middle one is the only one that is a real number about the present:
+
+  | basis | equity | character |
+  |---|---|---|
+  | closed (today) | realised only | ignores open positions in both directions |
+  | **protected** | realised + Σ(−riskAtStop) | the floor if every stop hit now |
+  | marked | realised + full unrealised | what a broker uses for margin |
+
+  **The blocker is double-counting, not gap risk.** If a position's locked gain raises the book R
+  *and* finances adds in its own sequence, one dollar does two jobs. Not a toggle: the fix is to
+  compute the R unit from protected equity **excluding the position being added to**, leaving the
+  sequence math intact. Easy enough — the positions are already iterated.
+
+  Decide before building:
+  - **Symmetric or credit-only?** Credit gains and ignore open losses and the basis flatters itself;
+    that asymmetry is how a basis becomes a ratchet. Symmetric is what "the floor" actually means,
+    but it also means opening a trade immediately lowers R for the next one — which overlaps with
+    what the heat cap already regulates. Two mechanisms governing one thing needs a reason.
+  - **Gap risk is correlated.** Steve's expected-value argument is sound per position, but gaps are
+    not independent: a market-wide gap hits every position at once, against a book that this change
+    makes larger. The errors arrive together, so they cannot be averaged apart.
+  - **Tension with an earlier instruction**, worth reconciling explicitly rather than quietly: on
+    trims he said decisions should be cost-based and unrealised should never move portfolio value.
+    Protected equity is a subset of unrealised — the part a stop protects. Defensible, but it is a
+    revision of that rule, not an exception to it.
+  - **Positions with no stop** contribute nothing protected and should probably bar the basis
+    outright rather than silently counting as zero.
+  - Make it a setting, default `closed`, so it is reversible on a live book. History is safe either
+    way: trades lock `rUnit` and `aumAtOpen` at entry, so no past R multiple moves.
+
 - **Top themes — a scanning notebook.** What you spot while scanning: a narrative or group that is
   moving, written down fast and kept in front of you when you size. Manually entered and tracked;
   nothing derived from the trade history.
