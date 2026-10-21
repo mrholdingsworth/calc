@@ -335,6 +335,14 @@ deliberately.*
 
 ## Ruled out
 
+- **Adding to positions — removed entirely in 1.2.** Did not suit how Steve trades. `maxAdd`,
+  `freshSize`, `budget()`, `modeLabel`, the 1R/BE `sizeMode` toggle, `liveAdd`/`doAdd`/`gAdd`, both
+  Add action panels, the Max add box and the "if X happens → add" plan hinge are all gone. ~7.3KB.
+  **Historical adds still replay**: `derive()`, `stats()` deployed capital, and both event-log
+  renderers still understand `type:"add"`, and a trade's recorded `plan.addIf` still displays. The
+  rule was remove what *creates* an add, keep what *reads* one. Do not re-add without saying why.
+- **A third add mode (lock in profit)** — moot: there is no add to size.
+
 - **Rolling 25 trades per concept** — not wanted. Do not re-propose.
 - **Market open / closed indicator** — not wanted. Too many variables change year to year (holiday
   calendar, half-days, DST) to keep it honest. Do not re-propose.

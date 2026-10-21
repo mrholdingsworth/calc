@@ -344,7 +344,6 @@ details[open] summary::before{content:"\25BE  "}
   <details id="nt_plan" open>
     <summary>Plan &amp; hinges &mdash; the commitment (decided now, not later)</summary>
     <div class="split" style="margin-top:10px">
-      <div><label for="nt_add_if">If X happens &rarr; add</label><input id="nt_add_if" type="text" placeholder="reclaims the halt gap on volume"></div>
       <div><label for="nt_cut_if">If Y happens &rarr; cut</label><input id="nt_cut_if" type="text" placeholder="closes back above prior range high"></div>
       <div><label for="nt_wait_if">If Z happens &rarr; wait</label><input id="nt_wait_if" type="text" placeholder="drifts sideways inside 1 ADR"></div>
       <div><label for="nt_exit">Exit plan (where the thesis has resolved)</label><input id="nt_exit" type="text" placeholder="measured move / prior range low"></div>
@@ -479,7 +478,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.1.3
+  version <span class="vbar">|</span> 1.2
 </p>
 
 </div><!-- /.main -->
@@ -526,7 +525,7 @@ let root = null, state = null;
 function defaults(){
   return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
                       marginX:1,
-                      heatCap:5, coldR:3, sizeMode:"r",
+                      heatCap:5, coldR:3,
                       collapsed:{desk:false,new:false,open:false,tally:false,charts:false,data:false} }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
@@ -813,26 +812,8 @@ function derive(t){
   return {Q, avg, realized, stop, series, mult};
 }
 
-// Dollar risk budget for the sequence: the locked R unit times the current tier multiple.
-function budget(t,d){ return t.rUnit * (d && d.mult!=null ? d.mult : t.mult); }
-
 // What a stop-out costs from here, on the open shares.
 function riskAtStop(t,d){ return (d.stop==null || d.Q<=0) ? 0 : t.side*(d.avg-d.stop)*d.Q; }
-
-// Constant-risk pyramid. Total allowed risk = budget + what you have already banked.
-// The open position consumes some of it at the new stop; the remainder finances the add.
-function maxAdd(t,d,Pa,S,acct){
-  const den = t.side*(Pa-S);
-  if(!(den>0)) return {ok:false, msg:"Stop must be on the risk side of the add price."};
-  const b = state.settings.sizeMode==="be" ? 0 : budget(t,d);
-  const qRisk = Math.max(0, Math.floor((b + d.realized - t.side*(d.avg-S)*d.Q) / den));
-  // R says how much more you may lose; buying power says how much more you may hold. An add was
-  // only ever checked against the first of those, so a tight stop could hand you a position the
-  // account could not pay for — the same trap New Trade has always guarded against.
-  const free = bpFree(acct || acctOf(t.id));
-  const qBP = Pa>0 ? Math.floor(free/Pa) : 0;
-  return {ok:true, q:Math.min(qRisk,qBP), qRisk, qBP, free, capped: qBP < qRisk};
-}
 
 // Realised P/L reaches equity as it is realised, not only at the close. Each trade remembers how
 // much of its own realised total has already been folded in, so a trim, a close, an undo and an
@@ -847,12 +828,6 @@ function syncCompound(t, acct){
   pf.settings.aum = Math.round((pf.settings.aum + delta)*100)/100;
   t.compounded = now;
   return delta;
-}
-
-// Size you would take if you were flat right now.
-function freshSize(t,d,P,S){
-  const den = t.side*(P-S);
-  return den>0 ? Math.floor(budget(t,d)/den) : null;
 }
 
 // The stop that makes the whole sequence net zero.
@@ -884,9 +859,6 @@ function stats(t){
   // different sizes compare directly.
   return {d, rm, days, rPerDay, aum0, roe, deployed, posPct, riskPS, entryPx, openTs, endTs};
 }
-
-function modeLabel(t,d){ return state.settings.sizeMode==="be" ? "breakeven (0R)" : (d && d.mult!=null ? d.mult : t.mult)+"R"; }
-window.setSizeMode = m => { state.settings.sizeMode = m; save(); render(); };
 
 // Informational only: the app never acts on these, and nothing is pre-placed.
 const TARGETS = [1,2];
@@ -1628,7 +1600,7 @@ function openTrade(){
     // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
     adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
     rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
-    plan: { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
+    plan: { cutIf:$("nt_cut_if").value.trim(),
             waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
     checks: [0,1,2,3].map(i=>$("nt_c"+i).checked),
     events: [{type:"entry", qty:q, price:P, stop:S, ts:Date.now()}],
@@ -1643,7 +1615,7 @@ function openTrade(){
 // One function so the Clear button and both open paths can never leave different things behind.
 window.clearNewTrade = (focus) => {
   ["nt_tk","nt_concept","nt_entry","nt_stop","nt_adr","nt_qty",
-   "nt_add_if","nt_cut_if","nt_wait_if","nt_exit"].forEach(id=>{ $(id).value = ""; });
+   "nt_cut_if","nt_wait_if","nt_exit"].forEach(id=>{ $(id).value = ""; });
   [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
   clearFills();
   $("nt_err").textContent = "";
@@ -1688,7 +1660,6 @@ function tradeCard(t){
   const seq = ras - d.realized;                // whole-sequence worst case at the current stop
   const house = seq <= 1e-4 && d.Q>0;
   const be = beStop(t,d);
-  const fresh = d.stop!=null ? freshSize(t,d,t.last,d.stop) : null;
   const totR = (d.realized+openPL)/R;
 
   // 1R trail, measured off the risk-per-share you accepted at entry
@@ -1745,30 +1716,6 @@ function tradeCard(t){
     t.plan && t.plan.exit   ? "<b>exit</b> "+esc(t.plan.exit)      : null
   ].filter(Boolean);
 
-  const calSays = (function(){
-    if(d.stop==null || d.Q<=0) return '<div class="calsub">Set a stop to see your available add.</div>';
-    const lm = maxAdd(t,d,t.last,d.stop);
-    if(!lm.ok) return '<div class="calsub">'+lm.msg+'</div>';
-    const beMode = state.settings.sizeMode==="be";
-    const bpNote = lm.capped
-      ? '<div class="calsub" style="color:var(--amber)">Buying power is the binding constraint here, not R: risk alone allows <b>'+
-        fmtQ(lm.qRisk)+"</b> shares, but only "+fmtE(lm.free)+" is free.</div>"
-      : "";
-    if(lm.q>0) return '<div class="calans">Max add right now: '+fmtQ(lm.q)+" sh @ "+fmtP(t.last)+'</div>' +
-      '<div class="calsub">At the current stop '+fmtP(d.stop)+", adding this keeps the whole sequence's worst case at or under " +
-      (beMode ? "<b>breakeven</b> &mdash; a stop-out nets $0, and only banked profit is at work" : "<b>"+d.mult+"R</b>") +
-      ". <b>Tighten the stop on a signal and this number grows</b> &mdash; the stop move is what re-sizes your risk.</div>" + bpNote;
-    return '<div class="calans">Max add right now: 0 sh</div><div class="calsub">' +
-      // Which of the two zeroed it changes the remedy entirely, so name the one that did.
-      (lm.qRisk>0
-        ? "Risk allows <b>"+fmtQ(lm.qRisk)+"</b> more shares, but only "+fmtE(lm.free)+
-          " of buying power is free &mdash; not enough for one share at "+fmtP(t.last)+
-          ". Close something, trim, or raise the margin setting."
-        : beMode
-        ? "No banked cushion beyond the current stop risk &mdash; in B/E mode there is nothing to spend. Bank profit or tighten the stop first."
-        : "The position consumes the full "+d.mult+"R budget at stop "+fmtP(d.stop)+". No signal &rarr; no stop move &rarr; no add. Tighten on structure, trim, or upsize the budget.") +
-      "</div>";
-  })();
 
   const rows = t.events.map(e=>{
     let det = "";
@@ -1828,18 +1775,8 @@ function tradeCard(t){
       adrHtml +
     '</div>' +
 
-    '<div class="calbox">' +
-      '<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:4px">' +
-        '<div class="head" style="margin-bottom:0">Max add</div>' +
-        '<div class="row" style="align-items:center">' +
-          '<span class="muted">worst case:</span>' +
-          '<button class="small'+(state.settings.sizeMode!=="be"?" primary":"")+'" onclick="setSizeMode(\'r\')" title="Adds sized so the sequence worst case is your full R budget">1R</button>' +
-          '<button class="small'+(state.settings.sizeMode==="be"?" primary":"")+'" onclick="setSizeMode(\'be\')" title="Adds sized so the sequence worst case is breakeven &mdash; only banked profit finances size">B/E</button>' +
-        '</div>' +
-      '</div>' + calSays +
-      '<div class="calsub calrule" id="calmsg_'+t.id+'">Different add price? Type a price (and optional new stop) in the Add box &mdash; the maximum recomputes live. Fresh size if you were flat at '+fmtP(t.last)+': <b>'+(fresh!=null?fmtQ(fresh)+" shares":"&mdash;")+'</b>.</div>' +
-      (trailNote ? '<div class="calsub calrule">'+trailNote+'</div>' : "") +
-    '</div>' +
+    // The 1R trail is stop management, not sizing, so it outlives the add box it used to sit in.
+    (trailNote ? '<div class="calbox"><div class="calsub">'+trailNote+'</div></div>' : "") +
 
     (d.Q>0 ? '<div class="ladder"><span class="muted" style="align-self:center">targets from avg '+fmtP(d.avg)+':</span>' +
       ladderHtml(ladder(t.side, d.avg, d.Q, R, t.last, TARGETS))+'</div>' : "") +
@@ -1849,13 +1786,6 @@ function tradeCard(t){
       '<div class="action"><div class="t">Mark <span class="vbar">|</span> last price</div><div class="row">' +
         '<input type="number" step="any" id="px_'+t.id+'" placeholder="'+t.last+'" onkeydown="if(event.key===\'Enter\')setLast(\''+t.id+'\')">' +
         '<button class="small" onclick="setLast(\''+t.id+'\')">Set</button></div></div>' +
-
-      '<div class="action"><div class="t">Add (constant risk)</div><div class="row">' +
-        '<input type="number" step="any" id="addp_'+t.id+'" placeholder="price" oninput="liveAdd(\''+t.id+'\')" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
-        '<input type="number" step="any" id="adds_'+t.id+'" placeholder="new stop" oninput="liveAdd(\''+t.id+'\')" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
-        '<input type="number" step="any" id="addq_'+t.id+'" placeholder="qty (auto)" onkeydown="if(event.key===\'Enter\')doAdd(\''+t.id+'\')">' +
-        '<button class="small primary" onclick="doAdd(\''+t.id+'\')">Add</button></div>' +
-        '<div class="err" id="adderr_'+t.id+'"></div></div>' +
 
       '<div class="action"><div class="t">Trim <span class="vbar">|</span> take profit</div><div class="row">' +
         '<input type="number" step="any" id="trp_'+t.id+'" placeholder="price" onkeydown="if(event.key===\'Enter\')doTrim(\''+t.id+'\',null)">' +
@@ -1882,7 +1812,7 @@ function tradeCard(t){
           '<input type="number" step="0.1" id="adr_'+t.id+'" placeholder="% of price" style="max-width:110px" onkeydown="if(event.key===\'Enter\')setAdr(\''+t.id+'\')">' +
           '<button class="small" onclick="setAdr(\''+t.id+'\')">Set</button>' +
         '</div>' +
-        '<div class="muted" style="margin-top:7px">Signal &rarr; move the stop &rarr; "Max add right now" recomputes. ADR feeds the daily vol check above.</div></div>' +
+        '</div>' +
 
       '<div class="action"><div class="t">Risk budget (R)</div><div class="row">' +
         '<input type="number" step="0.05" id="rb_'+t.id+'" placeholder="'+d.mult+'R now" style="max-width:86px" onkeydown="if(event.key===\'Enter\')setBudget(\''+t.id+'\')">' +
@@ -1917,43 +1847,6 @@ function tradeCard(t){
 window.setLast = id => {
   const t = getTrade(id), v = parseFloat($("px_"+id).value);
   if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); save(); render(); }
-};
-window.liveAdd = id => {
-  const t = getTrade(id), d = derive(t);
-  const Pa = parseFloat($("addp_"+id).value);
-  let S = parseFloat($("adds_"+id).value);
-  const errEl = $("adderr_"+id);
-  if(isNaN(S)) S = d.stop;
-  if(isNaN(Pa) || S==null){ errEl.textContent = ""; return; }
-  const r = maxAdd(t,d,Pa,S);
-  if(!r.ok){ errEl.textContent = r.msg; return; }
-  errEl.textContent = "";
-  $("addq_"+id).placeholder = r.q+" (max)";
-  $("calmsg_"+id).innerHTML = "Max add at "+fmtP(Pa)+" with stop "+fmtP(S)+": <b>"+fmtQ(r.q)+" shares</b> &mdash; the sequence worst case at that stop stays at or under "+modeLabel(t,d)+". " +
-    (r.q===0
-      ? (r.qRisk>0 ? "Zero on buying power, not on risk: "+fmtE(r.free)+" free will not cover one share at "+fmtP(Pa)+"."
-                   : "Zero: nothing to spend at this stop in the current mode. Tighten the stop or trim first.")
-      : "Leave qty blank and hit Add to take the maximum.") +
-    (r.capped ? ' <span style="color:var(--amber)">Capped by buying power &mdash; risk alone allows '+fmtQ(r.qRisk)+".</span>" : "");
-};
-window.doAdd = id => {
-  const t = getTrade(id), d = derive(t);
-  const Pa = parseFloat($("addp_"+id).value);
-  let S = parseFloat($("adds_"+id).value);
-  let q = parseFloat($("addq_"+id).value);
-  const errEl = $("adderr_"+id);
-  if(isNaN(S)) S = d.stop;
-  if(isNaN(Pa)){ errEl.textContent = "Enter an add price."; return; }
-  if(isNaN(q)){
-    if(S==null){ errEl.textContent = "Enter a stop (there is no current stop to inherit)."; return; }
-    const r = maxAdd(t,d,Pa,S);
-    if(!r.ok){ errEl.textContent = r.msg; return; }
-    if(r.q<=0){ errEl.textContent = "The maximum is 0 at this stop. Tighten the stop or trim first."; return; }
-    q = r.q;
-  }
-  if(q<=0){ errEl.textContent = "Quantity must be positive."; return; }
-  t.events.push({type:"add", qty:q, price:Pa, stop:(S==null||isNaN(S))?null:S, ts:Date.now()});
-  t.last = Pa; t.lastMarkTs = Date.now(); save(); render();
 };
 window.doTrim = (id, frac) => {
   const t = getTrade(id), d = derive(t), errEl = $("trerr_"+id);
@@ -2736,7 +2629,7 @@ function openGroupTrade(){
 
   const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
   const adr = parseFloat($("nt_adr").value);
-  const plan = { addIf:$("nt_add_if").value.trim(), cutIf:$("nt_cut_if").value.trim(),
+  const plan = { cutIf:$("nt_cut_if").value.trim(),
                  waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() };
   const checks = [0,1,2,3].map(i=>$("nt_c"+i).checked);
   const now = Date.now();
@@ -2771,25 +2664,6 @@ window.gSetAdr = gid => { const v = parseFloat($("gadr_"+gid).value);
 window.gSetBudget = gid => { const v = parseFloat($("grb_"+gid).value);
   if(!(v>0)) return; gEach(gid,t=>t.events.push({type:"budget", mult:v, price:t.last, ts:Date.now()})); };
 window.gBudgetTo = (gid,v) => { $("grb_"+gid).value = v; gSetBudget(gid); };
-// Adds are per-account by construction: same price and stop, each account's own maximum.
-window.gAdd = gid => {
-  const Pa = parseFloat($("gaddp_"+gid).value);
-  let S = parseFloat($("gadds_"+gid).value);
-  const err = $("gadderr_"+gid);
-  if(isNaN(Pa)){ err.textContent = "Enter an add price."; return; }
-  let any = false, zero = [];
-  legsOf(gid).forEach(x=>{
-    const d = derive(x.t), stop = isNaN(S) ? d.stop : S;
-    if(stop==null) return;
-    const r = maxAdd(x.t, d, Pa, stop, x.acct);
-    if(!r.ok || r.q<=0){ zero.push(x.acct); return; }
-    x.t.events.push({type:"add", qty:r.q, price:Pa, stop:stop, ts:Date.now()});
-    x.t.last = Pa; x.t.lastMarkTs = Date.now(); any = true;
-  });
-  if(!any){ err.textContent = "No account has room to add at this stop. Tighten the stop or trim first."; return; }
-  err.textContent = zero.length ? "No room in: "+zero.join(", ") : "";
-  save(); render();
-};
 // Trims broadcast as a fraction, never a share count — the accounts hold different sizes.
 window.gTrim = (gid, frac) => {
   const P0 = parseFloat($("gtrp_"+gid).value);
@@ -2929,13 +2803,6 @@ function groupTradeCard(gid, legs){
         '<input type="number" step="any" id="gpx_'+gid+'" placeholder="'+first.last+'" onkeydown="if(event.key===\'Enter\')gSetLast('+q()+')">' +
         '<button class="small" onclick="gSetLast('+q()+')">Set</button></div></div>' +
 
-      '<div class="action"><div class="t">Add (constant risk, per account)</div><div class="row">' +
-        '<input type="number" step="any" id="gaddp_'+gid+'" placeholder="price" onkeydown="if(event.key===\'Enter\')gAdd('+q()+')">' +
-        '<input type="number" step="any" id="gadds_'+gid+'" placeholder="new stop">' +
-        '<button class="small primary" onclick="gAdd('+q()+')">Add</button></div>' +
-        '<div class="err" id="gadderr_'+gid+'"></div>' +
-        '<div class="muted" style="margin-top:5px">Each account takes its own maximum at this price and stop.</div></div>' +
-
       '<div class="action"><div class="t">Trim <span class="vbar">|</span> take profit</div><div class="row">' +
         '<input type="number" step="any" id="gtrp_'+gid+'" placeholder="price">' +
         '<input type="number" step="1" id="gtrpct_'+gid+'" placeholder="%" style="max-width:70px">' +
@@ -3020,7 +2887,7 @@ function renderBook(open){
     // deliberate, and saying so is the honest version. The old wording claimed an enforcement the
     // code never had, which is worse than no warning: it invites you to trust it.
     (overCap ? '<div class="banner red">Heat cap breached: '+heatR.toFixed(2)+"R open against your "+cap+
-      "R cap. Your rule is no new trades and no adds until it comes back under &mdash; trim, tighten, " +
+      "R cap. Your rule is no new trades until it comes back under &mdash; trim, tighten, " +
       "or let stops ratchet. Flagged here and on the New Trade button; not blocked.</div>" : "") +
     (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
       " closed trades (threshold &minus;"+settingsFor(acctInView()).coldR+"R). The lever here is stepping back and reviewing &mdash; " +

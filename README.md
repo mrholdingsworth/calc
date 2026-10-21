@@ -28,17 +28,10 @@ immediately. Unrealised P/L never moves it: every decision stays cost-based. Eac
 much of its own realised total has already been folded in, so a trim, a close, an undo and an
 override all move equity by the difference and none of them can count the same money twice.
 
-**Constant-risk pyramiding.** At every add, the calculator recomputes from scratch rather than stacking risk:
-
-```
-max add = (budget + realized − risk-of-current-position-at-the-new-stop) ÷ (new risk per share)
-```
-
-Booked profit expands the budget, so trimming into strength finances the next add. Tightening the
-stop on a signal frees size. Doing neither frees nothing — *no signal → no stop move → no add.*
-
-**B/E mode** sets the budget term to zero, so only banked profit finances adds: worst case on the
-whole sequence becomes a scratch.
+**There is no add.** A position is sized once, at entry, and from then on it is only ever trimmed,
+stopped or closed. Constant-risk pyramiding and its breakeven variant were removed in 1.2 — they did
+not suit the way this book is traded, and carrying them made the sizing model answer to two masters.
+Trades opened before that still replay their adds correctly; nothing in the record was rewritten.
 
 **Sequence at stop** is `risk-at-stop − realized`. When it goes negative the sequence cannot lose,
 and the card flips to *house money*.
@@ -103,11 +96,7 @@ that multiple, and open positions consume it at their current mark. Sizing takes
 what R allows and what buying power allows, and says so plainly when the second one binds — including
 what fraction of an R you are actually taking as a result.
 
-**Adds are held to the same ceiling.** A tight stop makes the constant-risk formula generous in
-share terms, and it used to be checked against risk alone — on a $100,000 cash account fully
-deployed, a 10c stop would offer 9,000 more shares of a $100 name. The add now takes the smaller of
-the two as well, names which one is binding, and distinguishes "no room on risk" from "no room on
-cash", because the remedy is different: the first wants a stop move, the second wants a close. The book bar carries buying power used
+The book bar carries buying power used
 across whatever is in view, amber past 80% and red at 100%.
 
 This is a ceiling, not a broker calculation. There are no maintenance requirements, no per-security
@@ -117,7 +106,7 @@ actually borrow.
 ## Marks and staleness
 
 A **mark** is simply the last price you have given the app for an open position. It is set whenever
-you use Set on Mark / last price, add, trim, or close — and by a live refresh if you have a key.
+you use Set on Mark / last price, trim, or close — and by a live refresh if you have a key.
 
 A mark goes **stale after 24 hours of wall-clock time**. That threshold exists because everything on
 an open card is derived from it: open P/L, book P/L, open heat, the sequence-at-stop figure and the
@@ -303,9 +292,8 @@ Tick boxes on the entry form let you skip an account
 for a single trade, and any account too small to take one share at that stop is named and skipped
 rather than silently dropped.
 
-Mid-trade, one set of controls drives every leg — marks, stops, adds, trims, closes — each computed
-on that account's own numbers. Adds take each account's own maximum; trims broadcast as a percentage,
-never a share count. Click a member inside the group box to work in it alone: close one leg early to
+Mid-trade, one set of controls drives every leg — marks, stops, trims, closes — each computed
+on that account's own numbers. Trims broadcast as a percentage, never a share count. Click a member inside the group box to work in it alone: close one leg early to
 raise cash, take a different fill, update equity after a deposit.
 
 Deleting a group keeps every account and trade; each member takes a copy of the ruleset so its open
