@@ -484,7 +484,7 @@ details[open] summary::before{content:"\25BE  "}
 <!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
      the shape of a stored book changes. -->
 <p class="muted" style="text-align:center;margin-top:4px">
-  version <span class="vbar">|</span> 1.2.2
+  version <span class="vbar">|</span> 1.2.3
 </p>
 
 </div><!-- /.main -->
@@ -1737,6 +1737,19 @@ function tradeCard(t){
       '<div class="metric"><div class="k">Stop</div><div class="v">'+(d.stop!=null?fmtP(d.stop):"&mdash;")+'</div>' +
         '<div class="r">'+(be!=null?"b/e "+fmtP(be):"&mdash;")+'</div></div>' +
       (function(){
+        // What the position was built to lose, in the four units that answer different questions:
+        // R says whether it was sized to plan, % of equity how much of the book it put up, % of
+        // price whether the stop is wide for the instrument, and per share what the ticket shows.
+        if(!e0 || !(riskPS>0)) return '<div class="metric"><div class="k">Initial risk</div>' +
+          '<div class="v" style="color:var(--mut)">&mdash;</div><div class="r">no stop at entry</div></div>';
+        const riskAtEntry = riskPS * e0.qty;
+        return '<div class="metric"><div class="k">Initial risk</div>' +
+          '<div class="v">'+(riskAtEntry/R).toFixed(2)+'R</div>' +
+          '<div class="r">'+fmtP(riskPS)+VBAR+(riskPS/e0.price*100).toFixed(1)+'% of price' +
+          (t.aumAtOpen>0 ? VBAR+(riskAtEntry/t.aumAtOpen*100).toFixed(2)+'% of equity' : "") +
+          '</div></div>';
+      })() +
+      (function(){
         // The word follows the sign and carries the colour: "Loss if stopped" over a green number
         // is a contradiction the reader has to unpick every time.
         const atStop = -ras, good = atStop > 1e-4, bad = atStop < -1e-4;
@@ -1746,10 +1759,9 @@ function tradeCard(t){
           '<div class="v '+cls(atStop)+'">'+fmt$(atStop)+'</div>' +
           '<div class="r">'+fmtR(atStop/R)+' &middot; sequence '+fmt$(-seq)+'</div></div>';
       })() +
-      '<div class="metric" style="grid-column:span 2"><div class="k">Open '+VBAR+' realized</div>' +
-        '<div class="v" style="font-size:15px"><span class="'+cls(openPL)+'">'+fmt$(openPL)+'</span>'+VBAR+
-          '<span class="'+cls(d.realized)+'">'+fmt$(d.realized)+'</span></div>' +
-        '<div class="r">total '+fmt$(d.realized+openPL)+' &middot; '+fmtR(totR)+'</div></div>' +
+      '<div class="metric"><div class="k">P/L (mark)</div>' +
+        '<div class="v '+cls(d.realized+openPL)+'">'+fmt$(d.realized+openPL)+'</div>' +
+        '<div class="r">'+fmtR(totR)+' &middot; open '+fmt$(openPL)+VBAR+'realized '+fmt$(d.realized)+'</div></div>' +
       adrHtml +
     '</div>' +
 

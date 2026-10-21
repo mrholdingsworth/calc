@@ -320,6 +320,19 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-21 — v1.2.3, initial risk
+
+- **New tile: Initial risk**, between Stop and If-stopped, so the three stop-related tiles read in
+  order — where it sits, what it was built to lose, what it does if it hits. Carries R in the value
+  and per-share dollars ⎪ % of price ⎪ % of equity underneath. All four from the entry event, so
+  later adds on a legacy trade cannot distort what the position was *opened* risking.
+- **% of price is the stop width**, which is the same number the max-stop-width backlog item wants
+  to police. If that item is built, read the threshold against this figure rather than recomputing.
+- **Keeping one row cost a column**, so Open ⎪ realized gave up its two-column span: the total now
+  sits in the value with the split underneath. Seven tiles, one row, 151px each at 1440px.
+- Stress-tested at the extremes: a $2.5M account on a $1,750 name (`$1,687,950.00` still one line),
+  a sub-penny name at 1.1155/1.1125, and a trade with no stop recorded at entry.
+
 ### 2026-10-21 — v1.2.2, the Stop box
 
 - **Jump-to buttons and the ADR setter removed** from the Stop panel on both cards, leaving the
