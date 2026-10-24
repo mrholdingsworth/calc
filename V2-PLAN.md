@@ -70,73 +70,106 @@ it. To stop a real trade being typed into the wrong tab:
 
 ---
 
-## Decisions needed
+## Decisions
 
-Nothing below blocks phase 0 or 1. Each is marked with the phase it blocks.
+### Settled 2026-10-24
 
-### Discrepancies between the document and the code — these need answers
+1. **New Trade takes three numbers plus a ticker.** Price, shares and stop, with APTR manual. The
+   reduced input list meant the checkboxes, the initial notes and the free-text concept field — not
+   the stop, which sets `riskPS`, `initialRisk`, every R, the internal targets and, through
+   `sideFrom()`, whether the trade is long or short at all. The concept field is not deleted either:
+   it becomes the optional **setup dropdown** fed by the settings list, fillable later, and
+   `t.concept` keeps feeding the by-concept statistics table.
 
-1. **New Trade has no stop field (blocks 5).** I.B.1 lists ticker, shares, fill price and APTR. But
-   the entry stop is what the whole app is built on: it sets `riskPS`, `initialRisk`, every R, the
-   internal targets, and — through `sideFrom()` — whether the trade is long or short. v2 removes the
-   Side dropdown's replacement along with it. Assumption unless told otherwise: **the stop stays an
-   input on New Trade**, prefilled by the fast-calc hand-off, and the reduced list means "no concept
-   field, no checkboxes, no required notes" rather than "no stop".
+2. **Sizing basis is protected equity.** Not net liq. Steve's formulation —
+   *cash + Σ(stop × shares on all open positions)* — is the same number as the backlog's
+   `aum + Σ(−riskAtStop)`, because `aum` is cost-based:
 
-2. **Sizing from net liq would make sizing mark-dependent (blocks 2 and 6).** `aum` is deliberately
-   cost-based — the invariant is *equity responds to decisions, never to the tape*. Net liq is
-   `aum + unrealised`. Displaying it in the Portfolio panel (I.C.2.ii) is harmless. Choosing
-   II.A.3.v.b, *size from net liq*, puts the tape back into position sizing, which is the thing that
-   was deliberately removed. Worth a deliberate yes rather than arriving by implementation.
+   ```
+   aum                  = cash + Σ(avg × Q)
+   −riskAtStop          =        Σ((stop − avg) × Q)
+   aum + Σ(−riskAtStop) = cash + Σ(stop × Q)             ✓
+   ```
 
-3. **Where does a single position's mark get set (blocks 3)?** I.C.4 says Buy, Sell and Stop replace
-   "Set, 25%, 50%, Trim, Move and Close" — but *Set* is the mark button, not a trim. The marks popup
-   (I.C.6) covers the book, nothing covers one row. Assumption unless told otherwise: the row's
-   **Last cell is editable in place**.
+   Implement the `riskAtStop` form, which also handles shorts correctly — `side` carries the sign,
+   where "stop × shares" alone does not. This **adopts** the long-standing protected-equity item
+   rather than superseding it, and it satisfies *equity responds to decisions, never to the tape*:
+   `riskAtStop` reads `avg`, `stop` and `Q`, and never `t.last`.
 
-4. **Tier stays on New Trade (blocks 5).** I.B.2 wants R shown as a calculated value with a
-   fuzziness warning. A warning needs something to deviate *from*, so the tier has to be selectable
-   at entry even though it no longer drives the share count.
+   Two things carry forward from that item. It ships as a setting, reversible on a live book, and
+   history is safe either way because `rUnit` and `aumAtOpen` lock at entry. And `bpUsed` is still
+   the one place the tape leaks in — it marks at `t.last`, so a winner consumes buying power with
+   nothing decided. Cost (`avg × Q`) is right for a cash account; a margin account's maintenance
+   really is marked, so it may have to follow `marginX` rather than be one rule. **Still open.**
 
-5. **What does a position row open into (blocks 3 and 4)?** The gear is specified as the event log
-   plus transaction editing. That leaves no home for the 1R trail note, the internal-target ladder,
-   the sequence spark chart, the plan fields, the notes box, the loss tag and the 30-day review.
-   Proposal: the gear opens a **full per-trade panel** — details and plan, event log, adjustments —
-   and the row itself stays numbers and buttons.
+3. **Buy, Sell and Stop act on the position, never on the mark.** Buying shares, selling shares,
+   moving stops. Marks come from **Update marks**: the API key by default, and with no key a popup
+   covering every position in every account and group at once. So nothing was lost when *Set* went,
+   and there is no need for a per-row mark control. I will make the row's Last cell editable in
+   place anyway, since the list already renders that cell and it costs nothing — say so if you would
+   rather it were read-only with the popup as the only path.
 
-### Settings the document implies but does not define
+4. **Max and min allocation are both toggled settings with a field each.** Max caps position value
+   as a percentage of equity and is what I.A.2.iii pushes size toward; min floors it and warns when
+   a position is too small to be worth taking. The order they apply in is under phase 6.
 
-6. **Max allocation % (blocks 2 and 6).** I.A.2.iii says push size toward max allocation. No such
-   setting exists; today the only ceiling is buying power. Needs a value, and a decision on whether
-   it is per account or per tier.
+   This **supersedes min-size-in-shares** from the older backlog item, which noted the flaw itself:
+   a 100-share floor means different things in a $20k account and a $200k one, where a percentage of
+   equity scales on its own. Max *stop width* is a different quantity and survives unchanged — one
+   is a ceiling on position value, the other on risk per share.
 
-7. **Open heat's unit (blocks 2 and 3).** v1's heat cap is in **R**. IV.C redefines open heat as
-   cash at risk as a **percentage of account value**. The cap should presumably follow into a
-   percentage, with a preset default. Both are implementable; mixing them is not.
+5. **Tier stays on New Trade.** R becomes a calculated value with a fuzziness warning, and a warning
+   needs something to deviate *from*, so the tier remains selectable at entry even though it no
+   longer drives the share count.
 
-8. **Fuzziness default (blocks 6).** Already his own open item. Without a value every result warns.
+6. **The gear opens a full per-trade panel**, not only the event log. Otherwise the 1R trail note,
+   the internal-target ladder, the sequence spark chart, the plan fields, the notes box, the loss
+   tag and the 30-day review have nowhere to live once the pills are gone. Details and plan, event
+   log, adjustments. The row itself stays numbers and buttons.
 
-### Mechanical, where I will assume unless corrected
+### Mechanical, assumed unless corrected
 
-9. **APTR carries old ADR values forward.** Not the same measure, but the same role, and nulling
+7. **APTR carries old ADR values forward.** Not the same measure, but the same role, and nulling
    them would blank the weighted figure on every existing position. Migrated values get a one-time
-   amber flag on affected trades so they can be re-entered.
-10. **Removing the compound toggle is made a no-op for books that had it off.** Compounding becomes
-    assumed (III.C). For a book with `compound:false`, every trade's `compounded` is 0 while real
-    realised P/L exists — so the first realising event after the switch would dump the entire
-    backlog into equity at once. Migration sets `t.compounded = derive(t).realized` on every trade
-    in such a book, so the switch changes nothing retroactively.
-11. **Split stops: uncovered shares.** With 100 held and stops covering 60, the other 40 have no
-    defined worst case. `riskAtStop` will report **covered risk only** and return the uncovered
-    quantity alongside it, so the figure is never quietly understated — that uncovered count is what
-    lights the Stop button (I.C.4.ii.b).
-12. **Which stop feeds the APTR check.** The **furthest** stop, since it defines the worst case.
+   amber flag on the affected trades so they can be re-entered.
+8. **Removing the compound toggle is made a no-op for books that had it off.** Compounding becomes
+   assumed (III.C). For a book with `compound:false`, every trade's `compounded` is 0 while real
+   realised P/L exists — so the first realising event after the switch would dump the entire backlog
+   into equity at once. Migration sets `t.compounded = derive(t).realized` on every trade in such a
+   book, so the switch changes nothing retroactively.
+9. **Which stop feeds the APTR check.** The **furthest** stop, since it defines the worst case.
 
-### Still open from his own list (V)
+### Open
 
-Fuzziness default (above), tier selector vs full range in the fast calculator, initial stop as a
-sizing basis, thinkorswim CSV details, the ADR/Loss audit test-case review, and the Closed
-Trades / Statistics / 30-day review pass.
+10. **Split stops meet protected equity, and a partially covered position has no floor.** New, and
+    created by two v2 features colliding. With 100 held and stops covering 60, the other 40 have no
+    defined worst case, so protected equity over that book is not a floor at all. The backlog's rule
+    for a position with no stop was *bar the basis outright rather than silently counting as zero*,
+    and that extends: **any uncovered shares disable the protected basis**, visibly, falling back to
+    realised-only until the stops cover the position. The alternative — counting uncovered shares at
+    zero — drops protected equity by the full value of those shares and quietly shrinks every size.
+    Recommending the bar-and-say-so version.
+
+    Independently of the basis, `riskAtStop` returns `{risk$, uncoveredQty, overQty}` so the figure
+    is never understated in silence, and `uncoveredQty` is what lights the Stop button
+    (I.C.4.ii.b).
+
+11. **Open heat's unit.** v1's cap is in **R**. IV.C redefines open heat as cash at risk as a
+    **percentage of account value**, so the cap presumably follows into a percentage with a preset
+    default. Both are implementable; mixing them is not. Blocks phases 2 and 3.
+
+12. **Fuzziness: what it measures, and its default.** Proposed reading — it is a **tolerance band
+    around intended R**, used two ways: the fast calculator shows the range of share counts whose
+    risk falls inside the band instead of one number, and New Trade warns when the R implied by your
+    actual shares and fill falls outside it. That also makes "push size toward max allocation"
+    concrete: take the largest count still inside the band, subject to the ceilings. Suggested
+    default **10%** — a $500 budget accepts $450–$550. Blocks phase 6.
+
+### Still open from the document's own list
+
+Tier selector vs a full range across tiers in the fast calculator, initial stop as a sizing-basis
+option, thinkorswim CSV details, the ADR/Loss audit test-case review, and the Closed Trades /
+Statistics / 30-day review pass.
 
 ---
 
@@ -181,7 +214,8 @@ two-stop position sums correctly and reports uncovered shares.
 - New: **Accounts** — initial capital, add accounts, group management, margin and buying power per
   account, group overrides (II.A.2.i–iv). The existing group-members modal moves here.
 - New: **Sizing and risk** — tiers, the setups list, the targets toggle with up to two user levels,
-  the sizing basis, max allocation (II.A.3).
+  the sizing basis (default realised-only, switchable to protected equity per decision 2, reversible
+  on a live book), and **max and min allocation**, each a toggle plus a field (decision 4).
 - `GROUP_KEYS` loses `compound`, gains the new overridable keys.
 - The Desk section becomes the fast calculator alone (I.A, III.A), still at `#sec-desk`.
 
@@ -232,9 +266,11 @@ stop lights the button and reports 40 uncovered.
 
 - Inputs: ticker, shares, fill price, APTR, stop (decision 1), tier (decision 4).
 - R and allocation become **calculated outputs** with fuzziness-driven warnings (I.B.2).
-- Remove the four pre-trade checks, the gate, `checksDone()`, `updateGate()`, the concept field and
+- Remove the four pre-trade checks, the gate, `checksDone()`, `updateGate()`, the initial notes and
   the required plan prose (I.B.3, III.B). This closes the deferred pre-trade-checks backlog item by
   deletion. `t.checks` stays readable for old books, written by nothing.
+- The free-text **concept input** goes from the top level, but `t.concept` lives on as the setup
+  dropdown's value (decision 1), so the by-concept statistics table keeps working.
 - Optional and never required (I.B.4): setup from the settings dropdown, plan fields, targets if
   toggled on — all editable later from the Portfolio or the gear.
 - Keep the fast-calc hand-off (I.A.2.iv).
@@ -244,10 +280,33 @@ blocking; a setup chosen later reaches the by-concept statistics table.
 
 ### 6 — The fast calculator finished
 
-- Size **range** when the result falls inside the fuzziness band (I.A.2.ii), single number otherwise.
-- Push size toward max allocation while risk holds (I.A.2.iii) — needs decision 6.
-- Tier selector or a full range across tiers (I.A.2.v) — his open item.
-- Sizing basis applied (II.A.3.v) — needs decision 2.
+Five ceilings, a floor, a rounding rule and a tolerance band now meet in one number, and the order
+they apply in decides whether the answer is right. Written out so it cannot drift:
+
+```
+equity  = realised-only, or protected (decision 2)
+budget  = equity × rPct/100 × tierMult
+qR      = floor(budget / riskPerShare)                      risk ceiling
+qFuzz   = floor(budget × (1 + fuzz) / riskPerShare)          top of the tolerance band
+qMax    = floor(maxAlloc/100 × equity / price)               concentration ceiling, if enabled
+qBP     = floor(bpFree / price)                              buying power ceiling
+lo      = roundToLot(min(qR,   qMax, qBP))                   always rounds DOWN
+hi      = roundToLot(min(qFuzz, qMax, qBP))
+```
+
+- Show `lo`–`hi` as a **range** when they differ, one number when they do not (I.A.2.ii). "Push size
+  toward max allocation" is `hi` (I.A.2.iii): the largest count still inside the band, under every
+  ceiling.
+- **Lot rounding always rounds down.** Rounding up breaches the risk ceiling that every number above
+  it was computed to respect.
+- Warn when `hi × price < minAlloc/100 × equity` — too small to be worth taking (decision 4).
+- Tier selector or a full range across tiers (I.A.2.v) — still his open item.
+- Protected basis barred while any position has uncovered shares (decision 10), stated on screen.
+- `rUnitOf()` is the single place the basis enters, so switching it cannot miss a call site.
+
+*Verify:* realised-only reproduces v1.3's share counts exactly; protected equity on the backlog's
+worked case — a 1000-share long at avg 100 — moves the basis by −$4,000 at a 96 stop and +$4,000 at
+104, and bars itself the moment a stop is removed.
 
 ### 7 — Marks
 
@@ -301,31 +360,37 @@ As set out in section 0.
 
 ## What v2 does to the existing backlog
 
-- **Superseded.** *Size off protected equity* — II.A.3.v answers the same question more simply
-  (value open trades at trade price, or size from net liq or cash). The long derivation in
-  `OPEN-ITEMS.md` should be marked superseded rather than deleted, since the reasoning explains why
-  the simpler answer is acceptable. *The pre-trade checks* — closed by removal in phase 5.
+- **Adopted.** *Size off protected equity* is the v2 sizing basis (decision 2), so that item moves
+  from To do to Decided/done when phase 6 lands rather than being superseded. Its `bpUsed`
+  cost-vs-mark question is the only part still outstanding.
+- **Superseded.** *Min size in shares*, by min allocation as a percentage (decision 4). *The
+  pre-trade checks*, closed by removal in phase 5.
 - **Fixed in passing.** `deleteTrade` deletes from `state` rather than the trade's own account, and
   Shares-override is silently ignored in group mode. Both die with the rewrites in phases 3 and 5;
   both should get a verification case rather than being assumed gone.
-- **Partially absorbed.** *A stop that is too wide, and a size that is too small* overlaps fuzziness
-  and lot rounding, but the max-stop-width guard itself is not in the v2 document.
+- **Half absorbed.** *A stop that is too wide, and a size that is too small* — the min-size half is
+  replaced by min allocation, which removes the crossover arithmetic that made the two one
+  constraint. The **max-stop-width** half is untouched by the v2 document and stays on the backlog,
+  now standing alone.
 - **Untouched, still open.** Top themes, the interactive calendar, dividends, the extension check,
   recomputation cost, `render()` cost, per-account collapse state (moot after phase 3), naming the
   app, the rules panel.
-- **New, created by v2.** Decisions 1–8 above, and the Closed Trades / Statistics / 30-day review
-  pass he has deferred to after this.
+- **New, created by v2.** Decisions 10–12 above — split stops versus the protected basis, open
+  heat's unit, and what fuzziness measures — plus the Closed Trades / Statistics / 30-day review
+  pass deferred to after this.
 
 ## Invariants that change
 
-The handoff asserts these; v2 retires or rewrites three, and they should not be left asserted.
+The handoff asserts these; v2 retires two, and they should not be left asserted.
 
 - **Three money scales** → one. Cents everywhere (IV.D).
 - **Group mode is a separate set of renderers** → one renderer with an account column (phase 3).
   This is the invariant most worth deleting.
-- **Equity responds to decisions, never to the tape** → *survives*, unless decision 2 goes the other
-  way. If sizing moves to net liq, this invariant is gone and the handoff must say so outright
-  rather than leaving a rule the code no longer follows.
+- **Equity responds to decisions, never to the tape** → **survives, and gets stronger.** Protected
+  equity is mark-independent: only a stop move, a size change, a close or cash in and out moves it.
+  Net liq is displayed in the Portfolio panel but never sizes anything. The rule now has to cover
+  one more case, though — the Portfolio panel shows a mark-dependent figure for the first time, so
+  the line is "equity *for sizing* responds to decisions", and net liq is labelled as what it is.
 
 Unchanged and still load-bearing: locked-at-open fields, `syncCompound` on every realising path,
 remove-what-creates-never-what-reads, flag-don't-block, `jsq()` for inline handlers.
