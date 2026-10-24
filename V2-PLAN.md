@@ -348,11 +348,13 @@ moves the basis by −$4,000 at a 96 stop and +$4,000 at 104.
 
 ### 8 — Interface text
 
-- Remove essentially all reminder and strategy text (III.E, IV.A): the tagline, the Desk hint, the
+- Delete the section fluff and strategy explainers (III.E, IV.A): the tagline, the Desk hint, the
   Data hints, the fast-calc footer, the plan `<summary>` prose, the trail note's second half.
+- **Rewrite every warning string** neutral — they stay and keep flagging. See the three-kinds-of-text
+  split above; deleting a warning here would be the wrong reading of "remove all reminder text".
 - **Mouseover bubbles** for basic field explainers only — what a field is, never what to do with it.
-- This is the one phase where the existing `terse-ui-copy` preference and the document agree
-  completely, so it can be done aggressively.
+- The existing `terse-ui-copy` preference and the document agree completely on the deletions, so
+  that half can be done aggressively.
 
 ### 9 — Estimated tax liability
 
@@ -438,33 +440,58 @@ remove-what-creates-never-what-reads, `jsq()` for inline handlers.
 Instructed 2026-10-24, and it reaches further than the interface text. v1 asserts a method in three
 different ways, and all three go:
 
-1. **Warnings that speak as the user's rules.** "Your rule is no new trades until it comes back
-   under", "The lever here is stepping back and reviewing — never resizing R to win it back",
-   "not where my desired size wants it". A generic app states the figure, the threshold it crossed,
-   and nothing else. This widens phase 8 from deleting reminder text to **rewriting every warning
-   string** in a neutral voice.
+1. **Three kinds of text, and only two of them go.** Clarified 2026-10-24, because "remove all
+   reminder text" could be read as removing the warnings too:
 
-2. **Thresholds hard-coded as doctrine.** Each of these is a method choice presented as a constant,
-   and in a generic app each is either a setting or an unremarkable default — never something the
-   app asserts:
+   - **Section fluff and strategy explainers — deleted.** The tagline, the Desk hint, the Data
+     hints, the fast-calc footer, the plan `<summary>` prose, the trail note's second half. Baked-in
+     explanation of one strategy.
+   - **Warnings — kept, rewritten neutral.** "Your rule is no new trades until it comes back under",
+     "the lever here is stepping back and reviewing — never resizing R to win it back", "not where
+     my desired size wants it". The warning stays and keeps flagging; it states the figure and the
+     threshold it crossed, and stops speaking as the user's conscience.
+   - **Field explainers — kept, moved to mouseover.** What a field is, never what to do with it.
 
-   | constant | line | what it decides |
-   |---|---|---|
-   | `SCRATCH_LO/HI`, `WIN_R` | 511 | where a scratch ends and a win begins, across three win rates |
-   | `TARGETS = [1,2]` | 861 | which internal targets exist — already becoming a setting (II.A.3.iv) |
-   | `adrs < 1` / `< 1.5` | 885, 1511, 2578 | "inside daily noise", in three places |
-   | `rmInt < -1.25` | 2133 | when a stop-out counts as a breach |
-   | loss discipline ≤ 1.2R | `bookStats` | which losses were disciplined (register #4) |
-   | `WASH_DAYS = 30` | 1527 | statutory, so this one genuinely is not a method choice |
-   | `REVIEW_DAYS = 30` | 1932 | when a 30-day review falls due |
-   | `BACKUP_DAYS = 6` | 1942 | when the backup nudge appears |
-   | `STALE_HOURS = 24` | 1643 | when a mark goes stale |
-   | `LOSS_TAGS` | 520 | the three causes a loss can be given |
+2. **Thresholds hard-coded as doctrine.** Most of these become settings. The question that decides
+   the work is not *whether* but **where each one is stored**, and the app already has three places
+   with different meanings:
 
-   Not all need to become settings — a stale-mark window is housekeeping, and the wash-sale window is
-   law. The ones that encode *method* are the scratch band, the APTR noise floor, the breach
-   threshold, the loss-discipline line and the loss tags. Worth deciding as one group rather than
-   one at a time, and it is cheap alongside phase 2.
+   - **`root`** — about the page or the person. One value, every account.
+   - **`pf.settings`** — about one account. Equity, margin.
+   - **`GROUP_KEYS`** — about the *method*. Stored per account, overridden by the group when one
+     owns it, merged by `settingsFor()`. Already holds `rPct`, `tiers`, `heatCap`, `coldR`.
+
+   This is what Steve meant by sub-settings of account settings: a value like max open heat belongs
+   with the account, not the app. Proposed scope for each, and the last column is the thing to argue
+   with:
+
+   | constant | line | what it decides | scope |
+   |---|---|---|---|
+   | `adrs < 1` / `< 1.5` | 885, 1511, 2578 | "inside daily noise" — and must come from one constant, not three | GROUP_KEYS |
+   | `rmInt < -1.25` | 2133 | when a stop-out counts as a breach | GROUP_KEYS |
+   | loss discipline ≤ 1.2R | `bookStats` | which losses were disciplined — also wants `rmInt` (register #4) | GROUP_KEYS |
+   | `TARGETS = [1,2]` | 861 | which internal targets exist — already a setting (II.A.3.iv) | GROUP_KEYS |
+   | max / min allocation, max stop width | new | the three guards from decision 4 | GROUP_KEYS |
+   | fuzziness | new | the granularity tolerance (decision 12) | GROUP_KEYS |
+   | sizing basis, unguarded-short default | new | decisions 2 and 10 | GROUP_KEYS |
+   | `SCRATCH_LO/HI`, `WIN_R` | 511 | where a scratch ends and a win begins, across three win rates | `root` |
+   | `LOSS_TAGS` | 520 | the causes a loss can be given | `root` |
+   | `REVIEW_DAYS = 30` | 1932 | when a review falls due | `root` |
+   | lot rounding | new | broker and instrument, not method | `pf.settings` |
+   | `BACKUP_DAYS = 6` | 1942 | when the backup nudge appears | `root`, housekeeping |
+   | `STALE_HOURS = 24` | 1643 | when a mark goes stale | `root`, housekeeping |
+   | `WASH_DAYS = 30` | 1527 | statutory — stays a constant | — |
+
+   Two things drove the `root` choices. The scratch band and the loss tags are **taxonomy**: let
+   them vary per account and the three win rates and the loss-tag split compare trades measured
+   different ways, which is the same silent-nonsense failure as `t.checks` (register #8). And a
+   review cadence is about the person, not the book.
+
+   **The display settings must go on `root`, and this is the one place v2 can repeat a known bug.**
+   Hide values, gain/loss colour grading, information shown per panel, default stop count — seven
+   new preferences about the *page*. Register #1 is precisely this mistake made once with
+   `collapsed`, and in a group it writes onto whichever account happens to be first. Putting the new
+   ones on `pf.settings` would reproduce it sevenfold.
 
 3. **Whole features that are someone else's system.** Already handled: the pre-trade checks go in
    phase 5, the rules panel stays parked. Both backlog items framed these as "Russo's, not yours";
