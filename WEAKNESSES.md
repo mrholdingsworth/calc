@@ -1,6 +1,6 @@
 # Weaknesses register
 
-Every flaw this project has identified in itself, in one place. Compiled 2026-10-24 from
+Every flaw this project has identified in itself, in one place. 35 entries. Compiled 2026-10-24 from
 `OPEN-ITEMS.md` (To do, Ruled out and the Decided/done entries, several of which record a weakness
 created or left behind by the fix), `index.html`'s own comments, `SESSION-HANDOFF.md`, and the v2
 review.
@@ -81,8 +81,9 @@ because the pattern recurs.
 11. **Unguarded long shares sit at a floor of zero, and that is correct.** Not a flaw in the
     protected-equity formula but a property of it that reads as one: 40 unstopped shares contribute
     nothing protected, which shrinks the sizing basis by their full value. That is the truth of the
-    position. *New in v2, with an unguarded short refusing new positions outright — the only
-    blocking rule in the app.*
+    position. *New in v2. An unguarded short has no floor at all, so the shipped default refuses new
+    positions until a stop is added — a default, changeable in settings, not a rule. Switched off,
+    the basis falls back to realised-only while any short is unguarded.*
 
 12. **Max stop width and the 1.5-APTR floor can leave an empty band.** A 12% APTR wants a stop
     around 18% wide, which a 5% max forbids. Two guards that are really one conclusion — *this stock
@@ -162,34 +163,42 @@ because the pattern recurs.
     bad under ~1.5 — is implemented. His own — am I late, bad over ~0.5 — is not. Orthogonal
     measures sharing a unit, so both are worth having. Still on the backlog.
 
+28. **The app asserts a method, in three ways.** Identified 2026-10-24 as a v1 vestige; v2.0 is
+    generic. Warnings speak in the user's voice ("your rule is no new trades until it comes back
+    under"). Ten constants hard-code method as doctrine — the scratch band, the APTR noise floor in
+    three places, the breach threshold, the loss-discipline line, the loss tags, the target ladder.
+    And two whole features were someone else's system, which entries 25 and 26 cover. The first two
+    are the live part; see the v2 plan for the constant-by-constant list and which of them should
+    become settings rather than defaults.
+
 ## Fixed — kept because the pattern recurs
 
-28. **Group mode read the first member only, three separate times.** `refreshMarks`/`pollMarks`,
+29. **Group mode read the first member only, three separate times.** `refreshMarks`/`pollMarks`,
     the cold-streak brake, and `collapseAll` each reached for `state.trades` and got one account of
     several — falsifying open P/L, heat, buying power and the volatility check everywhere else.
     Fixed individually. The *cause* is live until v2 phase 3 collapses the two renderers into one:
     any control added to shared chrome fails silently in exactly one mode.
 
-29. **Save failures were silent.** Correct on screen, gone on reload, discovered at the next page
+30. **Save failures were silent.** Correct on screen, gone on reload, discovered at the next page
     load. Now loud, persistent, and with an export path that bypasses storage entirely. The general
     lesson — the worst failure is the one that looks like success — is why this register exists.
 
-30. **`maxAdd` had no buying-power term.** On a fully deployed $100,000 cash account, a 10c stop
+31. **`maxAdd` had no buying-power term.** On a fully deployed $100,000 cash account, a 10c stop
     offered 9,000 more shares of a $100 name — about $900,000 of stock. R answers how much you may
     lose and says nothing about how much you may hold.
 
-31. **The target ladder was the only R figure in the app that ignored realised profit**, so a 33%
+32. **The target ladder was the only R figure in the app that ignored realised profit**, so a 33%
     trim moved the target. Found from a number Steve questioned, by solving backwards from it. Then
     fixed twice: v1.2.4 made it whole-sequence, which was right against the old definition, and
     v1.3 discovered the definition itself was the problem.
 
-32. **`esc()` alone was wrong for inline handlers.** It turns `'` into `&#39;`, which the parser
+33. **`esc()` alone was wrong for inline handlers.** It turns `'` into `&#39;`, which the parser
     decodes back before JS parses the attribute, so an apostrophe in an account name broke every
     control on its row. `jsq()` escapes for JS *then* for HTML. Five sites.
 
-33. **A flat 4dp price rule produced unplaceable prices** like 110.2563. The tick now comes from the
+34. **A flat 4dp price rule produced unplaceable prices** like 110.2563. The tick now comes from the
     price typed for that trade.
 
-34. **Heat cap and cold streak claimed enforcement the code never had.** Worse than no warning,
+35. **Heat cap and cold streak claimed enforcement the code never had.** Worse than no warning,
     because it invites you to trust it. Both now say "flagged, not blocked" — which is the whole of
     the flag-don't-block invariant, learned from being wrong about it once.

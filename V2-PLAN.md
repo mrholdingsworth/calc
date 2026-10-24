@@ -157,14 +157,17 @@ it. To stop a real trade being typed into the wrong tab:
     against that reality. **Default behaviour for all unguarded long shares.**
 
     **Shorts are different in kind, not degree.** An unguarded short has no floor at all — the loss
-    is unbounded, so protected equity is −∞ and the budget is meaningless. So on the short side the
-    app **refuses new positions in that account until a stop is added.**
+    is unbounded, so protected equity is −∞ and the budget is meaningless.
 
-    This is the only blocking rule in the app, and it needs recording as a deliberate carve-out from
-    **flag-don't-block** or a future session will "fix" it. The distinction that justifies it: every
-    other guard — heat cap, cold streak, wash sale, over-withdrawal — blocks a *judgment call*, and
-    judgment is Steve's. This one blocks an *undefined number*. There is nothing to flag, because
-    there is no figure to put in the warning.
+    **Default: refuse new positions in that account until a stop is added. Changeable in settings.**
+    So flag-don't-block survives intact — nothing is hard-blocked, the strictest option is just the
+    one that ships on.
+
+    The alternative branch has to produce a finite number, and only one honest candidate exists:
+    **fall back to realised-only equity for that account**, stated on screen, while any short is
+    unguarded. Counting the unguarded short at the mark would be finite too, but it puts the tape
+    back into sizing, so it is out. Realised-only carries its own known blindness (register #9) and
+    is at least defined.
 
 11. **Open heat stays in R.** The percentage-of-account-value phrasing in IV.C was shorthand in
     conversation, not a redefinition. So `heatCap` keeps its unit and v1's `heatR` survives
@@ -420,10 +423,54 @@ The handoff asserts these; v2 retires two, and they should not be left asserted.
   one more case, though — the Portfolio panel shows a mark-dependent figure for the first time, so
   the line is "equity *for sizing* responds to decisions", and net liq is labelled as what it is.
 
-- **Flag, don't block** → **survives with one named exception.** An unguarded short refuses new
-  positions (decision 10), because protected equity is unbounded there and there is no figure to put
-  in a warning. Every other guard blocks a judgment call, which stays Steve's. Record the exception
-  with its reason, or it reads as a bug.
+- **Flag, don't block** → **survives, with the strictest setting merely shipping on.** The unguarded
+  short refusal is a default, not a rule (decision 10), so nothing in v2 blocks something the user
+  cannot switch off.
+- **"Your rule says…" → gone entirely.** Retired on Steve's instruction: the app encoding one
+  trader's method is a v1 vestige, and v2.0 is generic. See below — this is wider than a wording
+  change.
 
 Unchanged and still load-bearing: locked-at-open fields, `syncCompound` on every realising path,
 remove-what-creates-never-what-reads, `jsq()` for inline handlers.
+
+## The app stops having rules of its own
+
+Instructed 2026-10-24, and it reaches further than the interface text. v1 asserts a method in three
+different ways, and all three go:
+
+1. **Warnings that speak as the user's rules.** "Your rule is no new trades until it comes back
+   under", "The lever here is stepping back and reviewing — never resizing R to win it back",
+   "not where my desired size wants it". A generic app states the figure, the threshold it crossed,
+   and nothing else. This widens phase 8 from deleting reminder text to **rewriting every warning
+   string** in a neutral voice.
+
+2. **Thresholds hard-coded as doctrine.** Each of these is a method choice presented as a constant,
+   and in a generic app each is either a setting or an unremarkable default — never something the
+   app asserts:
+
+   | constant | line | what it decides |
+   |---|---|---|
+   | `SCRATCH_LO/HI`, `WIN_R` | 511 | where a scratch ends and a win begins, across three win rates |
+   | `TARGETS = [1,2]` | 861 | which internal targets exist — already becoming a setting (II.A.3.iv) |
+   | `adrs < 1` / `< 1.5` | 885, 1511, 2578 | "inside daily noise", in three places |
+   | `rmInt < -1.25` | 2133 | when a stop-out counts as a breach |
+   | loss discipline ≤ 1.2R | `bookStats` | which losses were disciplined (register #4) |
+   | `WASH_DAYS = 30` | 1527 | statutory, so this one genuinely is not a method choice |
+   | `REVIEW_DAYS = 30` | 1932 | when a 30-day review falls due |
+   | `BACKUP_DAYS = 6` | 1942 | when the backup nudge appears |
+   | `STALE_HOURS = 24` | 1643 | when a mark goes stale |
+   | `LOSS_TAGS` | 520 | the three causes a loss can be given |
+
+   Not all need to become settings — a stale-mark window is housekeeping, and the wash-sale window is
+   law. The ones that encode *method* are the scratch band, the APTR noise floor, the breach
+   threshold, the loss-discipline line and the loss tags. Worth deciding as one group rather than
+   one at a time, and it is cheap alongside phase 2.
+
+3. **Whole features that are someone else's system.** Already handled: the pre-trade checks go in
+   phase 5, the rules panel stays parked. Both backlog items framed these as "Russo's, not yours";
+   the generic framing says something simpler and stronger — a hard-coded checklist does not belong
+   in the app at all, whoever wrote it.
+
+Knock-on for the register: entries 25, 26 and 27 are written in the "his rules versus the memoir's"
+voice. They stay as written, because they are an accurate record of why v1 looked like that. The
+forward-looking version is this section.
