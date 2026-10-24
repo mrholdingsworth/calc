@@ -216,34 +216,61 @@ Portfolio panel's frame — so that every later phase has a defined destination 
 from the old layout. Phase numbering below is kept for reference; the running order is now
 0, 1, **shell**, then 2–11 filling it in.
 
-Decisions the shell needs, since an empty container still has to be the right shape:
+### Settled for the shell, 2026-10-24
 
-- **Settings form.** Modal, slide-over, or a full section. Recommending a **slide-over**: the tree
-  has three or four groups and the modal card is capped at 460px, which is too narrow for the
-  Accounts table.
-- **Settings tree.** The document gives General and display, Accounts, Sizing and risk. The doctrine
-  constants need a fourth — the scratch band, loss tags and review cadence are neither display nor
-  sizing. Proposing **Statistics and definitions**.
-- **Where the two icons live.** Masthead or rail. Recommending the **masthead**, beside the clock,
-  since the rail lists destinations you scroll to and these open over the page.
-- **Audit's placement.** Its own rail section, or inside Data Management. Recommending **its own
-  section**, since the ledger is a daily-use view and Data Management is a once-a-month page.
-- **The Portfolio column problem, measured.** The document's fields plus every v1.3 column plus
-  identity and actions is **21 columns**. Above the rail breakpoint the content column is 1162px —
-  1340 less the 118px rail, the 24px gap and 36px of padding — or about 1118px inside a card. That
-  is **53px a column**, against a price cell that needs 70–110px. It does not fit, and no amount of
-  tightening makes it fit.
+**The rail goes; sections become browser-style tabs.** The largest structural decision in v2, and it
+removes work rather than adding it:
 
-  Recommendation: make **"information displayed in each panel"** the mechanism rather than a
-  cosmetic extra. A column registry, a sensible default subset that fits, and `.scroll` as the
-  fallback when a wide selection is chosen. Nothing becomes unreachable, because the gear holds the
-  full per-trade detail either way. This also means the registry has to exist in the shell, not be
-  retrofitted.
-- **Group rows.** Flat with an account column, or legs grouped under a `gid` header. Recommending
-  **grouped under a header row** that carries the summed position, so a fanned-out trade still reads
-  as one idea.
-- **Section numbering.** `01 · Desk` … `06 · Data Management` shifts when two of them become icons.
-  Cheap either way, but it is visible on every header.
+- `initRail()`, the scroll-spy and the `#rail` markup all go.
+- **The section collapse machinery goes with it** — `toggleSection`, `SECTIONS`, the `collapsed`
+  map, every `tg_*` button. One section is visible at a time, so collapsing one is meaningless.
+  **This deletes register #1 outright** rather than moving `collapsed` to `root` as planned.
+- **Per-tab rendering becomes the natural shape, not a refactor.** `render()` currently rebuilds
+  every card, the whole closed table and nine SVG charts on every action (register #22). With tabs
+  it only has to build the visible one.
+- Section numbering (`01 · Desk` … `06 · Data Management`) goes. The tab strip is the ordering.
+- `#sec-*` anchors and the two `scrollIntoView` calls — the fast-calc hand-off and `rescueBook()` —
+  become tab switches.
+- **Audit is a tab**, which answers its placement.
+
+Costs, stated rather than discovered: the Desk and New Trade can no longer be seen at once, so the
+hand-off becomes a tab switch — less scrolling, but a changed habit. Sizing while watching open heat
+is already covered, because the heat notice renders inside New Trade.
+
+**Portfolio rows: a primary row that expands.** With the gear also opening a panel, two disclosure
+mechanisms exist and they need a clean split or they will overlap:
+
+- **Row expand** — the figures that did not fit the row, plus plan fields, targets and the 1R trail.
+  More numbers about *now*.
+- **Gear** — event log, editing any transaction, notes, loss tag, 30-day review. **History and
+  corrections**, in a modal.
+
+And one thing to guard: this must stay *a list with an expanding row*, not N cards again. The
+expanded region carries figures only — the actions stay the Buy / Sell / Stop / gear buttons on the
+row itself. v1.3's pills each had their own action row, and that is the thing being removed.
+
+**Settings: a full-width modal.** `.modalcard` is capped at 460px today and needs a wide variant;
+`max-height:80vh` with `overflow:auto` is already there, so a tall tree scrolls as it stands.
+
+**Settings tree** — the document gives General and display, Accounts, Sizing and risk. The doctrine
+constants need a fourth, since the scratch band, loss tags and review cadence are neither display
+nor sizing: proposing **Statistics and definitions**.
+
+**Group rows** — legs grouped under a `gid` header row carrying the summed position, so a fanned-out
+trade still reads as one idea.
+
+**Naming** stays a placeholder through v2.
+
+### The column problem, measured
+
+The document's fields plus every v1.3 column plus identity and actions is **21 columns**. Above the
+rail breakpoint the content column was 1162px — 1340 less the 118px rail, the 24px gap and 36px of
+padding — or about 1118px inside a card. That is **53px a column**, against a price cell needing
+70–110px. It did not fit, and no tightening would have made it.
+
+Resolved by the expanding row above. Dropping the rail also returns its 118px plus the 24px gap, so
+the full 1340px is available to the list — about 1296px inside a card, which is what makes a usable
+primary row possible without horizontal scroll.
 
 ## Phases
 
@@ -454,8 +481,10 @@ As set out in section 0.
 The handoff asserts these; v2 retires two, and they should not be left asserted.
 
 - **Three money scales** → one. Cents everywhere (IV.D).
-- **Group mode is a separate set of renderers** → one renderer with an account column (phase 3).
-  This is the invariant most worth deleting.
+- **Group mode is a separate set of renderers** → one renderer, with group legs under a gid header
+  row (phase 3). This is the invariant most worth deleting.
+- **Sections are collapsible panels on one scrolling page** → tabs, one visible at a time. Takes the
+  collapse machinery and register #1 with it.
 - **Equity responds to decisions, never to the tape** → **survives, and gets stronger.** Protected
   equity is mark-independent: only a stop move, a size change, a close or cash in and out moves it.
   Net liq is displayed in the Portfolio panel but never sizes anything. The rule now has to cover
