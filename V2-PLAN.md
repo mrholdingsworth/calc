@@ -208,6 +208,43 @@ it. To stop a real trade being typed into the wrong tab:
 
 ---
 
+## Build order: the shell first
+
+Changed 2026-10-24 on Steve's instruction. Phases 2 and 3 split, and the **containers get built
+before anything moves into them** — the settings tree, the two icons, the navigation, and the
+Portfolio panel's frame — so that every later phase has a defined destination for what it removes
+from the old layout. Phase numbering below is kept for reference; the running order is now
+0, 1, **shell**, then 2–11 filling it in.
+
+Decisions the shell needs, since an empty container still has to be the right shape:
+
+- **Settings form.** Modal, slide-over, or a full section. Recommending a **slide-over**: the tree
+  has three or four groups and the modal card is capped at 460px, which is too narrow for the
+  Accounts table.
+- **Settings tree.** The document gives General and display, Accounts, Sizing and risk. The doctrine
+  constants need a fourth — the scratch band, loss tags and review cadence are neither display nor
+  sizing. Proposing **Statistics and definitions**.
+- **Where the two icons live.** Masthead or rail. Recommending the **masthead**, beside the clock,
+  since the rail lists destinations you scroll to and these open over the page.
+- **Audit's placement.** Its own rail section, or inside Data Management. Recommending **its own
+  section**, since the ledger is a daily-use view and Data Management is a once-a-month page.
+- **The Portfolio column problem, measured.** The document's fields plus every v1.3 column plus
+  identity and actions is **21 columns**. Above the rail breakpoint the content column is 1162px —
+  1340 less the 118px rail, the 24px gap and 36px of padding — or about 1118px inside a card. That
+  is **53px a column**, against a price cell that needs 70–110px. It does not fit, and no amount of
+  tightening makes it fit.
+
+  Recommendation: make **"information displayed in each panel"** the mechanism rather than a
+  cosmetic extra. A column registry, a sensible default subset that fits, and `.scroll` as the
+  fallback when a wide selection is chosen. Nothing becomes unreachable, because the gear holds the
+  full per-trade detail either way. This also means the registry has to exist in the shell, not be
+  retrofitted.
+- **Group rows.** Flat with an account column, or legs grouped under a `gid` header. Recommending
+  **grouped under a header row** that carries the summed position, so a fanned-out trade still reads
+  as one idea.
+- **Section numbering.** `01 · Desk` … `06 · Data Management` shifts when two of them become icons.
+  Cheap either way, but it is visible on every header.
+
 ## Phases
 
 Each phase ends with `v2.html` working and verifiable. Verification is programmatic in the browser
