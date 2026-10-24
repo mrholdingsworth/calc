@@ -184,11 +184,11 @@ Nothing on screen changes except money formatting. All of it is load-bearing for
 all of it is cheap to verify against a copied book.
 
 - **SCHEMA 2 migration** (`migrate2()`), run from `normalize()`: field renames, settings moves, the
-  `compounded` backfill (decision 10), stops to a list.
+  `compounded` backfill (decision 8), stops to a list.
 - **Cents everywhere** (I.E.1, IV.D). `fmtE` folds into `fmt$`. This retires the three-money-scales
   invariant, deliberately — note it in the handoff rather than leaving the old rule asserted.
 - **APTR replaces ADR** (IV.B): `t.adr`→`t.aptr`, `adrAtOpen`→`aptrAtOpen`, `adrAudit()`→
-  `aptrAudit()`, every label. Old values carried forward per decision 9.
+  `aptrAudit()`, every label. Old values carried forward per decision 7.
 - **Stops become a list.** The invasive one. `derive()` returns `stops:[{qty,price}]` instead of
   `stop`; `riskAtStop(t,d)` sums covered risk and returns `{risk$, uncoveredQty, overQty}`. One stop
   covering the full position is the migrated and default case, so every number should come out
@@ -252,7 +252,7 @@ once each, with no duplicate or missing leg; summary totals equal the sum of the
 - **Stop popup** (I.C.4.ii): one stop by default, count from settings, add rows for split stops. The
   Stop button highlights when covered shares ≠ held shares, in **both** directions — fewer leaves
   open risk, more would open an unintended short.
-- **Gear** (I.C.5): the per-trade panel from decision 5. Event log, editing of any past transaction
+- **Gear** (I.C.5): the per-trade panel from decision 6. Event log, editing of any past transaction
   with full downstream recalculation (IV.E — `derive()` already replays, so this is a UI and an
   audit-trail problem, not a maths one), and every edit written to the ledger tagged `Adj.`
   (II.B.3). `syncCompound` runs after every edit.
@@ -264,7 +264,7 @@ stop lights the button and reports 40 uncovered.
 
 ### 5 — New Trade, stripped
 
-- Inputs: ticker, shares, fill price, APTR, stop (decision 1), tier (decision 4).
+- Inputs: ticker, shares, fill price, APTR, stop (decision 1), tier (decision 5).
 - R and allocation become **calculated outputs** with fuzziness-driven warnings (I.B.2).
 - Remove the four pre-trade checks, the gate, `checksDone()`, `updateGate()`, the initial notes and
   the required plan prose (I.B.3, III.B). This closes the deferred pre-trade-checks backlog item by
