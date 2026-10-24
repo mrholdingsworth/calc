@@ -218,6 +218,38 @@ from the old layout. Phase numbering below is kept for reference; the running or
 
 ### Settled for the shell, 2026-10-24
 
+**There is no Desk tab.** The fast calculator is **persistent chrome**, pinned at the top and visible
+even while a tab's content scrolls. Since the Desk was already reduced to the fast calculator alone,
+it stops being a destination entirely. Tabs are therefore **Portfolio, New Trade, Closed Trades,
+Statistics, Audit** — five — with Settings and Data Management as icons.
+
+**Account and group buttons go in a strip above the fast calculator**, not inside it. Steve offered
+either; above is right because the account scopes *everything* — Portfolio, Statistics, New Trade —
+and putting the selector inside the calculator would imply it only scopes the calculator. So the
+pinned block is: masthead row (logo, account buttons, the two icons, clock), fast calculator,
+section tabs. Then the scrolling content.
+
+**Measured, because a pinned block that tall would eat the screen.** At 1440×900, content column
+1162px:
+
+| | height |
+|---|---|
+| masthead | 47px |
+| account tabs | 28px |
+| fast calc, one account, with an answer | 167px |
+| fast calc, group of 4 | **339px** |
+| fast calc input row alone | 55px |
+| section tabs | ~28px |
+
+Pinned naively that is ~285px for one account — 32% of the viewport — and **~457px for a group of
+four, over half the screen gone before any content renders.** Group mode is the problem; a single
+account would have been tolerable.
+
+**So the pinned block holds the inputs and one answer line, and nothing else.** The per-account
+breakdown table, the buying-power caveat and the APTR alternative become an expandable detail,
+rendered only when opened. Resting height ≈ 200px, or 22% of a 900px viewport. A condensed state
+that shrinks further once scrolled is a refinement worth having later, not needed to start.
+
 **The rail goes; sections become browser-style tabs.** The largest structural decision in v2, and it
 removes work rather than adding it:
 
@@ -231,11 +263,11 @@ removes work rather than adding it:
 - Section numbering (`01 · Desk` … `06 · Data Management`) goes. The tab strip is the ordering.
 - `#sec-*` anchors and the two `scrollIntoView` calls — the fast-calc hand-off and `rescueBook()` —
   become tab switches.
-- **Audit is a tab**, which answers its placement.
+- **Audit is a tab**, which answers its placement. There is no Desk tab at all.
 
-Costs, stated rather than discovered: the Desk and New Trade can no longer be seen at once, so the
-hand-off becomes a tab switch — less scrolling, but a changed habit. Sizing while watching open heat
-is already covered, because the heat notice renders inside New Trade.
+Costs, stated rather than discovered: a tab switch replaces scrolling, which is a changed habit.
+The fast-calc hand-off is unaffected — better, in fact, since the calculator is now pinned above
+whichever tab is open, so sizing and recording are visible together without scrolling at all.
 
 **Portfolio rows: a primary row that expands.** With the gear also opening a panel, two disclosure
 mechanisms exist and they need a clean split or they will overlap:
