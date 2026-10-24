@@ -1,0 +1,3375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>R Calculator 2.0-dev</title>
+<meta name="description" content="Position sizing and trade management denominated in R. Development build of version 2.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e13'/%3E%3Ctext x='16' y='24' font-size='20' font-family='monospace' font-weight='700' fill='%234d9fff' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#0b0e13; --panel:#11161f; --panel2:#151b26; --line:#212a38; --line2:#2c3646;
+  --tx:#e6ebf2; --sub:#9aa6b8; --mut:#697588;
+  --blue:#4d9fff; --bluebg:rgba(77,159,255,.10);
+  --gold:#b08d3f;      /* one gold everywhere — the darker, more metallic tone */
+  --green:#2fd583; --greenbg:rgba(47,213,131,.10);
+  --red:#f4655f; --redbg:rgba(244,101,95,.10);
+  --amber:#f0a832; --amberbg:rgba(240,168,50,.10);
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+/* One column at every width. The rail is gone: sections are tabs, so there is nothing to index. */
+.wrap{max-width:1340px;margin:0 auto;padding:0 18px 80px}
+.main{min-width:0}
+
+/* ---- the pinned block: masthead, fast calc, section tabs ----
+   Everything above the content scroll. The fast calculator is chrome, not a destination, so it is
+   visible whichever tab is open. Measured before committing to it: at 1440x900 the calculator is
+   167px for one account but 339px for a group of four, which pinned under the masthead and both tab
+   strips came to ~457px -- over half the viewport before any content. So the pinned block carries
+   the inputs and one answer line, and the per-account breakdown sits in a <details> that only
+   renders when opened. */
+.topbar{position:sticky;top:0;z-index:20;background:var(--bg);padding:14px 0 0;
+        border-bottom:1px solid var(--line);margin-bottom:14px}
+.topbar .mast{margin-bottom:8px}
+.devbadge{display:inline-block;vertical-align:middle;font-family:var(--sans);font-size:10px;
+          font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);
+          background:var(--amberbg);border:1px solid rgba(240,168,50,.45);border-radius:999px;
+          padding:2px 8px;margin-left:8px}
+button.icon{padding:5px 9px;font-size:15px;line-height:1.1}
+/* Section tabs. An underline rather than a filled pill, so they read as navigation and cannot be
+   mistaken for the account buttons directly above them. */
+.sectabs{display:flex;gap:2px;flex-wrap:wrap;align-items:flex-end;margin-top:10px}
+.sectabs button{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;
+                color:var(--mut);font-size:13px;font-weight:600;padding:7px 12px}
+.sectabs button:hover{color:var(--tx)}
+.sectabs button.on{color:var(--blue);border-bottom-color:var(--blue)}
+.sectabs .n{font-size:10.5px;color:var(--mut);font-weight:700;margin-left:5px}
+.tabpane{display:none}
+.tabpane.on{display:block}
+.panehead{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.panehead h2{font-size:15px;font-weight:600}
+
+/* ---- the position list ----
+   One list in one panel, not a card per trade. A primary row of the figures that matter at a
+   glance; everything else in a detail row that opens under it. The actions stay on the row, which
+   is what keeps this a list rather than the pills it replaces. */
+.poslist{width:100%;border-collapse:collapse;font-size:12.5px}
+.poslist th{text-align:left;font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;
+            letter-spacing:.08em;padding:6px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
+.poslist td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+.poslist tbody.open>tr.prow>td{border-bottom-color:transparent;background:var(--panel2)}
+.poslist tr.prow:hover>td{background:var(--panel2)}
+.poslist td.num,.poslist th.num{text-align:right;font-family:var(--mono)}
+.poslist .tk{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.02em}
+.poslist .sub{font-size:10.5px;color:var(--mut);font-family:var(--sans)}
+.poslist .acts{text-align:right;white-space:nowrap}
+.poslist .acts button{padding:3px 9px;font-size:12px;margin-left:3px}
+.drow>td{background:var(--panel2);padding:4px 12px 14px}
+/* A stop that does not cover the position: fewer shares leaves open risk, more would open an
+   unintended short. Both are wrong, so both light. */
+button.stopwarn{color:var(--amber);border-color:var(--amber);background:var(--amberbg)}
+.modalcard.wide{max-width:980px}
+.setgrp{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
+.setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+a{color:var(--blue)}
+h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
+
+.mast{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.gold{color:var(--gold)}
+.mast .logo{font-family:var(--mono);font-size:34px;font-weight:700;letter-spacing:-.03em;line-height:1}
+/* Sits opposite the wordmark. 24-hour so there is never an AM/PM to read past, tabular figures so
+   the digits do not shuffle as they tick. */
+.clock{margin-left:auto;text-align:right;line-height:1.25}
+.clock .t{font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:.01em;
+          font-variant-numeric:tabular-nums}
+.clock .d{font-size:11.5px;color:var(--mut);letter-spacing:.04em;text-transform:uppercase}
+.clock .c{color:var(--gold)}
+.clock .n{color:var(--gold);font-size:12px;font-weight:700;margin-top:3px;
+          max-width:300px;margin-left:auto}
+.tagline{color:var(--sub);max-width:660px;margin:10px 0 18px;font-size:13.5px}
+.tagline em{color:var(--gold);font-weight:700;font-style:normal}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:14px}
+.head{font-size:10.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
+.muted{color:var(--mut);font-size:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.pos{color:var(--green)} .neg{color:var(--red)}
+label,.lbl{display:block;font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
+input,select,textarea{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:8px;
+  padding:7px 10px;font:inherit;font-size:13px;width:100%;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+textarea{resize:vertical;min-height:64px}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+button{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:8px;
+  padding:7px 13px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--blue);color:#fff}
+button.primary{background:var(--blue);border-color:var(--blue);color:#04101f;font-weight:600}
+button.primary:hover{background:#69b0ff;color:#04101f}
+button.danger{color:var(--red);border-color:rgba(244,101,95,.35)}
+button.danger:hover{background:var(--redbg);border-color:var(--red)}
+button.small{padding:4px 10px;font-size:12px}
+.err{color:var(--red);font-size:12px;margin-top:5px}
+.okmsg{color:var(--green);font-size:12px;margin-top:5px}
+
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(136px,1fr));gap:10px}
+/* A label that wraps to two lines must not shove its own control out of line with the row. Each
+   cell is a column, and the auto margin sits above the LABEL rather than above the control: that
+   pushes label and input down together, so controls share a baseline and every label sits on the
+   line directly above its own box instead of floating at the top of a tall cell. */
+.fields>div{display:flex;flex-direction:column}
+.fields>div>label{margin-top:auto}
+/* One row once there is width for it, so the whole thing is one glance rather than two. Below this
+   both fall back to the wrapping auto-fit grid above.
+   New Trade: Tier carries "A — 0.5R ($500.00)" and needs the room; Concept gives it up, being the
+   one field with nothing to truncate. */
+@media(min-width:1120px){
+  .fields.oneline{grid-template-columns:92px 168px minmax(120px,1fr) 112px 112px 88px 112px}
+  /* Desk: the tier boxes hold "0.25" and need almost nothing, which is what buys the row. Compound
+     is sized to keep its label on two lines like its neighbours — at three it alone set the row
+     height and cost 14px across the whole panel. */
+  .fields.deskrow{grid-template-columns:minmax(116px,1.2fr) minmax(146px,1.4fr) 90px 74px 74px 74px 132px 96px 118px}
+}
+.statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(146px,1fr));gap:10px}
+.metric{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.metric .k{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+.metric .v{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:2px;line-height:1.25}
+.metric .r{font-size:11px;color:var(--mut);margin-top:1px}
+
+.pill{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.05em;padding:2px 9px;border-radius:999px;text-transform:uppercase}
+.pill.long{background:var(--greenbg);color:var(--green);border:1px solid rgba(47,213,131,.3)}
+.pill.short{background:var(--redbg);color:var(--red);border:1px solid rgba(244,101,95,.3)}
+.pill.tier{background:var(--bluebg);color:var(--blue);border:1px solid rgba(77,159,255,.3)}
+.pill.house{background:var(--greenbg);color:var(--green);border:1px solid rgba(47,213,131,.3)}
+.pill.atrisk{background:var(--amberbg);color:var(--amber);border:1px solid rgba(240,168,50,.3)}
+
+.banner{border-radius:10px;padding:10px 14px;margin-bottom:12px;font-weight:600;font-size:13px}
+.banner.red{background:var(--redbg);border:1px solid rgba(244,101,95,.4);color:var(--red)}
+.banner.amber{background:var(--amberbg);border:1px solid rgba(240,168,50,.4);color:var(--amber)}
+
+.calbox{background:var(--bluebg);border:1px solid rgba(77,159,255,.28);border-radius:11px;padding:12px 15px;margin:12px 0}
+.calans{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--blue)}
+.calsub{font-size:12.5px;color:var(--sub);margin-top:4px}
+.calsub b{color:var(--gold);font-weight:700}
+.calrule{margin-top:7px;padding-top:7px;border-top:1px solid rgba(77,159,255,.2)}
+
+.tradehead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}
+/* Collapsed, the header is the whole card. Drop only its trailing margin — keep the card's own
+   padding, so the row sits at the same height whether the card is open or shut. */
+.card.tradecollapsed .tradehead{margin-bottom:0}
+.tradehead .tk{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.02em}
+.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:10px;margin-top:12px}
+/* Trim holds five controls where its neighbours hold two. Left to auto-fit it wrapped to a second
+   line and dragged every panel to that height, so above this width the row is proportioned. */
+@media(min-width:1120px){
+  .actions.actrow{grid-template-columns:minmax(140px,1fr) minmax(300px,2fr) minmax(150px,1fr) minmax(150px,1fr)}
+}
+.action{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+.action .t{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
+.sublbl .muted{font-size:11px}
+.action .row{align-items:stretch}
+.action .row input{width:auto;flex:1;min-width:64px}
+/* Buttons sit beside fields constantly here; a shorter control next to a taller one reads as a
+   mistake, so every control on a row shares the row height. */
+.action .row button,.sechead button{min-height:33px}
+.action .row>span{display:flex;align-items:center}
+.ladder{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.rung{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--sub)}
+.rung b{color:var(--gold);font-weight:700}
+.rung.hit{border-color:var(--green);background:var(--greenbg)}
+.rung.hit b{color:var(--green)}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;
+   padding:6px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+/* The toggle and the ticker are one unit — never let a narrow screen break them apart. */
+td.tickcell{white-space:nowrap}
+/* A closed trade whose 30-day review is due. Gold rather than a semantic colour: nothing is wrong,
+   there is simply work outstanding. */
+tr.reviewdue td{background:rgba(176,141,63,.09)}
+tr.reviewdue td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+.revdot{color:var(--gold);font-size:11px;vertical-align:middle}
+td.num,th.num{text-align:right;font-family:var(--mono)}
+.scroll{overflow-x:auto}
+
+details{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600;list-style:none}
+details summary::-webkit-details-marker{display:none}
+.sechead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.sechead.bare{margin:18px 0 10px;padding:0 4px}
+button.warn{color:var(--amber);border-color:rgba(240,168,50,.55)}
+button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(--amber)}
+.dedit{cursor:pointer;border-bottom:1px dotted var(--line2);padding-bottom:1px}
+.dedit:hover{color:var(--gold);border-bottom-color:var(--gold)}
+details summary::before{content:"\25B8  ";color:var(--mut)}
+details[open] summary::before{content:"\25BE  "}
+.tabs{display:flex;gap:6px;row-gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+/* A group is marked by a dot, and when open it holds its members inside a bordered box so the
+   nesting is visible rather than implied by order. */
+.modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);
+       align-items:center;justify-content:center;padding:20px}
+.modalcard{background:var(--panel);border:1px solid var(--line2);border-radius:14px;
+           padding:18px 22px;max-width:460px;width:100%;max-height:80vh;overflow:auto}
+.gdot{color:#fff;font-size:8px;vertical-align:middle;margin-right:5px}
+/* A real border with real padding, and a negative vertical margin of exactly the height it adds
+   (1px border + 4px padding, top and bottom). The box paints outside the row without growing it,
+   so opening a group cannot shove the desk down. */
+/* Separates what you select (accounts, groups) from what you do (create, edit, delete). */
+/* The desk's working surface: price, stop, tier, share count. No ticker, no plan, no record. */
+.fastcalc{margin-top:14px;padding:12px 14px;border:1px solid rgba(176,141,63,.35);
+          border-radius:12px;background:rgba(176,141,63,.06)}
+/* Equal columns, not content-width buttons. The labels differ in length — "2R" against "0.5R" —
+   so a flex row re-widths itself the moment a tier value is edited, and the thing you were about to
+   click moves. Three equal cells with a floor keep the group still. */
+#fc_tiers{display:grid;grid-template-columns:repeat(3,minmax(84px,1fr));gap:6px;align-items:center}
+/* Sits on the input row inside the pinned block, so it is sized to that row's height rather than
+   setting a taller one. */
+.fcbig{font-family:var(--mono);font-size:25px;font-weight:700;color:var(--gold);line-height:1.1}
+.topbar .mast .logo{font-size:26px}
+.fcsub{font-size:12.5px;color:var(--sub);margin-top:3px}
+.fcsub b{color:var(--tx)}
+/* Gold bar wherever two parallel things sit side by side, in a label or a value. */
+.vbar{color:var(--gold);font-weight:700;padding:0 6px}
+.tabsep{display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--gold);
+        opacity:.7;margin:0 6px;flex:none}
+.gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
+      border:1px solid var(--blue);border-radius:13px;background:var(--bluebg);
+      margin:-5px 3px}
+.chart{width:100%;height:120px;display:block}
+.spark{width:100%;height:86px;display:block;margin-top:10px}
+.hint{font-size:11.5px;color:var(--mut);margin-top:6px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(min-width:900px){.split3{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:660px){.split{grid-template-columns:1fr}.wrap{padding:16px 12px 60px}}
+.four{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px;margin:0 0 20px}
+.four div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.four .n{font-family:var(--mono);font-size:10px;color:var(--blue);font-weight:700;letter-spacing:.1em}
+.four .w{font-size:13px;font-weight:600;margin-top:1px}
+.four .d{font-size:11px;color:var(--mut)}
+.chk{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--sub);margin-bottom:5px;cursor:pointer}
+.chk input{width:auto;margin:3px 0 0;accent-color:var(--blue);cursor:pointer}
+.chk b{color:var(--gold);font-weight:700}
+</style>
+</head>
+<body>
+<div class="modal" id="modal">
+  <div class="modalcard">
+    <div class="head" id="modalTitle" style="margin-bottom:12px"></div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<!-- Settings and Data Management are icons now, not sections. Their contents live permanently in
+     the DOM inside these hidden containers rather than being built on open, so renderSettings()
+     and every binding set up at boot keep working against the same ids. -->
+<div class="modal" id="smodal">
+  <div class="modalcard wide">
+    <div class="row" style="align-items:center;margin-bottom:4px">
+      <div class="head" style="margin-bottom:0">Settings</div>
+      <button class="small" style="margin-left:auto" onclick="closeSettings()">Close</button>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">Accounts</div>
+      <div class="tabs" id="stabs" style="margin-bottom:10px"></div>
+      <div class="fields deskrow">
+        <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
+        <div id="marginCell"><label for="marginX">Margin</label>
+          <select id="marginX">
+            <option value="1">Cash &mdash; no margin</option>
+            <option value="2">Margin 2&times; (Reg T)</option>
+            <option value="4">Margin 4&times; (day trading)</option>
+            <option value="6">Margin 6&times;</option>
+          </select></div>
+      </div>
+      <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">Sizing and risk</div>
+      <div class="fields deskrow">
+        <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
+        <div><label for="t0">Tier A+ (R)</label><input id="t0" type="number" step="0.25" min="0.05"></div>
+        <div><label for="t1">Tier A (R)</label><input id="t1" type="number" step="0.25" min="0.05"></div>
+        <div><label for="t2">Tier B (R)</label><input id="t2" type="number" step="0.25" min="0.05"></div>
+        <div><label for="compound">Compound realized into AUM</label>
+          <select id="compound"><option value="1">Yes</option><option value="0">No</option></select></div>
+        <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
+        <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
+      </div>
+      <div class="muted" style="margin-top:8px" id="set_sizing_todo"></div>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">Statistics and definitions</div>
+      <div class="muted" id="set_stats_todo"></div>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">General and display</div>
+      <div class="muted" id="set_display_todo"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="dmodal">
+  <div class="modalcard wide">
+    <div class="row" style="align-items:center;margin-bottom:4px">
+      <div class="head" style="margin-bottom:0">Data Management</div>
+      <button class="small" style="margin-left:auto" onclick="closeData()">Close</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="small" id="exportBtn">Export to box</button>
+      <button class="small" id="copyBtn">Copy to clipboard</button>
+      <button class="small" id="downloadBtn">Download .json</button>
+      <button class="small" id="uploadBtn">Load .json file</button>
+      <input type="file" id="fileInput" accept="application/json,.json" style="display:none;width:auto">
+      <button class="small primary" id="importBtn">Import from box</button>
+      <button class="small danger" id="wipeBtn" style="margin-left:auto">Clear all data</button>
+    </div>
+    <div class="row" style="margin-top:14px;align-items:flex-end">
+      <div style="min-width:230px"><label for="fhkey">Live marks &mdash; Finnhub key</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
+      <button class="small" onclick="reimportV1()" title="Re-read the v1 book and replace this one">Re-import from v1</button>
+    </div>
+    <textarea id="io" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON."></textarea>
+    <div class="err" id="io_err"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<header class="topbar" id="topbar">
+  <!-- One row, not two. The masthead and the account strip were 47px and 28px of separate chrome
+       above a block that is pinned on every tab, and measuring it is what made that obvious. -->
+  <div class="mast" style="align-items:center;gap:12px">
+    <div class="logo"><span class="gold">R</span><span class="devbadge">2.0-dev</span></div>
+    <div class="tabs" id="tabs" style="margin-bottom:0"></div>
+    <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <span class="muted" id="deskSummary"></span>
+      <button class="icon" title="Settings" onclick="openSettings()">&#9881;</button>
+      <button class="icon" title="Data Management" onclick="openData()">&#9638;</button>
+    </span>
+    <div class="clock" id="clock" aria-live="off"></div>
+  </div>
+
+  <div class="fastcalc">
+    <!-- The answer sits on the input row rather than under it, which is another 55px of pinned
+         height that does not need to exist. -->
+    <div class="row" style="align-items:flex-end">
+      <div class="head" style="margin:0 4px 8px 0;align-self:center">Fast calc</div>
+      <div style="max-width:112px"><label for="fc_price">Price</label>
+        <input id="fc_price" type="number" step="any" placeholder="entry"></div>
+      <div style="max-width:112px"><label for="fc_stop">Stop</label>
+        <input id="fc_stop" type="number" step="any" placeholder="invalidation"></div>
+      <div><label>Tier</label><div id="fc_tiers"></div></div>
+      <button class="small" id="fc_clear" title="Clear">&#10005;</button>
+      <div id="fc_ans" style="margin-left:auto"></div>
+    </div>
+    <details id="fc_more" style="display:none"><summary>Per account</summary>
+      <div id="fc_detail"></div>
+      <div class="calsub" id="runitBox"></div>
+    </details>
+  </div>
+
+  <nav class="sectabs" id="sectabs" aria-label="Sections"></nav>
+</header>
+
+<div class="main">
+
+<div id="saveAlert"></div>
+
+<section class="tabpane" id="pane-portfolio">
+  <div id="bookBar"></div>
+  <div class="card">
+    <div class="panehead">
+      <h2>Portfolio</h2>
+      <span class="muted" id="openSummary"></span>
+      <span style="margin-left:auto;display:flex;gap:6px">
+        <span id="cashBtns"></span>
+        <button class="small" onclick="expandAll(true)">Expand all</button>
+        <button class="small" onclick="expandAll(false)">Collapse all</button>
+      </span>
+    </div>
+    <div class="scroll" id="openTrades"></div>
+    <div id="cashBox"></div>
+  </div>
+</section>
+
+<section class="tabpane" id="pane-new">
+  <div class="card">
+    <div class="panehead"><h2>New Trade</h2><span class="muted" id="newSummary"></span></div>
+  <!-- No Side field: the stop already says which way you are trading, exactly as it does in Fast
+       calc, and a direction you can set independently of your stop is a direction you can set
+       wrong. The inferred side is shown on the sizing answer below. -->
+  <div class="fields oneline">
+    <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
+    <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
+    <div><label for="nt_concept">Concept <span class="vbar">|</span> setup</label><input id="nt_concept" type="text" placeholder="mean reversion"></div>
+    <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
+    <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
+    <div><label for="nt_adr">ADR %</label><input id="nt_adr" type="number" step="0.1" placeholder="8.5"></div>
+    <div><label for="nt_qty">Shares (override)</label><input id="nt_qty" type="number" step="any" placeholder="auto"></div>
+  </div>
+
+  <div class="calbox" id="nt_calbox" style="display:none">
+    <div class="calans" id="nt_calans"></div>
+    <div class="calsub" id="nt_calsub"></div>
+    <div class="ladder" id="nt_ladder"></div>
+    <div class="ladder" id="nt_targets"></div>
+    <div class="calsub calrule" id="nt_vol"></div>
+  </div>
+
+  <div class="row" style="margin-top:13px;align-items:center">
+    <button class="primary" id="nt_open">Open trade</button>
+    <span class="muted" id="nt_gate"></span>
+    <button class="small" id="nt_clear" title="Clear the whole form" style="margin-left:auto">&#10005;</button>
+  </div>
+  <div class="err" id="nt_err"></div>
+  <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
+  <div id="nt_heat" style="display:none;color:var(--red);font-size:12.5px;margin-top:5px"></div>
+
+  <details id="nt_plan">
+    <summary>Plan &amp; hinges</summary>
+    <div class="split split3" style="margin-top:10px">
+      <div><label for="nt_cut_if">If Y happens &rarr; cut</label><input id="nt_cut_if" type="text"></div>
+      <div><label for="nt_wait_if">If Z happens &rarr; wait</label><input id="nt_wait_if" type="text"></div>
+      <div><label for="nt_exit">Exit plan</label><input id="nt_exit" type="text"></div>
+    </div>
+    <div style="margin-top:11px">
+      <div class="lbl">Pre-trade check</div>
+      <label class="chk"><input type="checkbox" id="nt_c0"><span>The stop sits where the idea is plainly <b>wrong</b>.</span></label>
+      <label class="chk"><input type="checkbox" id="nt_c1"><span>Not <b>Day One</b> on a parabolic mover.</span></label>
+      <label class="chk"><input type="checkbox" id="nt_c2"><span>The concept is <b>named</b>.</span></label>
+      <label class="chk"><input type="checkbox" id="nt_c3"><span>Exits and hinges are <b>defined before entry</b>.</span></label>
+    </div>
+  </details>
+  </div>
+</section>
+
+<section class="tabpane" id="pane-tally">
+  <div class="card">
+    <div class="panehead"><h2>Closed Trades</h2><span class="muted" id="closedSummary"></span></div>
+    <div class="statrow" id="stats" style="margin:12px 0"></div>
+    <div class="scroll"><table id="closedTbl"></table></div>
+  </div>
+</section>
+
+<section class="tabpane" id="pane-charts">
+  <div class="card">
+    <div class="panehead"><h2>Statistics</h2>
+      <span id="chartsAcct"></span><span class="muted" id="chartsSummary"></span></div>
+    <div id="chartsEmpty" class="muted">Close a few trades and the picture builds itself.</div>
+    <div id="chartsBox" style="display:none">
+      <div class="lbl" style="margin-top:14px">Statistics</div>
+      <div class="statrow" id="stats2" style="margin-bottom:12px"></div>
+      <div class="statrow" id="deepStats"></div>
+      <div class="split" style="margin-top:10px">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">By tier</div>
+          <div class="scroll"><table id="tierTbl"></table></div>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">By concept</div>
+          <div class="scroll"><table id="conceptTbl"></table></div>
+        </div>
+      </div>
+      <div class="lbl" style="margin-top:18px">Distribution &amp; normalised return</div>
+      <div class="split">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">R multiples &mdash; losses left, gains right</div>
+          <svg class="chart" id="histChart" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">Cumulative R over trades</div>
+          <svg class="chart" id="curveChart" viewBox="0 0 560 130"></svg>
+        </div>
+      </div>
+
+      <div class="lbl" style="margin-top:16px">Profit &amp; loss</div>
+      <div class="split">
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">P/L per trade, in order closed</div>
+          <svg class="chart" id="plBars" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">Cumulative P/L over trades</div>
+          <svg class="chart" id="plTrades" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">Cumulative P/L over time</div>
+          <svg class="chart" id="plTime" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric" style="padding:10px 12px">
+          <div class="k">P/L % of starting equity, over time</div>
+          <svg class="chart" id="plPct" viewBox="0 0 560 130"></svg>
+        </div>
+      </div>
+
+      <div class="lbl" style="margin-top:16px">Equity</div>
+      <div class="metric" style="padding:10px 12px">
+        <div class="k">Equity curve over time</div>
+        <svg class="chart" id="eqCurve" viewBox="0 0 560 130" style="height:150px"></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="tabpane" id="pane-audit">
+  <div class="card">
+    <div class="panehead"><h2>Audit</h2><span class="muted" id="auditSummary"></span></div>
+    <div class="scroll" id="ledger"></div>
+  </div>
+</section>
+
+</div><!-- /.main -->
+
+<p class="muted" style="text-align:center;margin-top:26px">
+  Not financial advice &mdash; a calculator.
+</p>
+<!-- Bump this on release. Separate from SCHEMA, which versions the saved data and only moves when
+     the shape of a stored book changes. -->
+<p class="muted" style="text-align:center;margin-top:4px">
+  version <span class="vbar">|</span> 2.0-dev
+</p>
+
+</div>
+
+<script>
+"use strict";
+
+/* ========================= state ========================= */
+const TIERS = ["A+","A","B"];
+
+// Why a loss happened. Three causes that call for three different responses: nothing, a wider stop,
+// or a word with yourself. A tag no longer on this list still shows on its trade, marked retired.
+// Three win rates, each stricter than the last. No loss rate — the question is only ever how often
+// a trade actually won.
+//
+//   raw         rm > 0                        anything above zero
+//   ex-scratch  rm > +0.10R, scratches out    of the trades that went somewhere, how many won
+//   decisive    rm >= +1R                     how many paid for a full loss
+//
+// The scratch band is deliberately wider on the positive side: it discards slightly more marginal
+// wins than marginal losses, so dropping scratches can never flatter the number. It also absorbs a
+// bad fill on a breakeven stop, which is a scratch in every sense but the sign.
+const SCRATCH_LO = -0.05, SCRATCH_HI = 0.10, WIN_R = 1;
+const VBAR = '<span class="vbar">|</span>';
+const isScratch = rm => rm >= SCRATCH_LO && rm <= SCRATCH_HI;
+
+const LOSS_TAGS = [
+  { v:"invalidation", t:"Thesis broken — the stop did its job" },
+  { v:"noise",        t:"Stopped by noise — it worked after I was out" },
+  { v:"violation",    t:"Rule violation — I broke my own process" }
+];
+// SCHEMA is stamped onto every saved book. Until now migrations were inferred from absent fields,
+// which works exactly until two of them need ordering. LEGACY_KEYS are read once if the current key
+// is empty and are then left untouched, so a bad migration can never be the thing that loses a book.
+// Set by renderBook, read by New Trade: the heat cap is a book-level fact that matters most at the
+// moment you are about to add to the book.
+let overHeat = null;
+// v2 writes to its own key. Same origin as v1.3, so sharing one would be fatal in both directions:
+// v1's normalize() does not know the v2 fields and would drop them and save over the book. The
+// legacy list is read exactly once, when KEY is empty, and never written -- so the v1 book stays
+// where it is as a permanent fallback and v1.3 keeps working untouched.
+const KEY = "rcalc.v2";
+const LEGACY_KEYS = ["rcalc.v1", "cal.v1"];
+const SCHEMA = 1;
+let root = null, state = null;
+
+function defaults(){
+  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
+                      marginX:1,
+                      heatCap:5, coldR:3 }, trades:[] };
+}
+// The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
+// each account; only these are shared.
+const GROUP_KEYS = ["rPct","tiers","compound","heatCap","coldR"];
+function groupDefaults(){
+  const d = defaults().settings, g = {};
+  GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
+  return { settings:g, members:[] };
+}
+function newRoot(){
+  return { v:SCHEMA, active:"Trading", focus:null, order:["Trading"],
+           portfolios:{ Trading:defaults() }, groups:{} };
+}
+
+/* ---- accounts, groups, and which of them is in view ---- */
+const isGroup   = n => !!(root.groups && root.groups[n]);
+const isAccount = n => !!(root.portfolios && root.portfolios[n]);
+const groupMembers = g => (root.groups[g] && Array.isArray(root.groups[g].members))
+  ? root.groups[g].members.filter(m=>root.portfolios[m]) : [];
+function groupOf(acct){
+  for(const g in (root.groups||{})) if(groupMembers(g).indexOf(acct)>=0) return g;
+  return null;
+}
+// A member reads its ruleset from the group and its equity from itself. An ungrouped account
+// answers entirely for itself.
+function settingsFor(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return defaults().settings;
+  const g = groupOf(acct);
+  if(!g) return pf.settings;
+  const merged = Object.assign({}, pf.settings);
+  GROUP_KEYS.forEach(k=>{ merged[k] = root.groups[g].settings[k]; });
+  return merged;
+}
+// Buying power. marginX is 1 for a cash account, 2 for Reg T, 4 for day-trading margin. Nothing
+// here is a broker calculation — no maintenance requirements, no per-security haircuts — it is a
+// ceiling so R-sizing cannot quietly hand you a position you could not pay for.
+const marginXOf = acct => {
+  const pf = root.portfolios[acct];
+  const x = pf ? pf.settings.marginX : 1;
+  return (x>0) ? x : 1;
+};
+const buyingPower = acct => {
+  const pf = root.portfolios[acct];
+  return pf ? pf.settings.aum * marginXOf(acct) : 0;
+};
+// What open positions are currently standing on, marked to the last price.
+function bpUsed(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return 0;
+  return pf.trades.filter(t=>t.status==="open")
+    .reduce((a,t)=>{ const d = derive(t); return a + Math.abs(t.last*d.Q); }, 0);
+}
+const bpFree = acct => Math.max(0, buyingPower(acct) - bpUsed(acct));
+
+const rUnitOf = acct => {
+  const pf = root.portfolios[acct];
+  return pf ? pf.settings.aum * settingsFor(acct).rPct/100 : 0;
+};
+// "group" = a group tab with no member drilled into. Everything else behaves as a single account.
+const inGroup = () => isGroup(root.active) && !root.focus;
+const acctInView = () => root.focus || (isGroup(root.active) ? (groupMembers(root.active)[0]||null) : root.active);
+const scope = () => inGroup() ? groupMembers(root.active) : [acctInView()].filter(Boolean);
+// Trades across whatever is in view, each carried with the account it belongs to.
+function scopeTrades(status){
+  const out = [];
+  scope().forEach(a=>(root.portfolios[a].trades||[]).forEach(t=>{
+    if(!status || t.status===status) out.push({acct:a, t});
+  }));
+  return out;
+}
+// Group trades are N linked records sharing a gid. In account mode each trade stands alone.
+function groupLegs(gid, status){
+  return scopeTrades(status).filter(x=>x.t.gid===gid);
+}
+function load(){
+  try{
+    let raw = localStorage.getItem(KEY);
+    // One-time read-across from the old key. The old entry is left exactly as it is, so if anything
+    // here is wrong the original book is still sitting in the browser untouched.
+    if(raw==null) for(const k of LEGACY_KEYS){
+      raw = localStorage.getItem(k);
+      if(raw!=null){ migratedFrom = k; break; }
+    }
+    const p = raw ? JSON.parse(raw) : null;
+    if(!p) root = newRoot();
+    else if(p.portfolios && p.active) root = p;
+    else if(p.settings && p.trades) root = { active:"Trading", order:["Trading"], portfolios:{ Trading:p } };
+    else root = newRoot();
+  }catch(e){ root = newRoot(); }
+  migrateNames();
+  normalize();
+}
+
+// Books created before the single-"Trading" default: fold the old lowercase pair back in, but only
+// where nothing can be lost — an empty "main" is dropped, a populated one is left exactly alone.
+function migrateNames(){
+  if(!root || !root.portfolios) return;
+  const p = root.portfolios;
+  if(p.main && !p.main.trades.length && Object.keys(p).length>1){
+    delete p.main;
+    if(Array.isArray(root.order)) root.order = root.order.filter(n=>n!=="main");
+    if(root.active==="main") root.active = Object.keys(p)[0];
+  }
+  if(p.trading && !p.Trading){
+    p.Trading = p.trading; delete p.trading;
+    if(Array.isArray(root.order)) root.order = root.order.map(n=>n==="trading"?"Trading":n);
+    if(root.active==="trading") root.active = "Trading";
+  }
+}
+function normalize(){
+  if(root.v == null) root.v = SCHEMA;                 // stamp anything that predates versioning
+  if(!root.portfolios || !Object.keys(root.portfolios).length) root.portfolios = newRoot().portfolios;
+  if(!Array.isArray(root.order)) root.order = Object.keys(root.portfolios);
+  Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
+  root.order = root.order.filter(n=>root.portfolios[n]);
+  const d = defaults().settings;
+  Object.values(root.portfolios).forEach(pf=>{
+    if(!pf.settings) pf.settings = defaults().settings;
+    Object.keys(d).forEach(k=>{ if(pf.settings[k]==null) pf.settings[k] = d[k]; });
+    if(!Array.isArray(pf.settings.tiers) || pf.settings.tiers.length!==3) pf.settings.tiers = [1,0.5,0.25];
+    // Sections are tabs now, one visible at a time, so there is nothing to collapse. Any `collapsed`
+    // or `closedCollapsed` map in an imported v1 book is left in place and simply never read.
+    if(!Array.isArray(pf.trades)) pf.trades = [];
+    pf.trades.forEach(t=>{
+      if(!t.lastMarkTs) t.lastMarkTs = t.createdAt || Date.now();
+      if(!t.plan) t.plan = {};
+      if(!Array.isArray(t.checks)) t.checks = [false,false,false,false];
+      // Backfill for trades opened before these were recorded.
+      if(t.aumAtOpen==null && t.rUnit>0 && pf.settings.rPct>0) t.aumAtOpen = t.rUnit*100/pf.settings.rPct;
+      // Only the live ADR was ever stored, so that is the best available stand-in. Exact for any
+      // trade whose ADR was never edited, which is most of them.
+      if(t.adrAtOpen==null && t.adr>0) t.adrAtOpen = t.adr;
+      // A closed trade had its whole realised total folded in by the old close-only rule. An open
+      // one had nothing folded in, so it starts at zero and the next realising event catches up
+      // any trims taken before this version — which is the correction, not a side effect of it.
+      if(t.compounded == null) t.compounded =
+        (t.status==="closed" && Array.isArray(t.events)) ? derive(t).realized : 0;
+    });
+    if(!Array.isArray(pf.cashFlows)) pf.cashFlows = [];   // additive; no migration needed
+  });
+  // groups
+  if(root.finnhub==null){
+    const withKey = Object.values(root.portfolios).find(p=>p.settings && p.settings.finnhub);
+    root.finnhub = withKey ? withKey.settings.finnhub : "";
+  }
+  if(!root.groups || typeof root.groups !== "object") root.groups = {};
+  const gd = groupDefaults().settings;
+  Object.keys(root.groups).forEach(g=>{
+    const G = root.groups[g];
+    if(!G.settings) G.settings = groupDefaults().settings;
+    Object.keys(gd).forEach(k=>{ if(G.settings[k]==null) G.settings[k] = gd[k]; });
+    if(!Array.isArray(G.settings.tiers) || G.settings.tiers.length!==3) G.settings.tiers = [1,0.5,0.25];
+    // Drop members that no longer exist, and never let an account sit in two groups.
+    if(!Array.isArray(G.members)) G.members = [];
+    G.members = G.members.filter((m,i)=>root.portfolios[m] && G.members.indexOf(m)===i);
+  });
+  const claimed = {};
+  Object.keys(root.groups).forEach(g=>{
+    root.groups[g].members = root.groups[g].members.filter(m=>{
+      if(claimed[m]) return false;
+      claimed[m] = g; return true;
+    });
+  });
+  Object.keys(root.groups).forEach(g=>{ if(root.order.indexOf(g)<0) root.order.push(g); });
+  root.order = root.order.filter(n=>isAccount(n) || isGroup(n));
+
+  if(!isAccount(root.active) && !isGroup(root.active)) { root.active = root.order[0]; root.focus = null; }
+  // A drilled-in member has to still belong to the active group.
+  if(root.focus && !(isGroup(root.active) && groupMembers(root.active).indexOf(root.focus)>=0)) root.focus = null;
+  state = root.portfolios[acctInView()] || root.portfolios[root.order.find(isAccount)] || defaults();
+}
+// A save that fails silently is the worst outcome in the app: everything on screen stays correct
+// while nothing survives a reload, and you find out at the next page load. So failure is loud and
+// stays on screen until a save succeeds.
+let saveBroken = null, migratedFrom = null;
+function save(){
+  try{
+    localStorage.setItem(KEY, JSON.stringify(root));
+    if(saveBroken){ saveBroken = null; renderSaveAlert(); }
+    return true;
+  }catch(e){
+    saveBroken = (e && e.name) || "error";
+    renderSaveAlert();
+    return false;
+  }
+}
+function renderSaveAlert(){
+  const el = $("saveAlert");
+  if(!el) return;
+  el.innerHTML = saveBroken
+    ? '<div class="banner red">Your last change was <b>not saved</b> &mdash; browser storage is full or blocked ('+
+      esc(saveBroken)+'). Everything on screen is correct, but none of it will survive a reload. ' +
+      'Back it up now, then free space or use a different browser. ' +
+      '<button class="small" style="margin-left:8px" onclick="rescueBook()">Export my book</button></div>'
+    : (migratedFrom
+      ? '<div class="banner amber">Your book was moved from the old storage key <b>'+esc(migratedFrom)+
+        '</b> to <b>'+esc(KEY)+'</b>. Everything came across, and the old copy has been left exactly where ' +
+        'it was as a fallback. Check your accounts and trades look right, then dismiss this. ' +
+        '<button class="small" style="margin-left:8px" onclick="dismissMigration()">Looks right</button></div>'
+      : "");
+}
+window.dismissMigration = () => { migratedFrom = null; renderSaveAlert(); };
+// Deliberately does not touch localStorage: this runs precisely when localStorage is refusing.
+window.rescueBook = () => {
+  $("io").value = JSON.stringify(root,null,1);
+  openData();
+  $("io").select();
+  $("io_err").className = "okmsg";
+  $("io_err").textContent = "Your whole book is here. Copy it out and save it to a file before you reload this page.";
+};
+
+/* ========================= format ========================= */
+// Three scales, because one rule cannot serve all three.
+//
+//   fmtE  equity and buying power — whole dollars. Cents on a six-figure balance are noise, and
+//         they cost a column's worth of width on every row that carries one.
+//   fmt$  every other aggregate: risk, cost, value, P/L, an R in dollars. Always cents, never more.
+//   fmtP  anything priced per share — a quote, a stop, risk per share, a daily range. Up to four
+//         decimals, because a name quoting 1.1155 against a 1.1125 stop keeps its entire edge in
+//         the third and fourth, and 2dp would round risk-per-share to $0.00.
+//
+// maximumFractionDigits absorbs float noise on its own: 9.350000000000001 prints as 9.35.
+const MONEY = {minimumFractionDigits:2, maximumFractionDigits:4};
+const fmtE = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
+const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
+const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefined, MONEY);
+const cls  = v => v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : "");
+const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const $ = id => document.getElementById(id);
+// A name going into an inline handler is JS source inside an HTML attribute, so it needs escaping
+// twice, in that order. esc() alone is not enough and is in fact the trap: it turns an apostrophe
+// into &#39;, the parser turns that back into an apostrophe before JS ever sees the attribute, and
+// the handler is a syntax error. Escaping for JS first survives that round trip.
+const jsq = s => esc(String(s==null?"":s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
+
+/* ========================= core math ========================= */
+// 1R in dollars, right now, from live AUM.
+function rUnitNow(){ return rUnitOf(acctInView()); }
+
+// Replay the event log into a position. Everything downstream reads from here.
+function derive(t){
+  let Q=0, avg=0, realized=0, stop=null, mult=t.mult;
+  const series=[];
+  for(const e of t.events){
+    if(e.type==="budget") mult = e.mult;
+    else if(e.type==="entry" || e.type==="add"){
+      avg = (Q+e.qty)>0 ? (avg*Q + e.price*e.qty)/(Q+e.qty) : e.price;
+      Q += e.qty;
+      if(e.stop!=null) stop = e.stop;
+    } else if(e.type==="trim" || e.type==="close"){
+      const q = Math.min(e.qty, Q);
+      realized += t.side*(e.price-avg)*q;
+      Q -= q;
+    } else if(e.type==="stop") stop = e.stop;
+    else if(e.type==="adjust"){
+      if(e.qty!=null) Q = e.qty;
+      if(e.price!=null) avg = e.price;
+      if(e.stop!=null) stop = e.stop;
+    }
+    const mark = e.price!=null ? e.price : (series.length ? series[series.length-1].mark : avg);
+    series.push({ label:e.type, mark, val:(realized + t.side*(mark-avg)*Q)/t.rUnit });
+  }
+  return {Q, avg, realized, stop, series, mult};
+}
+
+// What a stop-out costs from here, on the open shares.
+function riskAtStop(t,d){ return (d.stop==null || d.Q<=0) ? 0 : t.side*(d.avg-d.stop)*d.Q; }
+
+// Realised P/L reaches equity as it is realised, not only at the close. Each trade remembers how
+// much of its own realised total has already been folded in, so a trim, a close, an undo and an
+// override all move equity by the difference and none of them can count the same money twice.
+function syncCompound(t, acct){
+  acct = acct || acctOf(t.id);
+  const pf = root.portfolios[acct];
+  if(!pf || !settingsFor(acct).compound) return 0;
+  const now = derive(t).realized;
+  const delta = now - (t.compounded || 0);
+  if(!delta) return 0;
+  pf.settings.aum = Math.round((pf.settings.aum + delta)*100)/100;
+  t.compounded = now;
+  return delta;
+}
+
+// The stop that makes the whole sequence net zero.
+function beStop(t,d){ return d.Q>0 ? d.avg - t.side*d.realized/d.Q : null; }
+
+// Per-trade analytics, all derived — nothing here is stored except hi/lo and the dates.
+function stats(t){
+  const d = derive(t);
+  const e0 = t.events.find(e=>e.type==="entry");
+  const entryPx = e0 ? e0.price : d.avg;
+  const riskPS = (e0 && e0.stop!=null) ? t.side*(e0.price-e0.stop) : null;   // 1R per share, at entry
+  const openTs = t.events.length ? t.events[0].ts : t.createdAt;
+  const endTs = t.status==="closed" ? (t.closedAt || t.events[t.events.length-1].ts) : Date.now();
+
+  // A same-day round trip is one day held, not zero — otherwise R/day divides by nothing.
+  const days = Math.max(1, daysBetween(openTs, endTs));
+  const rm = d.realized / t.rUnit;
+  const rPerDay = rm / days;
+
+  const aum0 = t.aumAtOpen || (state.settings.rPct>0 ? t.rUnit*100/state.settings.rPct : null);
+  // Capital actually put to work: every entry and add. The denominator for return on the position
+  // itself, as opposed to return on the account.
+  let deployed = 0;
+  t.events.forEach(e=>{ if(e.type==="entry"||e.type==="add") deployed += e.qty*e.price; });
+  const posPct = deployed>0 ? d.realized/deployed*100 : null;
+  const roe = aum0 ? d.realized/aum0*100 : null;                    // return on equity at open, %
+
+  // MAE / MFE in R-multiples of the per-share risk taken at entry — size-independent, so trades of
+  // different sizes compare directly.
+  // Internal R: realised over what the position was built to lose. Independent of tier, so two
+  // trades taken at different sizes compare as ideas. rm stays the account multiple, and that is
+  // the one every statistic and chart is computed from.
+  const initialRisk = (riskPS>0 && e0) ? riskPS*e0.qty : null;
+  const rmInt = initialRisk ? d.realized/initialRisk : null;
+  return {d, rm, rmInt, initialRisk, days, rPerDay, aum0, roe, deployed, posPct, riskPS, entryPx, openTs, endTs};
+}
+
+// Informational only: the app never acts on these, and nothing is pre-placed.
+const TARGETS = [1,2];
+// Targets are INTERNAL to the trade: multiples of the risk per share accepted at entry. A $10 entry
+// stopped at $9.75 targets $10.25 and $10.50 whatever the size, and those prices never move -- not
+// when the position is trimmed, not when the stop is raised. The price at which an idea has paid
+// twice its own risk is a fact about the idea. What that is worth to the account is the tier
+// multiple's job, and that is the R the statistics use.
+function ladder(side, entryPx, riskPS, last, mults){
+  if(!(riskPS>0)) return [];
+  return mults.map(k=>{
+    const price = entryPx + side*k*riskPS;
+    return {k, price, hit: last!=null && side*(last-price) >= 0};
+  });
+}
+
+function ladderHtml(rungs){
+  return rungs.map(r=>'<span class="rung'+(r.hit?" hit":"")+'">+'+r.k+'R <b>'+fmtP(r.price)+'</b></span>').join("");
+}
+
+// The pre-trade volatility audit: how many normal days sit between entry and the stop.
+function adrAudit(price, adrPct, stopDist){
+  if(!(adrPct>0) || !(stopDist>0)) return null;
+  const adrD = price*adrPct/100;
+  const adrs = stopDist/adrD;
+  return { adrD, adrs, pctOfGap: adrD/stopDist*100,
+           color: adrs<1 ? "var(--red)" : (adrs<1.5 ? "var(--amber)" : "var(--green)") };
+}
+
+/* ========================= tiny SVG charts ========================= */
+// R-multiple histogram. One bar per whole-R bucket from `from` to `to`, but the axis carries at most
+// five ticks — the extremes, zero, and two evenly spaced through the winning side — so a wide range
+// stays readable instead of crowding into unreadable range labels.
+function svgRHist(counts, from, to){
+  const W=560,H=130, padL=26, padB=22, padT=12;
+  const max = Math.max(1, ...counts);
+  const n = counts.length, bw = (W-padL-8)/n;
+  const xOf = v => padL + (v-from)*bw;                       // left edge of the bucket starting at v
+  let out = '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-4)+'" y2="'+(H-padB)+'" stroke="#2c3646"/>';
+
+  counts.forEach((c,i)=>{
+    const h = (H-padB-padT) * c/max;
+    const x = padL + i*bw + bw*0.16, w = bw*0.68, y = H-padB-h;
+    const neg = (from+i) < 0;
+    if(c>0){
+      out += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
+             '" rx="3" fill="'+(neg?"#f4655f":"#2fd583")+'"><title>'+(from+i)+"R to "+(from+i+1)+"R: "+c+" trade(s)</title></rect>";
+      out += '<text x="'+(x+w/2).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="#9aa6b8" font-size="9" text-anchor="middle" font-family="monospace">'+c+'</text>';
+    }
+  });
+
+  // Ticks: worst R, zero, two spread across the winning side, best R. Deduped and kept in order.
+  const ticks = [...new Set([from, 0, Math.round(to/3), Math.round(2*to/3), to])]
+    .filter(v=>v>=from && v<=to).sort((a,b)=>a-b);
+  ticks.forEach(v=>{
+    const x = xOf(v);
+    out += '<line x1="'+x.toFixed(1)+'" y1="'+(H-padB)+'" x2="'+x.toFixed(1)+'" y2="'+(H-padB+4)+'" stroke="#2c3646"/>';
+    out += '<text x="'+x.toFixed(1)+'" y="'+(H-6)+'" fill="#697588" font-size="9.5" text-anchor="middle" font-family="monospace">'+
+           (v>0?"+":"")+v+'R</text>';
+  });
+  out += '<text x="3" y="'+(padT+6)+'" fill="#697588" font-size="9" font-family="monospace">'+max+'</text>';
+  return out;
+}
+
+function svgBars(counts, labels, colors){
+  const W=560,H=120, padL=26, padB=20, padT=8;
+  const max = Math.max(1, ...counts);
+  const n = counts.length, bw = (W-padL-8)/n;
+  let out = '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-4)+'" y2="'+(H-padB)+'" stroke="#2c3646"/>';
+  counts.forEach((c,i)=>{
+    const h = (H-padB-padT) * c/max;
+    const x = padL + i*bw + bw*0.16, w = bw*0.68, y = H-padB-h;
+    if(c>0) out += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="3" fill="'+colors[i]+'"/>';
+    out += '<text x="'+(x+w/2).toFixed(1)+'" y="'+(H-6)+'" fill="#697588" font-size="9" text-anchor="middle" font-family="monospace">'+labels[i]+'</text>';
+    if(c>0) out += '<text x="'+(x+w/2).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="#9aa6b8" font-size="9" text-anchor="middle" font-family="monospace">'+c+'</text>';
+  });
+  out += '<text x="4" y="'+(padT+8)+'" fill="#697588" font-size="9" font-family="monospace">'+max+'</text>';
+  return out;
+}
+// Bars that hang below the axis when negative — for per-trade P/L, where the sign is the point.
+function svgSignedBars(values, labels, fmt){
+  const W=560,H=130, padL=46, padB=18, padT=10;
+  if(!values.length) return "";
+  const hi = Math.max(0, ...values), lo = Math.min(0, ...values);
+  const span = (hi-lo) || 1;
+  const y = v => padT + (H-padT-padB) * (1-(v-lo)/span);
+  const zero = y(0);
+  const bw = (W-padL-8)/values.length;
+  let out = '<line x1="'+padL+'" y1="'+zero.toFixed(1)+'" x2="'+(W-4)+'" y2="'+zero.toFixed(1)+'" stroke="#2c3646"/>';
+  values.forEach((v,i)=>{
+    const x = padL + i*bw + bw*0.18, w = Math.max(1.5, bw*0.64);
+    const top = v>=0 ? y(v) : zero, h = Math.max(1, Math.abs(y(v)-zero));
+    out += '<rect x="'+x.toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
+           '" rx="2" fill="'+(v>=0?"#2fd583":"#f4655f")+'"><title>'+esc(labels[i]||"")+" "+esc(fmt(v))+'</title></rect>';
+  });
+  out += '<text x="3" y="'+(padT+8)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi))+'</text>';
+  out += '<text x="3" y="'+(H-padB+4)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo))+'</text>';
+  return out;
+}
+
+// Line plotted against a real numeric x (timestamps), so gaps between trades show as gaps.
+function svgTimeLine(points, fmt, opts){
+  opts = opts || {};
+  const W=560,H=130, padL=52, padB=18, padT=10;
+  if(!points.length) return "";
+  const pts = points.length===1 ? [{x:points[0].x-864e5, y:0}, points[0]] : points;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  // Equity never crosses zero, so anchoring its axis there flattens the whole curve into a line.
+  // P/L and P/L% do cross, and there zero is the reference the eye needs.
+  let lo = opts.zeroBase===false ? Math.min(...ys) : Math.min(0, ...ys);
+  let hi = opts.zeroBase===false ? Math.max(...ys) : Math.max(0, ...ys);
+  if(hi-lo < 1e-9) hi = lo + Math.max(1, Math.abs(lo)*0.01);
+  const pad = (hi-lo)*0.12; lo -= pad; hi += pad;
+  const X = v => padL + (W-padL-8) * (x1===x0 ? 1 : (v-x0)/(x1-x0));
+  const Y = v => padT + (H-padT-padB) * (1-(v-lo)/(hi-lo));
+  // Fill down to zero where zero is on the chart, otherwise to the floor of the range.
+  const zero = Y(opts.zeroBase===false ? lo : 0);
+  let out = opts.zeroBase===false ? ""
+    : '<line x1="'+padL+'" y1="'+zero.toFixed(1)+'" x2="'+(W-4)+'" y2="'+zero.toFixed(1)+'" stroke="#2c3646" stroke-dasharray="3 3"/>';
+  const d = pts.map((p,i)=>(i?"L":"M")+X(p.x).toFixed(1)+" "+Y(p.y).toFixed(1)).join(" ");
+  out += '<path d="'+d+' L'+X(pts[pts.length-1].x).toFixed(1)+" "+zero.toFixed(1)+" L"+X(pts[0].x).toFixed(1)+" "+zero.toFixed(1)+
+         ' Z" fill="rgba(176,141,63,.16)"/>';
+  out += '<path d="'+d+'" fill="none" stroke="#b08d3f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  pts.forEach(p=>{ out += '<circle cx="'+X(p.x).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="2.4" fill="'+(p.y<0?"#f4655f":"#b08d3f")+'"><title>'+
+    new Date(p.x).toLocaleDateString()+" "+esc(fmt(p.y))+'</title></circle>'; });
+  out += '<text x="3" y="'+(Y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi-pad))+'</text>';
+  out += '<text x="3" y="'+(Y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo+pad))+'</text>';
+  out += '<text x="'+padL+'" y="'+(H-3)+'" fill="#697588" font-size="8.5" font-family="monospace">'+new Date(x0).toLocaleDateString()+'</text>';
+  out += '<text x="'+(W-6)+'" y="'+(H-3)+'" fill="#697588" font-size="8.5" text-anchor="end" font-family="monospace">'+new Date(x1).toLocaleDateString()+'</text>';
+  return out;
+}
+
+function svgLine(values, opts){
+  opts = opts || {};
+  const W=560,H=120, padL=34, padB=16, padT=10;
+  if(!values.length) return '';
+  const pts = values.slice();
+  if(pts.length===1) pts.unshift(0);
+  let lo = Math.min(0, ...pts), hi = Math.max(0, ...pts);
+  if(hi-lo < 1e-9){ hi = lo+1; }
+  const pad = (hi-lo)*0.12; lo -= pad; hi += pad;
+  const x = i => padL + (W-padL-8) * (pts.length===1?0:i/(pts.length-1));
+  const y = v => padT + (H-padT-padB) * (1 - (v-lo)/(hi-lo));
+  const zeroY = y(0);
+  let out = '<line x1="'+padL+'" y1="'+zeroY.toFixed(1)+'" x2="'+(W-4)+'" y2="'+zeroY.toFixed(1)+'" stroke="#2c3646" stroke-dasharray="3 3"/>';
+  const d = pts.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(v).toFixed(1)).join(" ");
+  const area = d + " L"+x(pts.length-1).toFixed(1)+" "+zeroY.toFixed(1)+" L"+x(0).toFixed(1)+" "+zeroY.toFixed(1)+" Z";
+  out += '<path d="'+area+'" fill="rgba(77,159,255,.14)"/>';
+  out += '<path d="'+d+'" fill="none" stroke="#4d9fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+  pts.forEach((v,i)=>{ out += '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2.6" fill="'+(v<0?"#f4655f":"#4d9fff")+'"/>'; });
+  out += '<text x="3" y="'+(y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+(hi-pad).toFixed(1)+'R</text>';
+  out += '<text x="3" y="'+(y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+(lo+pad).toFixed(1)+'R</text>';
+  if(opts.labels){
+    opts.labels.forEach((l,i)=>{ if(i%Math.ceil(pts.length/7)===0)
+      out += '<text x="'+x(i).toFixed(1)+'" y="'+(H-3)+'" fill="#697588" font-size="8" text-anchor="middle" font-family="monospace">'+esc(l)+'</text>'; });
+  }
+  return out;
+}
+
+/* ========================= portfolios ========================= */
+// Tab strip. Accounts are plain pills; a group carries a leading dot, and the active group opens
+// out into a bordered box holding its own pill plus one per member.
+function renderTabs(){
+  const q = n => JSON.stringify(n).replace(/"/g,"&quot;");
+  const pill = (n,on,extra) => '<button class="small'+(on?" primary":"")+'"'+(extra||"")+
+    ' onclick="switchTab('+q(n)+')">'+esc(n)+'</button>';
+
+  const html = root.order.map(n=>{
+    if(!isGroup(n)) return groupOf(n) ? "" : pill(n, root.active===n && !root.focus);
+    const members = groupMembers(n);
+    const head = '<button class="small'+(root.active===n && !root.focus ? " primary":"")+'" onclick="switchTab('+q(n)+')">' +
+                 '<span class="gdot">&#9679;</span>'+esc(n)+'</button>';
+    if(root.active!==n) return head;                      // shut: just the group pill
+    return '<span class="gbox">' + head +
+      (members.length
+        ? members.map(m=>'<button class="small'+(root.focus===m?" primary":"")+
+            '" title="Work in '+esc(m)+' alone" onclick="focusMember('+q(m)+')">'+esc(m)+'</button>').join("")
+        : '<span class="muted" style="align-self:center;padding:0 6px">no accounts yet</span>') +
+      '</span>';
+  }).join("");
+
+  $("tabs").innerHTML = html +
+    '<span class="tabsep" aria-hidden="true"></span>' +
+    '<button class="small" title="New account" onclick="addPortfolio()">+</button>' +
+    '<button class="small" title="New group" onclick="addGroup()">+ group</button>' +
+    (isGroup(root.active) ? '<button class="small" title="Choose which accounts belong to this group" onclick="editGroupMembers()">Members</button>' : '') +
+    (root.order.length>1 ? '<button class="small danger" title="Delete whatever tab is selected" onclick="removeTab()">&#10005;</button>' : '') +
+    '<span class="muted" style="margin-left:auto">'+
+      (inGroup() ? "one ruleset, each account on its own equity" : "separate books, separate R units")+'</span>';
+}
+
+window.switchTab = n => {
+  if(!isAccount(n) && !isGroup(n)) return;
+  root.active = n; root.focus = null;
+  state = root.portfolios[acctInView()] || state;
+  save(); render();
+};
+window.focusMember = m => {
+  root.focus = (root.focus===m) ? null : m;   // click the member again to go back to the whole group
+  state = root.portfolios[acctInView()] || state;
+  save(); render();
+};
+
+window.addGroup = () => {
+  const n = (prompt("Name for the new group:")||"").trim();
+  if(!n) return;
+  if(isGroup(n) || isAccount(n)){ alert("\""+n+"\" is already taken by an account or group."); return; }
+  const g = groupDefaults();
+  // Seed the ruleset from whatever is in view, so a group starts where you already were.
+  const seed = settingsFor(acctInView());
+  if(seed) GROUP_KEYS.forEach(k=>{ g.settings[k] = Array.isArray(seed[k]) ? seed[k].slice() : seed[k]; });
+  root.groups[n] = g; root.order.push(n); root.active = n; root.focus = null;
+  save(); render();
+  editGroupMembers();
+};
+
+
+/* ---- membership dialog ---- */
+// Edits are held as a draft across every group, so switching groups in the picker keeps what you
+// have already ticked. Nothing touches stored data until Save, and Save applies the whole draft.
+let mDraft = null, mCur = null;
+function captureDraft(){
+  if(!mDraft || !mCur) return;
+  const boxes = [...document.querySelectorAll("#modalBody input[data-acct]")];
+  if(!boxes.length) return;
+  mDraft[mCur] = boxes.filter(c=>c.checked).map(c=>c.getAttribute("data-acct"));
+}
+const draftOwner = a => Object.keys(mDraft).find(g=>mDraft[g].indexOf(a)>=0) || null;
+
+window.editGroupMembers = (g) => {
+  const groups = root.order.filter(isGroup);
+  if(!groups.length) return;
+  const accounts = root.order.filter(isAccount);
+  if(!accounts.length){ alert("Create some accounts first — a group is a ruleset laid over accounts you already have."); return; }
+
+  if(!mDraft){ mDraft = {}; groups.forEach(x=>{ mDraft[x] = groupMembers(x).slice(); }); }
+  else captureDraft();
+
+  g = g || (isGroup(root.active) ? root.active : groups[0]);
+  if(!mDraft[g]) mDraft[g] = groupMembers(g).slice();
+  mCur = g;
+
+  const rows = accounts.map(a=>{
+    const owner = draftOwner(a);
+    const mine = owner===g, taken = owner && !mine;
+    return '<label class="chk" style="'+(taken?"opacity:.5;cursor:not-allowed":"")+'">' +
+      '<input type="checkbox" data-acct="'+esc(a)+'"'+(mine?" checked":"")+(taken?" disabled":"")+'>' +
+      '<span><b>'+esc(a)+'</b> <span class="muted">'+fmtE(root.portfolios[a].settings.aum)+
+      " &middot; "+root.portfolios[a].trades.filter(t=>t.status==="open").length+" open</span>" +
+      (taken?' <span style="color:var(--amber)">already in '+esc(owner)+'</span>':"") + '</span></label>';
+  }).join("");
+
+  const dirty = groups.some(x=>{
+    const a = (mDraft[x]||[]).slice().sort().join(","), b = groupMembers(x).slice().sort().join(",");
+    return a!==b;
+  });
+
+  $("modalBody").innerHTML =
+    (groups.length>1
+      ? '<div style="margin-bottom:12px"><div class="lbl">Group</div>' +
+        '<select id="mdlGroup" style="max-width:260px" onchange="editGroupMembers(this.value)">' +
+        groups.map(x=>'<option value="'+esc(x)+'"'+(x===g?" selected":"")+'>'+esc(x)+
+          ((mDraft[x]||[]).slice().sort().join(",")!==groupMembers(x).slice().sort().join(",") ? " — edited" : "")+'</option>').join("") +
+        '</select></div>'
+      : '<div class="lbl">Group</div><div style="margin-bottom:12px;font-weight:600">'+esc(g)+'</div>') +
+    '<div class="lbl">Accounts</div>' + rows +
+    '<div class="muted" style="margin-top:8px">An account belongs to one group at a time. Removing one hands it a copy of the group’s ruleset, so its open trades keep sizing against the numbers they were opened under.</div>' +
+    (groups.length>1 ? '<div class="muted" style="margin-top:6px">Changes are held across every group &mdash; switch groups freely and save once.</div>' : "") +
+    '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
+      '<button class="small" onclick="closeModal()">Cancel</button>' +
+      '<button class="small'+(dirty?" primary":"")+'" onclick="saveGroupMembers()">Save'+(dirty?" changes":"")+'</button></div>';
+  $("modalTitle").textContent = "Group members";
+  $("modal").style.display = "flex";
+};
+
+window.closeModal = () => {
+  $("modal").style.display = "none";
+  mDraft = null; mCur = null; modalOk = null; modalInput = null;
+};
+
+/* ---- generic modal, borrowed from Wheeler ----
+   The onInput hook is the reason: the Buy and Sell popups have to recompute the trade's new overall
+   break-even as you type, and a modal that only reports on submit cannot do that. onOk returns an
+   error string to keep the dialog open, or null to close, save and render. */
+let modalOk = null, modalInput = null;
+const mv = id => $(id) ? $(id).value : "";
+function openModal(title, body, okLabel, onOk, onInput){
+  $("modalTitle").innerHTML = title;
+  $("modalBody").innerHTML = body + '<div id="m_note" class="calsub"></div><div class="err" id="m_err"></div>' +
+    '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
+    '<button onclick="closeModal()">Cancel</button>' +
+    '<button class="primary" id="m_ok">' + okLabel + '</button></div>';
+  modalOk = onOk; modalInput = onInput || null;
+  $("modal").style.display = "flex";
+  $("m_ok").onclick = submitModal;
+  if(modalInput){
+    $("modalBody").addEventListener("input", ()=>modalInput());
+    modalInput();
+  }
+  const f = $("modalBody").querySelector("input,select");
+  if(f) f.focus();
+}
+function submitModal(){
+  const err = modalOk();
+  if(err){ $("m_err").textContent = err; return; }
+  closeModal(); save(); render();
+}
+
+window.saveGroupMembers = () => {
+  captureDraft();
+  Object.keys(mDraft).forEach(g=>{
+    if(!root.groups[g]) return;
+    const picked = mDraft[g], mine = groupMembers(g);
+    // Leaving takes a copy of the ruleset, so nothing silently resizes.
+    mine.filter(m=>picked.indexOf(m)<0).forEach(m=>{
+      GROUP_KEYS.forEach(k=>{
+        const v = root.groups[g].settings[k];
+        root.portfolios[m].settings[k] = Array.isArray(v) ? v.slice() : v;
+      });
+    });
+    root.groups[g].members = picked.slice();
+  });
+  if(root.focus && !(isGroup(root.active) && groupMembers(root.active).indexOf(root.focus)>=0)) root.focus = null;
+  closeModal(); normalize(); save(); render();
+};
+
+window.removeTab = () => {
+  if(root.order.length<2) return;
+  const n = root.active;
+  if(isGroup(n)){
+    const members = groupMembers(n);
+    if(!confirm("Delete the group \""+n+"\"?\n\nIts "+members.length+" account(s) and every trade in them are kept — they each take a copy of the group's ruleset and go back to standing alone.")) return;
+    members.forEach(m=>GROUP_KEYS.forEach(k=>{
+      const v = root.groups[n].settings[k];
+      root.portfolios[m].settings[k] = Array.isArray(v) ? v.slice() : v;
+    }));
+    delete root.groups[n];
+  } else {
+    const cnt = root.portfolios[n].trades.length;
+    if(!confirm("Delete the account \""+n+"\" and its "+cnt+" trade(s)? This cannot be undone.")) return;
+    delete root.portfolios[n];
+    Object.keys(root.groups).forEach(g=>{ root.groups[g].members = root.groups[g].members.filter(m=>m!==n); });
+  }
+  root.order = root.order.filter(x=>x!==n);
+  root.active = root.order[0]; root.focus = null;
+  normalize(); save(); render();
+};
+
+window.addPortfolio = () => {
+  const n = (prompt("Name for the new account:")||"").trim();
+  if(!n) return;
+  if(isAccount(n) || isGroup(n)){ alert("\""+n+"\" is already taken by an account or group."); return; }
+  root.portfolios[n] = defaults();
+  root.order.push(n);
+  // Created while a group is open? Put it straight into that group.
+  if(isGroup(root.active)){ root.groups[root.active].members.push(n); root.focus = null; }
+  else { root.active = n; root.focus = null; }
+  normalize(); save(); render();
+};
+
+/* ========================= settings ========================= */
+function renderSettings(){
+  const g = inGroup() ? root.active : null;
+  const s = g ? Object.assign({}, defaults().settings, root.groups[g].settings)
+              : settingsFor(acctInView());
+
+  // Equity is per account, so the single AUM field has no meaning for a whole group — the members
+  // list below takes its place.
+  $("aumCell").style.display = g ? "none" : "";
+  $("marginCell").style.display = g ? "none" : "";
+  if(!g){
+    $("aum").value = fmtE(state.settings.aum);
+    $("marginX").value = String(marginXOf(acctInView()));
+  }
+  $("rpct").value = s.rPct;
+  $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
+  $("compound").value = s.compound ? "1" : "0";
+  $("heatcap").value = s.heatCap; $("coldr").value = s.coldR;
+  $("fhkey").value = root.finnhub || "";
+
+  const eq = $("groupEquity");
+  if(g){
+    const members = groupMembers(g);
+    eq.style.display = "";
+    eq.innerHTML = members.length
+      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th>Cash</th><th>Margin</th><th class='num'>Buying power</th><th class='num'>1R</th>" +
+        "<th class='num'>"+TIERS[0]+"</th><th class='num'>"+TIERS[1]+"</th><th class='num'>"+TIERS[2]+"</th><th></th></tr>" +
+        members.map(m=>{
+          const R = rUnitOf(m);
+          return "<tr><td>"+esc(m)+"</td>" +
+            "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
+              fmtE(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
+            // Each account moves its own cash: one group order does not imply one transfer.
+            '<td style="white-space:nowrap"><button class="small" title="Deposit into '+esc(m)+
+              '" onclick="openCash(\''+jsq(m)+'\',\'deposit\')">+</button> ' +
+              '<button class="small" title="Withdraw from '+esc(m)+
+              '" onclick="openCash(\''+jsq(m)+'\',\'withdraw\')">&minus;</button></td>' +
+            "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\">" +
+              [1,2,4,6].map(x=>"<option value='"+x+"'"+(marginXOf(m)===x?" selected":"")+">"+(x===1?"Cash":x+"&times;")+"</option>").join("") +
+            "</select></td>" +
+            "<td class='num'>"+fmtE(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmtE(bpFree(m))+" free</div></td>" +
+            "<td class='num'>"+fmt$(R)+"</td>" +
+            s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
+            "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(m)+"')\">Open</button></td></tr>";
+        }).join("") + "</table>"
+      : "<div class='muted'>No accounts in this group yet &mdash; use Members above.</div>";
+  } else eq.style.display = "none";
+
+  $("runitBox").innerHTML = g
+    ? "One ruleset &middot; " + groupMembers(g).length + " account" + (groupMembers(g).length===1?"":"s") +
+      ' <span class="muted">&mdash; each sizes off its own equity above</span>'
+    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmtE(state.settings.aum) + ")</span>";
+
+  const sel = $("nt_tier").value !== "" ? $("nt_tier").value : "1";
+  $("nt_tier").innerHTML = TIERS.map((n,i)=>
+    '<option value="'+i+'"'+(i===parseInt(sel)?" selected":"")+'>'+n+" &mdash; "+s.tiers[i]+"R" +
+    (g ? "" : " ("+fmt$(rUnitNow()*s.tiers[i])+")") + "</option>").join("");
+}
+/* ========================= fast calc ========================= */
+// The question the calculator exists to answer, with nothing in front of it: price, stop, tier,
+// share count. Side is inferred from which way the stop sits, so it is one less field to touch.
+// Nothing here is recorded — commit the real fill through New Trade afterwards.
+window.setFcTier = i => { root.fcTier = i; save(); renderFastCalc(); };
+window.clearFc = () => { $("fc_price").value = ""; $("fc_stop").value = ""; renderFastCalc(); };
+
+// Hand the numbers to New Trade so the only thing left to change is the price you actually got.
+window.fcToNewTrade = () => {
+  clearFills();                              // a new setup, so no account carries an old fill
+  $("nt_entry").value = $("fc_price").value;
+  $("nt_stop").value = $("fc_stop").value;
+  $("nt_tier").value = String(root.fcTier==null ? 1 : root.fcTier);
+  // The calculator is pinned above every tab now, so this is a tab switch rather than a scroll --
+  // and sizing stays on screen while the fill is recorded.
+  setTab("new");
+  newTradeCal();
+  setTimeout(()=>$("nt_tk").focus(), 60);
+};
+// Stop below the price is a long, above it a short. One rule, used by Fast calc and New Trade
+// alike — the stop already carries the direction, so asking for it separately only creates a way
+// for the two to disagree.
+const sideFrom = (P, S) => (isNaN(P) || isNaN(S) || P===S) ? 0 : (S < P ? 1 : -1);
+function fcSide(){ return sideFrom(parseFloat($("fc_price").value), parseFloat($("fc_stop").value)); }
+function ntSide(){ return sideFrom(parseFloat($("nt_entry").value), parseFloat($("nt_stop").value)); }
+const sidePill = s => '<span class="pill '+(s>0?"long":"short")+'">'+(s>0?"LONG":"SHORT")+'</span> ';
+
+function renderFastCalc(){
+  const ti = root.fcTier==null ? 1 : root.fcTier;
+  const g = inGroup();
+  const tiers = g ? root.groups[root.active].settings.tiers : settingsFor(acctInView()).tiers;
+  $("fc_tiers").innerHTML = TIERS.map((n,i)=>
+    '<button class="small'+(i===ti?" primary":"")+'" onclick="setFcTier('+i+')">'+n+
+    ' <span class="muted" style="font-size:11px">'+tiers[i]+'R</span></button>').join("");
+
+  // Two targets, not one. The calculator is pinned above every tab, and measured at 1440x900 a
+  // group of four renders 339px of it -- over half the viewport once the masthead and both tab
+  // strips are counted. So the pinned part is the answer line, and the per-account breakdown sits
+  // in a disclosure that is only built when it is open.
+  const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
+  const out = $("fc_ans"), more = $("fc_more"), det = $("fc_detail");
+  const plain = html => { out.innerHTML = html; more.style.display = "none"; det.innerHTML = ""; };
+  if(isNaN(P) || isNaN(S)){ plain('<div class="fcsub">Price and stop. Long or short is read from which side the stop sits.</div>'); return; }
+  const side = fcSide();
+  if(!side){ plain('<div class="err">Stop and price can’t be the same.</div>'); return; }
+  const den = side*(P-S);
+
+  const accts = g ? groupMembers(root.active) : [acctInView()];
+  const rows = accts.map(m=>{
+    const R = rUnitOf(m), mult = (g ? root.groups[root.active].settings.tiers : settingsFor(m).tiers)[ti];
+    const qR = Math.floor(R*mult/den);
+    const free = bpFree(m);
+    const qBP = P>0 ? Math.floor(free/P) : 0;
+    const q = Math.min(qR, qBP);
+    return { m, R, mult, q, qR, capped:qBP<qR, cost:q*P,
+             alloc: root.portfolios[m].settings.aum>0 ? q*P/root.portfolios[m].settings.aum*100 : 0 };
+  });
+  const total = rows.reduce((a,r)=>a+r.q, 0);
+  const anyCapped = rows.some(r=>r.capped);
+
+  out.innerHTML =
+    '<div class="row" style="align-items:flex-end;gap:12px;justify-content:flex-end">' +
+      '<div style="text-align:right"><div class="fcbig">'+fmtQ(total)+'</div>' +
+      '<div class="fcsub">shares '+(side>0?"long":"short")+' &middot; risk/share <b>'+fmtP(den)+'</b>' +
+      (g ? " &middot; "+rows.length+" accounts" : " &middot; "+fmt$(rows[0].cost)+" ("+rows[0].alloc.toFixed(0)+"%)") +
+      (anyCapped ? ' &middot; <span style="color:var(--amber)">BP capped</span>' : "") +
+      '</div></div>' +
+      '<button class="small primary" onclick="fcToNewTrade()">Send &rarr;</button>' +
+    '</div>';
+
+  det.innerHTML =
+    (g ? '<div class="scroll" style="margin-top:9px"><table><tr><th>Account</th><th class="num">Shares</th><th class="num">Risk</th><th class="num">Cost</th><th class="num">Allocation</th></tr>' +
+      rows.map(r=>"<tr><td>"+esc(r.m)+"</td>" +
+        "<td class='num'><b style='color:var(--gold);font-size:14px'>"+fmtQ(r.q)+"</b>"+(r.capped?" <span class='muted'>of "+fmtQ(r.qR)+"</span>":"")+"</td>" +
+        "<td class='num'>"+fmt$(r.R*r.mult)+"</td><td class='num'>"+fmt$(r.cost)+"</td>" +
+        "<td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>").join("") + "</table></div>"
+      : '<div class="fcsub" style="margin-top:8px">1R '+fmt$(rows[0].R)+' &middot; budget '+
+        fmt$(rows[0].R*rows[0].mult)+' &middot; buying power '+fmtE(bpFree(rows[0].m))+' free</div>') +
+    (anyCapped ? '<div class="fcsub" style="color:var(--amber)">R wants '+fmtQ(rows[0].qR)+
+      ' share'+(rows[0].qR===1?"":"s")+(g?" in at least one account":"")+'.</div>' : "");
+  more.style.display = "";
+}
+
+/* ========================= cash in and out ========================= */
+// Equity already moves on its own: closing a trade compounds its realised P/L into AUM. Typing a
+// new total by hand fights that mechanism, because a broker balance carries the *unrealised* P/L of
+// everything still open — key that in and the same money is counted twice the moment those
+// positions close. A deposit or a withdrawal is a delta instead: it adjusts whatever the number
+// happens to be at the time, leaves compounding alone, and is recorded so that money arriving is
+// never later mistaken for money earned.
+//
+// The manual AUM field stays, for correcting a figure that was wrong to begin with. That is a
+// different job from moving cash, and it is the only one it should be used for now.
+const cashFlows = acct => { const pf = root.portfolios[acct]; return (pf && pf.cashFlows) || []; };
+const cashAmount = () => parseFloat(String($("cashAmt").value).replace(/[^0-9.]/g,""));
+
+window.openCash = (acct, kind) => {
+  const pf = root.portfolios[acct];
+  if(!pf) return;
+  const dep = kind === "deposit";
+  $("modalTitle").textContent = (dep ? "Deposit into " : "Withdraw from ") + acct;
+  $("modalBody").innerHTML =
+    '<div class="fields"><div><label for="cashAmt">Amount</label>' +
+      '<input id="cashAmt" type="text" inputmode="decimal" placeholder="0.00" autocomplete="off"></div>' +
+      '<div style="grid-column:span 2"><label for="cashNote">Note <span class="muted">(optional)</span></label>' +
+      '<input id="cashNote" type="text" placeholder="'+(dep?"transfer in, dividend sweep":"transfer out, tax payment")+'"></div></div>' +
+    '<div class="calsub" id="cashPrev" style="margin-top:12px"></div>' +
+    '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
+      '<button class="small" onclick="closeModal()">Cancel</button>' +
+      '<button class="small primary" id="cashGo" disabled onclick="applyCash(\''+jsq(acct)+'\',\''+kind+'\')">' +
+        (dep ? "Deposit" : "Withdraw") + '</button></div>';
+  $("cashAmt").addEventListener("input", ()=>previewCash(acct, kind));
+  $("cashAmt").addEventListener("keydown", e=>{ if(e.key==="Enter" && !$("cashGo").disabled) applyCash(acct, kind); });
+  previewCash(acct, kind);
+  $("modal").style.display = "flex";
+  setTimeout(()=>$("cashAmt").focus(), 30);
+};
+
+// Says what the money does before it does it: the new equity, the new R unit, and whether the
+// withdrawal leaves less buying power than the open positions are already standing on.
+window.previewCash = (acct, kind) => {
+  const pf = root.portfolios[acct], el = $("cashPrev"), btn = $("cashGo");
+  if(!pf || !el) return;
+  const v = cashAmount();
+  if(!(v > 0)){
+    el.innerHTML = '<span class="muted">Enter an amount.</span>';
+    btn.disabled = true; return;
+  }
+  const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
+  if(next <= 0){
+    el.innerHTML = '<span style="color:var(--red)">That would leave '+esc(acct)+' at '+fmtE(next)+
+      '. Withdraw less than the equity.</span>';
+    btn.disabled = true; return;
+  }
+  const rNext = next * settingsFor(acct).rPct/100;
+  const used = bpUsed(acct), bpNext = next * marginXOf(acct);
+  el.innerHTML = "Equity " + fmtE(pf.settings.aum) + " &rarr; <b>" + fmtE(next) + "</b>" +
+    " &middot; 1R " + fmt$(rUnitOf(acct)) + " &rarr; <b>" + fmt$(rNext) + "</b>" +
+    '<div class="muted" style="margin-top:4px">Open trades keep the R unit they locked at entry. ' +
+    'This only changes what you size from here.</div>' +
+    (bpNext < used
+      ? '<div style="color:var(--amber);margin-top:6px">Open positions are standing on '+fmtE(used)+
+        ', more than the '+fmtE(bpNext)+' of buying power this leaves. Nothing is blocked &mdash; ' +
+        'you would simply be over-extended until something closes.</div>'
+      : "");
+  btn.disabled = false;
+};
+
+window.applyCash = (acct, kind) => {
+  const pf = root.portfolios[acct];
+  const v = cashAmount();
+  if(!pf || !(v > 0)) return;
+  const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
+  if(next <= 0) return;
+  pf.settings.aum = next;
+  pf.cashFlows.push({ type:kind, amount:v, note:$("cashNote").value.trim(), ts:Date.now(), aumAfter:next });
+  closeModal(); save(); render();
+};
+
+// Reversing is the only sane correction for a mistyped amount: a compensating movement in the other
+// direction would leave two wrong entries in the record rather than none.
+window.undoCash = (acct, i) => {
+  const pf = root.portfolios[acct];
+  const f = pf && pf.cashFlows[i];
+  if(!f) return;
+  const next = Math.round((pf.settings.aum + (f.type==="deposit" ? -f.amount : f.amount))*100)/100;
+  if(!confirm("Remove this "+f.type+" of "+fmtE(f.amount)+" from "+acct+"?\n\nEquity goes from "+
+              fmtE(pf.settings.aum)+" to "+fmtE(next)+". The record of it is deleted, not offset.")) return;
+  pf.settings.aum = next;
+  pf.cashFlows.splice(i,1);
+  save(); render();
+};
+
+function renderCash(){
+  const btns = $("cashBtns"), box = $("cashBox");
+  if(!btns || !box) return;
+  // In a group each account moves its own cash, so the buttons live per row in the equity table.
+  const a = acctInView();
+  btns.innerHTML = (inGroup() || !a) ? "" :
+    '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'deposit\')">Deposit</button>' +
+    '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'withdraw\')">Withdraw</button>';
+
+  const rows = [];
+  scope().forEach(acct=>cashFlows(acct).forEach((f,i)=>rows.push({acct, f, i})));
+  if(!rows.length){ box.innerHTML = ""; return; }
+  rows.sort((x,y)=>y.f.ts - x.f.ts);
+  const inTot  = rows.reduce((s,r)=>s + (r.f.type==="deposit"  ? r.f.amount : 0), 0);
+  const outTot = rows.reduce((s,r)=>s + (r.f.type==="withdraw" ? r.f.amount : 0), 0);
+  const net = inTot - outTot;
+
+  box.innerHTML = '<details style="margin-top:10px"><summary>Cash in and out &mdash; ' +
+    rows.length + " movement" + (rows.length===1?"":"s") + ", net " +
+    (net>=0 ? "+" : "&minus;") + fmtE(Math.abs(net)) + "</summary>" +
+    '<div class="scroll" style="margin-top:8px"><table>' +
+    "<tr><th>Date</th>" + (inGroup() ? "<th>Account</th>" : "") +
+    "<th>Movement</th><th class='num'>Amount</th><th class='num'>Equity after</th><th>Note</th><th></th></tr>" +
+    rows.map(r=>{
+      const dep = r.f.type === "deposit";
+      return "<tr><td>"+new Date(r.f.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td>" +
+        (inGroup() ? "<td>"+esc(r.acct)+"</td>" : "") +
+        '<td class="'+(dep?"pos":"neg")+'">'+(dep?"Deposit":"Withdrawal")+"</td>" +
+        '<td class="num '+(dep?"pos":"neg")+'">'+(dep?"+":"&minus;")+fmtE(r.f.amount)+"</td>" +
+        "<td class='num'>"+fmtE(r.f.aumAfter)+"</td>" +
+        "<td>"+esc(r.f.note||"")+"</td>" +
+        "<td class='num'><button class='small danger' title='Remove this movement and put the equity back' " +
+          'onclick="undoCash(\''+jsq(r.acct)+"',"+r.i+')">&#10005;</button></td></tr>';
+    }).join("") + "</table></div>" +
+    '<div class="muted" style="margin-top:6px">Deposits and withdrawals never touch your R multiples, ' +
+    'your per-trade % of equity, or the equity curve &mdash; those are all measured against the equity ' +
+    'each trade was sized against, so money moving in or out cannot flatter or flatten the record.</div>' +
+    "</details>";
+}
+
+window.setMemberMargin = (m,v) => {
+  if(root.portfolios[m]) root.portfolios[m].settings.marginX = parseFloat(v)||1;
+  save(); render();
+};
+window.setMemberAum = (m,v) => {
+  const n = parseFloat(String(v).replace(/[^0-9.]/g,""));
+  if(root.portfolios[m] && !isNaN(n) && n>0) root.portfolios[m].settings.aum = n;
+  save(); render();
+};
+
+/* ========================= new trade ========================= */
+function newTradeCal(){
+  if(inGroup()) return renderGroupNewTrade();
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  $("nt_err").textContent = "";
+  if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
+  if(!side){
+    $("nt_calbox").style.display="none";
+    $("nt_err").textContent = "Entry and stop can't be the same price — the stop is what tells this which way you are trading.";
+    return null;
+  }
+  const den = side*(P-S);
+  const mult = state.settings.tiers[ti];
+  const R = rUnitNow(), b = R*mult;
+  const acct = acctInView();
+
+  // R answers how much you may lose. Buying power answers how much you may hold. A tight stop makes
+  // the first number large and says nothing about the second, so the smaller of the two wins.
+  const qR = Math.floor(b/den);
+  const free = bpFree(acct);
+  const qBP = P>0 ? Math.floor(free/P) : 0;
+  const capped = qBP < qR;
+  const q = Math.min(qR, qBP);
+
+  $("nt_calbox").style.display = "block";
+  $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
+    (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— capped by buying power</span>' : "");
+  // Four labelled numbers rather than a sentence to parse. The capped case is the one thing that
+  // genuinely needs a line of prose, because the remedy is not obvious from the figures.
+  $("nt_calsub").innerHTML =
+    '<div class="statrow" style="margin-top:8px">' +
+      '<div class="metric"><div class="k">Risk '+VBAR+' share</div><div class="v">'+fmtP(den)+'</div>' +
+        '<div class="r">'+mult+'R = '+fmt$(b)+'</div></div>' +
+      '<div class="metric"><div class="k">Cost</div><div class="v">'+fmt$(q*P)+'</div>' +
+        '<div class="r">'+(state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(1)+'% of equity' : "")+'</div></div>' +
+      '<div class="metric"><div class="k">BP free</div>' +
+        '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmtE(free)+'</div>' +
+        '<div class="r">of '+fmtE(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
+      '<div class="metric"><div class="k">Risk taken</div><div class="v">'+(q*den/R).toFixed(2)+'R</div>' +
+        '<div class="r">'+(capped ? '<span style="color:var(--amber)">R wants '+fmtQ(qR)+' sh</span>' : "as intended")+'</div></div>' +
+    '</div>';
+
+  $("nt_targets").innerHTML = q>0
+    ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,TARGETS))
+    : "";
+
+  const adr = parseFloat($("nt_adr").value);
+  const a = adrAudit(P, adr, den);
+  if(a){
+    let html = '<span style="color:'+a.color+';font-weight:600">'+a.adrs.toFixed(1)+' ADRs to stop</span>';
+    if(a.adrs<1.5) html += ' &mdash; inside daily noise. For 1.5: stop <b>'+fmtP(P - side*1.5*a.adrD)+
+      '</b>, <b>'+fmtQ(Math.floor(b/(1.5*a.adrD)))+'</b> shares.';
+    $("nt_vol").innerHTML = html;
+  } else {
+    $("nt_vol").innerHTML = '<span class="muted">ADR % not set.</span>';
+  }
+  return q;
+}
+
+// The four pre-trade checks are the gate, not a suggestion. The button reports what is still
+// missing — a disabled control with no stated reason is a dead end.
+function checksDone(){ return [0,1,2,3].filter(i=>$("nt_c"+i).checked).length; }
+
+// Re-entering a name you took a loss in inside the last 30 days is a wash sale: the loss is
+// disallowed and rolls into the new basis. It is also, more often than not, a revenge re-entry.
+// This flags it and nothing more — the basis maths belongs to your broker's 1099-B, not here.
+const WASH_DAYS = 30;
+function washWarning(ticker){
+  const tk = String(ticker||"").trim().toUpperCase();
+  if(!tk) return null;
+  // Every account, not just the one in view: the rule is about the taxpayer, not the book. A loss
+  // in one account and a re-entry in another is the case people miss, and into an IRA it is the
+  // expensive one — the disallowed loss is not deferred, it is gone. So the account is named.
+  const hits = [];
+  Object.keys(root.portfolios).forEach(a=>{
+    (root.portfolios[a].trades||[]).forEach(t=>{
+      if(t.status==="closed" && t.ticker===tk && derive(t).realized < 0 &&
+         daysBetween(t.closedAt || t.createdAt, Date.now()) <= WASH_DAYS) hits.push({a, t});
+    });
+  });
+  if(!hits.length) return null;
+  hits.sort((x,y)=>(y.t.closedAt||0)-(x.t.closedAt||0));
+  const { a, t } = hits[0];
+  const ago = daysBetween(t.closedAt || t.createdAt, Date.now());
+  const elsewhere = hits.some(h=>h.a !== acctInView());
+  return "Wash sale: you closed " + esc(tk) + " at " + fmtR(derive(t).realized/t.rUnit) + " " +
+    (ago===0 ? "today" : ago===1 ? "yesterday" : ago+" days ago") +
+    " in <b>" + esc(a) + "</b>" +
+    (hits.length>1 ? " (and "+(hits.length-1)+" more loss"+(hits.length>2?"es":"")+" in the window)" : "") +
+    ". Re-entering inside " + WASH_DAYS + " days disallows that loss for tax — and is worth a second thought besides." +
+    (elsewhere ? " The rule follows you across accounts, not just this one." : "");
+}
+// The cap is breached on the book, but the decision it bears on is made here.
+function renderHeatNotice(){
+  const el = $("nt_heat");
+  if(!el) return;
+  el.innerHTML = overHeat
+    ? "Open heat is <b>"+overHeat.heatR.toFixed(2)+"R</b> against your "+overHeat.cap+
+      "R cap. Your rule says nothing new opens until that is back under. Not blocked &mdash; your call."
+    : "";
+  el.style.display = overHeat ? "" : "none";
+}
+function updateWash(){
+  const el = $("nt_wash"), msg = washWarning($("nt_tk").value);
+  el.innerHTML = msg || "";
+  el.style.display = msg ? "" : "none";
+}
+function updateGate(){
+  const done = checksDone(), btn = $("nt_open"), note = $("nt_gate");
+  const ok = done===4;
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? "" : ".45";
+  btn.style.cursor = ok ? "" : "not-allowed";
+  note.textContent = ok ? "" : (4-done) + " of 4 pre-trade checks left, below";
+}
+
+function openTrade(){
+  if(checksDone()<4){
+    $("nt_err").textContent = "All four pre-trade checks have to be ticked before this opens.";
+    const p = $("nt_plan"); if(p) p.open = true;
+    return;
+  }
+  if(inGroup()) return openGroupTrade();
+  const tk = $("nt_tk").value.trim().toUpperCase();
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const calQ = newTradeCal();
+  const q = $("nt_qty").value ? parseFloat($("nt_qty").value) : calQ;
+  if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
+  if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
+  if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
+  const adr = parseFloat($("nt_adr").value);
+
+  state.trades.unshift({
+    id: Date.now()+""+Math.floor(Math.random()*1e4),
+    ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
+    mult: state.settings.tiers[ti],
+    adr: (!isNaN(adr)&&adr>0) ? adr : null,
+    // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
+    adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
+    rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
+    plan: { cutIf:$("nt_cut_if").value.trim(),
+            waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
+    checks: [0,1,2,3].map(i=>$("nt_c"+i).checked),
+    events: [{type:"entry", qty:q, price:P, stop:S, ts:Date.now()}],
+    createdAt: Date.now(), lastMarkTs: Date.now()
+  });
+
+  clearNewTrade();
+  save(); render();
+}
+
+// Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
+// One function so the Clear button and both open paths can never leave different things behind.
+window.clearNewTrade = (focus) => {
+  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_adr","nt_qty",
+   "nt_cut_if","nt_wait_if","nt_exit"].forEach(id=>{ $(id).value = ""; });
+  [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
+  clearFills();
+  $("nt_err").textContent = "";
+  $("nt_calbox").style.display = "none";
+  updateGate(); updateWash();
+  if(focus) $("nt_tk").focus();
+};
+
+/* ========================= trade card ========================= */
+// Trade actions are addressed by id from markup that may belong to any account in view, so the
+// lookup spans every book rather than just the active one.
+function getTrade(id){
+  for(const n of Object.keys(root.portfolios)){
+    const t = root.portfolios[n].trades.find(x=>x.id===id);
+    if(t) return t;
+  }
+  return null;
+}
+function acctOf(id){
+  for(const n of Object.keys(root.portfolios)) if(root.portfolios[n].trades.some(x=>x.id===id)) return n;
+  return acctInView();
+}
+
+// A mark is the last price you told the app about. It goes stale after a day of wall-clock time,
+// because every number on an open card — heat, open P/L, the ADR check — is only as current as it.
+const STALE_HOURS = 24;
+const markAgeH = t => t.lastMarkTs ? (Date.now()-t.lastMarkTs)/36e5 : null;
+const isStale = t => { const h = markAgeH(t); return h!=null && h > STALE_HOURS; };
+
+function markAgeHtml(t){
+  const h = markAgeH(t);
+  if(h==null || h<=STALE_HOURS) return "";
+  const s = h<48 ? Math.round(h)+"h" : Math.round(h/24)+"d";
+  return ' <span style="color:'+(h>72?"var(--red)":"var(--amber)")+'">&middot; marked '+s+" ago</span>";
+}
+
+/* ---- the position list ----
+   One list, both modes. v1.3 had two card renderers -- tradeCard and groupTradeCard -- because a
+   card cannot say which account it belongs to. A list can, in a column, so the duplication that
+   silently diverged three times (collapseAll, refreshMarks, the cold-streak brake) is gone and
+   there is one place to add a column.
+
+   The row carries what is read at a glance; everything else opens underneath it. The actions stay
+   on the row rather than moving into the open region, which is what keeps this a list rather than
+   the pills it replaces. */
+
+// Everything a row or its detail needs, derived once.
+function posFacts(t){
+  const d = derive(t);
+  const S = stats(t);
+  const ras = riskAtStop(t, d);                     // dollars lost from here if stopped
+  const openPL = t.side*(t.last - d.avg)*d.Q;
+  const seq = ras - d.realized;                     // whole-sequence worst case at the current stop
+  return {
+    d, S, ras, openPL, seq,
+    cashAtRisk: Math.max(0, seq),                   // only bites while the stop sits below b/e
+    heatR: Math.max(0, seq)/t.rUnit,
+    // An unguarded position is NOT at house money. riskAtStop returns 0 when there is no stop, so
+    // seq collapses to -realized and the old test read "house money -- sequence can't lose" over a
+    // position whose loss is unbounded. The reassurance was the exact inverse of the truth.
+    unguarded: d.stop == null && d.Q > 0,
+    house: seq <= 1e-4 && d.Q>0 && d.stop != null,
+    be: beStop(t, d),
+    value: t.last*d.Q,
+    totR: (d.realized + openPL)/t.rUnit
+  };
+}
+
+function positionRow(t, acct, showAcct){
+  const f = posFacts(t), d = f.d, S = f.S;
+  const open = !!rowOpen[t.id];
+  const cols = showAcct ? 10 : 9;
+  // No stop at all is the degenerate uncovered position: nothing caps the loss. Split stops arrive
+  // with phase 4, and this is the same warning for the same reason.
+  const noStop = d.stop == null;
+
+  const row =
+    '<tr class="prow">' +
+      '<td class="tickcell">' +
+        '<button class="small" style="padding:1px 7px" onclick="toggleRow(\''+t.id+'\')" title="'+(open?"Collapse":"Expand")+'">'+
+          (open?"&#9662;":"&#9656;")+'</button> ' +
+        '<span class="tk">'+esc(t.ticker)+'</span> ' +
+        '<span class="pill '+(t.side>0?"long":"short")+'">'+(t.side>0?"LONG":"SHORT")+'</span>' +
+        '<div class="sub">'+TIERS[t.tier]+' &middot; 1R '+fmt$(t.rUnit)+(t.concept?' &middot; '+esc(t.concept):"")+'</div>' +
+      '</td>' +
+      (showAcct ? '<td>'+esc(acct)+'</td>' : "") +
+      '<td class="num">'+fmtQ(d.Q)+'<div class="sub">avg '+fmtP(d.avg)+'</div></td>' +
+      '<td class="num">'+fmtP(t.last)+'<div class="sub">'+fmt$(f.value)+markAgeHtml(t)+'</div></td>' +
+      '<td class="num">'+(d.stop!=null?fmtP(d.stop):'<span style="color:var(--amber)">none</span>')+
+        '<div class="sub">'+(f.be!=null?"b/e "+fmtP(f.be):"&mdash;")+'</div></td>' +
+      '<td class="num">'+(S.initialRisk!=null?(S.initialRisk/t.rUnit).toFixed(2)+"R":"&mdash;")+
+        '<div class="sub">'+(S.riskPS>0?fmtP(S.riskPS)+" / sh":"no stop at entry")+'</div></td>' +
+      '<td class="num">'+(f.unguarded ? '<span style="color:var(--amber)">unbounded</span>'
+        : f.house ? '<span class="pill house">house</span>' : fmt$(f.cashAtRisk))+'</td>' +
+      '<td class="num">'+(f.unguarded ? '<span style="color:var(--amber)">no stop</span>'
+        : f.house ? "&mdash;" : f.heatR.toFixed(2)+"R")+'</td>' +
+      '<td class="num '+cls(d.realized+f.openPL)+'">'+fmt$(d.realized+f.openPL)+
+        '<div class="sub">'+fmtR(f.totR)+'</div></td>' +
+      '<td class="acts">' +
+        '<button class="small" onclick="buyUI(\''+t.id+'\')" title="Add shares">Buy</button>' +
+        '<button class="small" onclick="sellUI(\''+t.id+'\')" title="Reduce or close">Sell</button>' +
+        '<button class="small'+(noStop?" stopwarn":"")+'" onclick="stopUI(\''+t.id+'\')" title="Move the stop">Stop</button>' +
+        '<button class="small" onclick="gearUI(\''+t.id+'\')" title="History and corrections">&#9881;</button>' +
+      '</td>' +
+    '</tr>';
+
+  if(!open) return '<tbody>'+row+'</tbody>';
+
+  // The figures that did not fit the row. More numbers about now -- history and corrections live
+  // behind the gear, so the two disclosures never overlap.
+  const e0 = t.events.find(e=>e.type==="entry");
+  const aum0 = t.aumAtOpen;
+  const tile = (k,v,sub,colour) => '<div class="metric"><div class="k">'+k+'</div><div class="v"'+
+    (colour?' style="color:'+colour+'"':'')+'>'+v+'</div>'+(sub?'<div class="r">'+sub+'</div>':'')+'</div>';
+
+  let aptr = tile("Daily vol","&mdash;","no APTR set","var(--mut)");
+  if(t.adr && d.stop!=null && d.Q>0){
+    const a = adrAudit(t.last, t.adr, t.side*(t.last-d.stop));
+    aptr = a ? tile("Daily vol", a.adrs.toFixed(1)+" APTRs", "to stop &middot; "+t.adr+"% now", a.color)
+             : tile("Daily vol","stop breached","","var(--red)");
+  }
+
+  const detail =
+    '<div class="statrow" style="margin-top:4px">' +
+      tile("Entry", fmtP(S.entryPx), (e0?fmtQ(e0.qty)+" sh":"") +
+        (aum0>0 && e0 ? VBAR+(e0.qty*S.entryPx/aum0*100).toFixed(1)+"% at open" : "")) +
+      tile("Initial stop", e0 && e0.stop!=null ? fmtP(e0.stop) : "&mdash;",
+        S.riskPS>0 ? fmtP(S.riskPS)+" wide"+VBAR+(S.riskPS/S.entryPx*100).toFixed(1)+"% of price" : "") +
+      tile("Allocation", aum0>0 ? (f.value/aum0*100).toFixed(1)+"%" : "&mdash;", "of equity at open") +
+      tile("Realized", fmt$(d.realized), fmtR(d.realized/t.rUnit)) +
+      tile("Unrealized", fmt$(f.openPL), S.entryPx>0 ? (t.side*(t.last-d.avg)/d.avg*100).toFixed(1)+"% on position" : "") +
+      tile("Equity P/L", aum0>0 ? ((d.realized+f.openPL)/aum0*100).toFixed(2)+"%" : "&mdash;", "of equity at open") +
+      (f.unguarded
+        ? tile("Sequence at risk", "unbounded", "no stop on "+fmtQ(d.Q)+" shares", "var(--amber)")
+        : tile(f.house?"Sequence locks":"Sequence at risk", fmt$(Math.abs(f.seq)),
+            f.house?"worst case is a win":"if the stop hits", f.house?"var(--green)":"var(--amber)")) +
+      aptr +
+    '</div>' +
+    (d.Q>0 && S.riskPS>0
+      ? '<div class="ladder"><span class="muted" style="align-self:center">internal targets:</span>' +
+        ladderHtml(ladder(t.side, S.entryPx, S.riskPS, t.last, TARGETS))+'</div>' : "") +
+    (function(){
+      const bits = [
+        t.plan && t.plan.cutIf  ? "<b>cut if</b> "+esc(t.plan.cutIf)   : null,
+        t.plan && t.plan.waitIf ? "<b>wait if</b> "+esc(t.plan.waitIf) : null,
+        t.plan && t.plan.exit   ? "<b>exit</b> "+esc(t.plan.exit)      : null
+      ].filter(Boolean);
+      return bits.length ? '<div class="calsub" style="margin-top:8px">'+bits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "";
+    })();
+
+  return '<tbody class="open">'+row+'<tr class="drow"><td colspan="'+cols+'">'+detail+'</td></tr></tbody>';
+}
+
+function renderPortfolio(){
+  const box = $("openTrades");
+  if(!box) return;
+  const showAcct = inGroup();
+  const legs = scopeTrades("open");
+  if(!legs.length){
+    box.innerHTML = '<div class="muted">Nothing open. Size one in New Trade and it appears here.</div>';
+    return;
+  }
+  // Heaviest first, and legs of one group trade kept together so a fan-out reads as one idea.
+  legs.sort((a,b)=>{
+    const ka = a.t.gid || ("solo:"+a.t.id), kb = b.t.gid || ("solo:"+b.t.id);
+    if(ka !== kb){
+      const ra = posFacts(a.t).heatR, rb = posFacts(b.t).heatR;
+      if(rb !== ra) return rb - ra;
+      return ka < kb ? -1 : 1;
+    }
+    return a.acct < b.acct ? -1 : 1;
+  });
+  // A fanned-out trade is one idea taken in several accounts, so its legs sit under a header that
+  // sums them and acts on all of them at once. Per-leg rows keep their own actions, for correcting
+  // one account. A solo leg gets no header -- it would be a header over itself.
+  const body = [];
+  let i = 0;
+  while(i < legs.length){
+    const gid = legs[i].t.gid;
+    const run = [legs[i]];
+    while(gid && i+run.length < legs.length && legs[i+run.length].t.gid === gid) run.push(legs[i+run.length]);
+    if(run.length > 1) body.push(groupHeaderRow(gid, run, showAcct));
+    run.forEach(x=>body.push(positionRow(x.t, x.acct, showAcct)));
+    i += run.length;
+  }
+
+  box.innerHTML = '<table class="poslist"><thead><tr>' +
+    '<th>Position</th>' + (showAcct ? '<th>Account</th>' : "") +
+    '<th class="num">Shares</th><th class="num">Last</th><th class="num">Stop</th>' +
+    '<th class="num">Initial R</th><th class="num">Cash at risk</th><th class="num">Open heat</th>' +
+    '<th class="num">P/L</th><th></th>' +
+    '</tr></thead>' + body.join("") + '</table>';
+}
+
+function groupHeaderRow(gid, run, showAcct){
+  const first = run[0].t;
+  const f = run.map(x=>posFacts(x.t));
+  const totQ = f.reduce((a,x)=>a+x.d.Q, 0);
+  const totPL = f.reduce((a,x)=>a+x.d.realized+x.openPL, 0);
+  const totRisk = f.reduce((a,x)=>a+x.cashAtRisk, 0);
+  const totHeat = f.reduce((a,x)=>a+x.heatR, 0);
+  const cost = f.reduce((a,x)=>a+x.d.avg*x.d.Q, 0);
+  return '<tbody><tr class="prow" style="background:var(--panel2)">' +
+      '<td class="tickcell"><span class="tk">'+esc(first.ticker)+'</span> ' +
+        '<span class="pill '+(first.side>0?"long":"short")+'">'+(first.side>0?"LONG":"SHORT")+'</span>' +
+        '<div class="sub">'+run.length+' accounts</div></td>' +
+      (showAcct ? '<td class="muted">all</td>' : "") +
+      '<td class="num">'+fmtQ(totQ)+'<div class="sub">avg '+(totQ>0?fmtP(cost/totQ):"&mdash;")+'</div></td>' +
+      '<td class="num">'+fmtP(first.last)+'</td>' +
+      '<td class="num">'+(f[0].d.stop!=null?fmtP(f[0].d.stop):"&mdash;")+'</td>' +
+      '<td class="num">&mdash;</td>' +
+      '<td class="num">'+fmt$(totRisk)+'</td>' +
+      '<td class="num">'+totHeat.toFixed(2)+'R</td>' +
+      '<td class="num '+cls(totPL)+'">'+fmt$(totPL)+'</td>' +
+      '<td class="acts">' +
+        '<button class="small" onclick="gSellUI(\''+jsq(gid)+'\')" title="Sell a percentage of every leg">Sell</button>' +
+        '<button class="small" onclick="gStopUI(\''+jsq(gid)+'\')" title="Move every leg\'s stop">Stop</button>' +
+        '<button class="small danger" onclick="gCloseUI(\''+jsq(gid)+'\')" title="Close in every account">Close</button>' +
+      '</td>' +
+    '</tr></tbody>';
+}
+
+/* ---- the row's four actions ----
+   Buy and Sell take a price and a quantity and nothing else; Stop takes a price. The break-even
+   preview and split stops arrive with phase 4, along with Buy, which needs the `add` event to be
+   written again rather than only replayed. */
+window.buyUI = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  openModal("Buy " + esc(t.ticker),
+    '<div class="muted">Adding shares needs the add event writing again, plus the running break-even ' +
+    'preview. Both arrive with the Buy / Sell / Stop phase.</div>', "OK", () => { closeModal(); return null; });
+};
+
+window.sellUI = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  const d = derive(t);
+  openModal((t.side>0?"Sell ":"Buy to cover ") + esc(t.ticker),
+    '<div class="row">' +
+      '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+t.last+'"></div>' +
+      '<div style="flex:1"><label for="m_q">Shares</label><input id="m_q" type="number" step="any" placeholder="'+fmtQ(d.Q)+'"></div>' +
+    '</div>' +
+    '<div class="row" style="margin-top:6px">' +
+      '<button class="small" onclick="document.getElementById(\'m_q\').value='+Math.floor(d.Q*0.25)+';document.getElementById(\'m_q\').dispatchEvent(new Event(\'input\',{bubbles:true}))">25%</button>' +
+      '<button class="small" onclick="document.getElementById(\'m_q\').value='+Math.floor(d.Q*0.5)+';document.getElementById(\'m_q\').dispatchEvent(new Event(\'input\',{bubbles:true}))">50%</button>' +
+      '<button class="small" onclick="document.getElementById(\'m_q\').value='+d.Q+';document.getElementById(\'m_q\').dispatchEvent(new Event(\'input\',{bubbles:true}))">All</button>' +
+    '</div>',
+    "Sell",
+    () => {
+      const P = parseFloat(mv("m_px"));
+      let q = parseFloat(mv("m_q"));
+      if(isNaN(P)) return "Enter a price.";
+      if(isNaN(q) || q<=0) return "Enter a quantity.";
+      if(q > d.Q) q = d.Q;
+      const all = q >= d.Q;
+      t.events.push({type: all?"close":"trim", qty:q, price:P, ts:Date.now()});
+      t.last = P; t.lastMarkTs = Date.now();
+      if(all){ t.status = "closed"; t.closedAt = Date.now(); }
+      syncCompound(t, acctOf(id));            // banked profit is equity the moment it is banked
+      return null;
+    },
+    () => {
+      const P = parseFloat(mv("m_px")), q = parseFloat(mv("m_q"));
+      const el = $("m_note");
+      if(!el) return;
+      if(isNaN(P) || isNaN(q) || q<=0){ el.innerHTML = ""; return; }
+      const left = Math.max(0, d.Q - Math.min(q, d.Q));
+      const realized = d.realized + t.side*(P-d.avg)*Math.min(q, d.Q);
+      el.innerHTML = left>0
+        ? fmtQ(left)+" shares left &middot; realized <b>"+fmt$(realized)+"</b> &middot; break-even stop <b>"+
+          fmtP(d.avg - t.side*realized/left)+"</b>"
+        : "Closes the position &middot; realized <b>"+fmt$(realized)+"</b> ("+fmtR(realized/t.rUnit)+")";
+    });
+};
+
+window.stopUI = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  const d = derive(t);
+  openModal("Stop &mdash; " + esc(t.ticker),
+    '<div><label for="m_stop">Stop price</label><input id="m_stop" type="number" step="any" value="'+
+      (d.stop!=null?d.stop:"")+'"></div>' +
+    '<div class="muted" style="margin-top:6px">Covers all '+fmtQ(d.Q)+' shares. Split stops arrive with phase 4.</div>',
+    "Move",
+    () => {
+      const v = parseFloat(mv("m_stop"));
+      if(isNaN(v)) return "Enter a stop price.";
+      if(t.side>0 && v >= t.last) return "A long's stop sits below the last price.";
+      if(t.side<0 && v <= t.last) return "A short's stop sits above the last price.";
+      t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()});
+      return null;
+    },
+    () => {
+      const v = parseFloat(mv("m_stop")), el = $("m_note");
+      if(!el) return;
+      if(isNaN(v) || !(d.Q>0)){ el.innerHTML = ""; return; }
+      const ras = t.side*(d.avg-v)*d.Q, seq = ras - d.realized;
+      el.innerHTML = seq <= 0
+        ? "At that stop the sequence <b>locks "+fmtR(-seq/t.rUnit)+"</b> &mdash; worst case is a win."
+        : "At that stop the sequence risks <b>"+fmt$(seq)+"</b> ("+fmtR(seq/t.rUnit).replace("+","")+")";
+    });
+};
+
+window.gearUI = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  const d = derive(t);
+  const rows = t.events.map(e=>{
+    let det = "";
+    if(e.type==="entry"||e.type==="add") det = fmtQ(e.qty)+" @ "+fmtP(e.price)+(e.stop!=null?" &middot; stop "+fmtP(e.stop):"");
+    else if(e.type==="trim"||e.type==="close") det = fmtQ(e.qty)+" @ "+fmtP(e.price);
+    else if(e.type==="stop") det = "&rarr; "+fmtP(e.stop);
+    else if(e.type==="budget") det = "risk &rarr; "+e.mult+"R";
+    else if(e.type==="adjust") det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
+                                      e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
+    return "<tr><td>"+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric"})+
+      "</td><td>"+e.type+"</td><td>"+det+"</td></tr>";
+  }).join("");
+  openModal(esc(t.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">history and corrections</span>',
+    '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th></tr>'+rows+'</table></div>' +
+    '<div class="row" style="margin-top:12px">' +
+      '<div style="flex:1"><label for="m_aq">Position override</label>' +
+        '<input id="m_aq" type="number" step="any" placeholder="'+fmtQ(d.Q)+' sh"></div>' +
+      '<div style="flex:1"><label for="m_aa">Average price override</label>' +
+        '<input id="m_aa" type="number" step="any" placeholder="'+fmtP(d.avg)+'"></div>' +
+    '</div>' +
+    '<div class="muted" style="margin-top:6px">Editing a past transaction, and the Adj. ledger tag, ' +
+    'arrive with the Buy / Sell / Stop phase. A blank field keeps its current value.</div>',
+    "Apply override",
+    () => {
+      const q = parseFloat(mv("m_aq")), a = parseFloat(mv("m_aa"));
+      if(isNaN(q) && isNaN(a)) return "Enter a position size or an average price.";
+      if(!isNaN(q) && q<0) return "Position size can't be negative.";
+      t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
+      syncCompound(t, acctOf(id));
+      return null;
+    });
+};
+/* ========================= trade actions ========================= */
+window.setLast = id => {
+  const t = getTrade(id), v = parseFloat($("px_"+id).value);
+  if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); save(); render(); }
+};
+window.doTrim = (id, frac) => {
+  const t = getTrade(id), d = derive(t), errEl = $("trerr_"+id);
+  let P = parseFloat($("trp_"+id).value);
+  if(isNaN(P)) P = t.last;
+  let q = frac!=null ? Math.floor(d.Q*frac) : parseFloat($("trq_"+id).value);
+  if(isNaN(q) || q<=0){ errEl.textContent = "Enter a quantity (or use 25% / 50%)."; return; }
+  if(q>d.Q) q = d.Q;
+  t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
+  t.last = P; t.lastMarkTs = Date.now();
+  syncCompound(t);                       // banked profit is equity the moment it is banked
+  save(); render();
+};
+window.moveStop = id => {
+  const t = getTrade(id), v = parseFloat($("stp_"+id).value);
+  if(isNaN(v)) return;
+  t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()});
+  save(); render();
+};
+window.doAdjust = id => {
+  const t = getTrade(id), errEl = $("ajerr_"+id);
+  const q = parseFloat($("ajq_"+id).value), a = parseFloat($("aja_"+id).value);
+  if(isNaN(q) && isNaN(a)){ errEl.textContent = "Enter a position size or an average price — a blank field keeps its current value."; return; }
+  if(!isNaN(q) && q<0){ errEl.textContent = "Position size can't be negative (side is fixed on the trade)."; return; }
+  t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
+  syncCompound(t);                       // an override of size or average price moves realised too
+  save(); render();
+};
+window.undoEvent = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  if(t.events.length<=1){ alert("Only the opening entry remains. Delete the trade instead if it was a mistake."); return; }
+  const e = t.events[t.events.length-1];
+  const desc = e.type + (e.qty!=null?" "+fmtQ(e.qty):"") + (e.price!=null?" @ "+fmtP(e.price):"") + (e.stop!=null?" · stop "+fmtP(e.stop):"");
+  if(!confirm("Undo the last event ("+desc+")? It is removed from the log.")) return;
+  t.events.pop();
+  syncCompound(t);                       // undoing a trim takes its profit back out of equity
+  save(); render();
+};
+window.deleteTrade = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  if(!confirm("Delete "+t.ticker+" permanently, with its full event log"+(t.status==="closed"?" and its place in the tally":"")+"? AUM is not adjusted.")) return;
+  state.trades = state.trades.filter(x=>x.id!==id);
+  save(); render();
+};
+window.closeTrade = id => {
+  const t = getTrade(id), d = derive(t), errEl = $("clerr_"+id);
+  const P = parseFloat($("clp_"+id).value);
+  if(isNaN(P)){ errEl.textContent = "Enter the exit price."; return; }
+  if(d.Q>0) t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
+  t.status = "closed"; t.closedAt = Date.now(); t.last = P; t.lastMarkTs = Date.now();
+  // Folds in whatever this trade has not already banked into equity, not its whole realised
+  // total -- trims along the way have already contributed their share.
+  syncCompound(t, acctOf(id));
+  save(); render();
+};
+// Which position rows are open. Deliberately NOT persisted and not on a trade: a row expansion is
+// a fact about the page you are looking at, not about the book. Storing per-account view state on
+// pf.settings is exactly the bug the collapse map had -- in a group it wrote onto whichever member
+// happened to be first. One keyed object, one implementation, both modes.
+let rowOpen = {};
+window.toggleRow = id => { rowOpen[id] = !rowOpen[id]; renderPortfolio(); };
+window.expandAll = v => {
+  scopeTrades("open").forEach(x=>{ rowOpen[x.t.id] = v; });
+  renderPortfolio();
+};
+
+/* ---- tabs ----
+   Sections are mutually exclusive views, so there is nothing to collapse and no index to scroll.
+   The active tab lives on root, not on an account: it is a preference about the page. */
+const TABS = [["portfolio","Portfolio"],["new","New Trade"],["tally","Closed Trades"],
+              ["charts","Statistics"],["audit","Audit"]];
+const tabOf = () => TABS.some(t=>t[0]===root.tab) ? root.tab : "portfolio";
+window.setTab = key => { root.tab = key; save(); render(); };
+function renderTabStrip(){
+  const cur = tabOf();
+  $("sectabs").innerHTML = TABS.map(([k,label])=>{
+    const n = k==="portfolio" ? scopeTrades("open").length
+            : k==="tally" ? scopeTrades("closed").length : null;
+    return '<button class="'+(k===cur?"on":"")+'" onclick="setTab(\''+k+'\')">'+label+
+      (n ? '<span class="n">'+n+'</span>' : "")+'</button>';
+  }).join("");
+  TABS.forEach(([k])=>{
+    const p = $("pane-"+k);
+    if(p) p.className = "tabpane" + (k===cur ? " on" : "");
+  });
+}
+
+/* ---- settings and data, as overlays ----
+   Their markup sits permanently in the DOM inside hidden containers, so renderSettings() and every
+   binding made at boot keep working against the same ids. Opening is display only. */
+window.openSettings = () => { renderSettings(); $("smodal").style.display = "flex"; };
+window.closeSettings = () => { $("smodal").style.display = "none"; };
+window.openData = () => { $("dmodal").style.display = "flex"; };
+window.closeData = () => { $("dmodal").style.display = "none"; };
+// The v1 book keeps being traded while v2 is built, so the copy taken at first load goes stale.
+// This re-reads it. One way only -- nothing here ever writes to the v1 key.
+window.reimportV1 = () => {
+  const raw = localStorage.getItem("rcalc.v1");
+  if(!raw){ $("io_err").className = "err"; $("io_err").textContent = "No v1 book found in this browser."; return; }
+  if(!confirm("Replace this development book with a fresh copy of the live v1 book? Anything entered here is discarded. The v1 book is not modified.")) return;
+  try{
+    const p = JSON.parse(raw);
+    if(!p || !p.portfolios) throw new Error("not a book");
+    root = p; migrateNames(); normalize(); rowOpen = {};
+    save(); render();
+    $("io_err").className = "okmsg"; $("io_err").textContent = "Re-imported from rcalc.v1.";
+  }catch(e){
+    $("io_err").className = "err"; $("io_err").textContent = "Could not read the v1 book: "+e.message;
+  }
+};
+window.toggleLog = id => {
+  const row = $("log_"+id), btn = $("tgl_"+id);
+  if(!row) return;
+  const open = row.style.display !== "none";
+  row.style.display = open ? "none" : "table-row";
+  if(btn) btn.innerHTML = open ? "&#9656;" : "&#9662;";
+};
+window.saveNote = id => {
+  const t = getTrade(id), ta = $("note_"+id);
+  if(!t || !ta) return;
+  t.notes = ta.value.trim(); save();
+  const st = $("notest_"+id);
+  if(st){ st.textContent = "Saved "+new Date().toLocaleTimeString(); setTimeout(()=>{ if(st) st.textContent=""; }, 3000); }
+};
+window.setLossTag = (id,v) => { const t = getTrade(id); if(t){ t.lossTag = v||null; save(); render(); } };
+
+// A month after a close, the market has answered a question the exit could not: did it keep going
+// without you, or did the exit hold up? Due once 30 days have passed and nothing has been written.
+const REVIEW_DAYS = 30;
+const reviewDue = t => t.status==="closed" &&
+  !(t.review30 && t.review30.trim()) &&
+  daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS;
+const reviewDueIn = t => REVIEW_DAYS - daysBetween(t.closedAt || t.createdAt, Date.now());
+const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
+/* ---- backup nudge ---- */
+// The whole book lives in one browser. Clearing site data takes it, and there is no copy anywhere
+// else, so the age of the last real backup is worth a standing label rather than a line in a hint.
+// Only Download and Copy count: "Export to box" puts the JSON on screen without it leaving the page.
+const BACKUP_DAYS = 6;
+const backupName = () => "r-calculator-book-"+new Date().toISOString().slice(0,10)+".json";
+window.markBackedUp = () => { root.lastBackup = Date.now(); save(); renderBackupBadge(); };
+function backupAgeDays(){ return root.lastBackup ? daysBetween(root.lastBackup, Date.now()) : null; }
+function backupDue(){
+  const anyTrades = Object.values(root.portfolios).some(p=>p.trades.length);
+  if(!anyTrades) return false;
+  const d = backupAgeDays();
+  return d==null || d >= BACKUP_DAYS;
+}
+function backupHtml(){
+  if(!backupDue()) return "";
+  const d = backupAgeDays();
+  return '<span style="color:var(--amber);font-weight:600">Back up &mdash; ' +
+    (d==null ? "never exported" : "last export "+d+" day"+(d===1?"":"s")+" ago") + "</span>";
+}
+function renderBackupBadge(){
+  const el = $("deskSummary");
+  if(el) el.innerHTML = [reviewsDueHtml(), backupHtml()].filter(Boolean).join(' <span class="vbar">|</span> ');
+}
+
+// One renderer for the badge, so the desk and the Closed Trades header can never disagree.
+function reviewsDueHtml(){
+  const n = reviewsDueCount();
+  return n ? '<span style="color:var(--gold);font-weight:600">'+n+" 30-day review"+(n>1?"s":"")+" due</span>" : "";
+}
+
+window.saveReview30 = id => {
+  const t = getTrade(id), ta = $("rev_"+id);
+  if(!t || !ta) return;
+  t.review30 = ta.value.trim();
+  save(); render(); reopenLog(id);
+};
+
+/* ---- dates on a closed trade ---- */
+const entryTs = t => { const e = t.events.find(e=>e.type==="entry"); return e ? e.ts : t.createdAt; };
+// <input type="date"> speaks YYYY-MM-DD in local time. Build both directions off local parts and
+// anchor at midday, so a timezone offset can never nudge a date onto the day before.
+const dateVal = ts => { const d = new Date(ts);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+// Re-date an event without disturbing its clock time, so two events on the same day keep the
+// order they happened in.
+const tsFromDateVal = (s, keepTimeOf) => {
+  const p = String(s).split("-").map(Number);
+  if(p.length!==3 || p.some(n=>isNaN(n))) return null;
+  const old = keepTimeOf!=null ? new Date(keepTimeOf) : null;
+  return new Date(p[0], p[1]-1, p[2],
+    old?old.getHours():12, old?old.getMinutes():0, old?old.getSeconds():0, old?old.getMilliseconds():0).getTime();
+};
+// Compare by calendar day, never by timestamp: a same-day round trip is a day trade, not an error.
+const dayOf = ts => { const d = new Date(ts); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); };
+const today0 = () => dayOf(Date.now());
+const daysBetween = (a,b) => Math.round((dayOf(b)-dayOf(a))/864e5);
+
+// Click a date in the event log to swap it for a picker. The Save button only appears once
+// something is actually being edited, so the row stays quiet until you touch it.
+window.editEventDate = (id, i) => {
+  const span = $("dspan_"+id+"_"+i);
+  const t = getTrade(id);
+  if(!span || !t || span.dataset.editing) return;
+  span.dataset.editing = "1";
+  span.innerHTML = "<input type='date' id='dinp_"+id+"_"+i+"' value='"+dateVal(t.events[i].ts)+
+                   "' max='"+dateVal(Date.now())+"' style='max-width:150px'>";
+  const btn = $("dsave_"+id);
+  if(btn) btn.style.display = "";
+  const inp = $("dinp_"+id+"_"+i);
+  if(inp){
+    inp.focus();
+    // Escape backs out of an edit you didn't need — opening a picker shouldn't trap you in it.
+    inp.addEventListener("keydown", ev=>{
+      if(ev.key==="Escape"){ ev.preventDefault(); cancelEventDate(id,i); }
+      if(ev.key==="Enter"){ ev.preventDefault(); saveEventDates(id); }
+    });
+  }
+};
+
+window.cancelEventDate = (id,i) => {
+  const span = $("dspan_"+id+"_"+i), t = getTrade(id);
+  if(!span || !t) return;
+  delete span.dataset.editing;
+  span.textContent = new Date(t.events[i].ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});
+  if(!document.querySelector("#log_"+id+" input[type=date]")){
+    const btn = $("dsave_"+id); if(btn) btn.style.display = "none";
+    const err = $("daterr_"+id); if(err) err.textContent = "";
+  }
+};
+
+window.saveEventDates = id => {
+  const t = getTrade(id), errEl = $("daterr_"+id);
+  if(!t) return;
+  if(errEl) errEl.textContent = "";
+
+  const before = t.events.map(e=>e.ts);          // so a rejected edit changes nothing
+  const revert = () => t.events.forEach((e,j)=>{ e.ts = before[j]; });
+  let touched = false, bad = false, future = false;
+  t.events.forEach((e,i)=>{
+    const inp = $("dinp_"+id+"_"+i);
+    if(!inp) return;
+    const ts = tsFromDateVal(inp.value, e.ts);
+    if(ts==null){ bad = true; return; }
+    if(dayOf(ts) > today0()){ future = true; return; }
+    if(ts !== e.ts){ e.ts = ts; touched = true; }
+  });
+  if(bad){ revert(); if(errEl) errEl.textContent = "A date was left empty."; return; }
+  if(future){ revert(); if(errEl) errEl.textContent = "A trade can't be dated in the future."; return; }
+
+  // The log is a sequence, compared by day: same-day events are fine (a day trade), earlier is not.
+  for(let i=1;i<t.events.length;i++){
+    if(dayOf(t.events[i].ts) < dayOf(t.events[i-1].ts)){
+      revert();
+      if(errEl) errEl.textContent = "Events have to stay in order — " + t.events[i].type +
+        " can't be dated before the " + t.events[i-1].type + " above it.";
+      return;
+    }
+  }
+  // Nothing to save is not an error: close the pickers and leave the trade alone.
+  if(!touched){ save(); render(); reopenLog(id); return; }
+
+  // Keep the fields the rest of the app sorts and groups by in step with the log.
+  t.createdAt = t.events[0].ts;
+  if(t.status==="closed") t.closedAt = t.events[t.events.length-1].ts;
+
+  save(); render(); reopenLog(id);
+};
+// render() rebuilds the table and collapses this row — put it back so the result stays in view.
+function reopenLog(id){
+  const row = $("log_"+id);
+  if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;"; }
+}
+
+/* ========================= tally ========================= */
+function renderClosed(){
+  if(inGroup()) return renderGroupClosed();
+  const closed = state.trades.filter(t=>t.status==="closed");
+  const sum = $("closedSummary");
+  if(closed.length){
+    const totR = closed.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
+    // The due count sits in the header so it is still visible with the section collapsed.
+    const badge = reviewsDueHtml();
+    sum.innerHTML = closed.length+" trades &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" +
+      (badge ? " &middot; " + badge : "");
+  } else sum.textContent = "";
+
+  const tbl = $("closedTbl");
+  if(!closed.length){
+    tbl.innerHTML = "<tr><td class='muted'>No closed trades yet. The tally is where the craft argues back.</td></tr>";
+    $("stats").innerHTML = "";
+    return;
+  }
+
+  const chrono = closed.slice().sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
+
+  const rows = closed.map(t=>{
+    const S = stats(t), d = S.d, rm = S.rm;
+
+    // replay for the per-event detail table
+    let Q2=0, avg2=0, real2=0;
+    const evRows = t.events.map((e,i)=>{
+      let det = "";
+      if(e.type==="entry"||e.type==="add"){
+        avg2 = (Q2+e.qty)>0 ? (avg2*Q2+e.price*e.qty)/(Q2+e.qty) : e.price; Q2 += e.qty;
+        det = fmtQ(e.qty)+" @ "+fmtP(e.price)+(e.stop!=null?" &middot; stop "+fmtP(e.stop):"");
+      } else if(e.type==="trim"||e.type==="close"){
+        const q = Math.min(e.qty,Q2); real2 += t.side*(e.price-avg2)*q; Q2 -= q;
+        det = fmtQ(e.qty)+" @ "+fmtP(e.price);
+      } else if(e.type==="stop") det = "&rarr; "+fmtP(e.stop);
+      else if(e.type==="budget") det = "risk &rarr; "+e.mult+"R";
+      else if(e.type==="adjust"){
+        if(e.qty!=null) Q2 = e.qty; if(e.price!=null) avg2 = e.price;
+        det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
+               e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
+      }
+      return "<tr><td><span class='dedit' id='dspan_"+t.id+"_"+i+"' onclick=\"editEventDate('"+t.id+"',"+i+")\" title='Click to change this date'>"+
+             new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</span></td><td>"+e.type+
+             "</td><td>"+det+"</td><td class='num'>"+fmtQ(Q2)+"</td><td class='num'>"+(Q2>0?fmtP(avg2):"&mdash;")+
+             "</td><td class='num "+cls(real2)+"'>"+fmtR(real2/t.rUnit)+"</td></tr>";
+    }).join("");
+
+    const p = t.plan||{};
+    const planRow = [p.addIf?"<b>add if</b> "+esc(p.addIf):null, p.cutIf?"<b>cut if</b> "+esc(p.cutIf):null,
+                     p.waitIf?"<b>wait if</b> "+esc(p.waitIf):null, p.exit?"<b>exit</b> "+esc(p.exit):null].filter(Boolean).join(" &nbsp;&middot;&nbsp; ");
+    const tagSel = lossTagSelect(t);
+
+    const due = reviewDue(t);
+    return "<tr"+(due?" class='reviewdue'":"")+">" +
+      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
+        (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
+        (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
+      "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
+      "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
+      "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt)+
+        (S.rmInt<-1.25?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Lost well beyond the stop it was opened with'>breach</span>":""))+"</td>" +
+      "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
+      "<td class='num "+cls(d.realized)+"'>"+fmt$(d.realized)+"</td>" +
+      "<td class='num'>"+S.days+"</td>" +
+      "<td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
+      "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
+      "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
+      "<td>"+tagSel+"</td>" +
+      "<td class='num' style='white-space:nowrap'>" +
+        "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
+        "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
+    "<tr id='log_"+t.id+"' style='display:none'><td colspan='13' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+      (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
+      "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
+      "<div class='err' id='daterr_"+t.id+"'></div>" +
+      "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
+      "<div class='split' style='margin-top:12px'>" +
+        "<div><div class='lbl'>Re-trade review</div>" +
+        "<textarea id='note_"+t.id+"' style='min-height:88px' placeholder='What did the calculator say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
+        "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
+        "<span class='muted' id='notest_"+t.id+"'></span></div></div>" +
+        "<div><div class='lbl'>30-day review " +
+          (due ? "<span style='color:var(--gold)'>&mdash; due now</span>"
+               : (t.review30 && t.review30.trim()) ? "<span class='pos'>&mdash; done</span>"
+               : "<span class='muted'>&mdash; in "+reviewDueIn(t)+" day"+(reviewDueIn(t)===1?"":"s")+"</span>") + "</div>" +
+        "<textarea id='rev_"+t.id+"' style='min-height:88px' placeholder='A month on: did it keep going without you, or did the exit hold up? This is where cutting winners early and getting shaken out of eventual winners become visible.'>"+esc(t.review30||"")+"</textarea>" +
+        "<div class='row' style='margin-top:6px;align-items:center'><button class='small"+(due?" primary":"")+"' onclick=\"saveReview30('"+t.id+"')\">Save 30-day</button></div></div>" +
+      "</div></td></tr>";
+  }).join("");
+
+  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
+    "<th class='num' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num'>Realized</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
+
+  $("stats").innerHTML = statsHtml(bookStats(closed));
+}
+
+// Aggregates for a set of closed trades, and the tile row that renders them. Extracted so the
+// tally and the statistics panel show the same numbers from the same code.
+function bookStats(list){
+  const A = { n:list.length, tot:0, wins:0, exWin:0, decisive:0, scratch:0,
+              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, noise:0, violations:0, tagged:0, planned:0, rms:[] };
+  list.forEach(t=>{
+    const rm = stats(t).rm;
+    A.tot += rm; A.rms.push(rm);
+    if(isScratch(rm)) A.scratch++;
+    if(rm > SCRATCH_HI) A.exWin++;
+    if(rm >= WIN_R) A.decisive++;
+    if(rm>0){ A.wins++; A.wr += rm; A.wn++; }
+    else { A.lr += rm; A.ln++; if(rm<A.worst) A.worst = rm; if(rm>=-1.2) A.discOK++;
+           if(t.lossTag){ A.tagged++; if(t.lossTag==="noise") A.noise++; if(t.lossTag==="violation") A.violations++; } }
+    if(Array.isArray(t.checks) && t.checks.every(Boolean)) A.planned++;
+  });
+  return A;
+}
+
+function statsHtml(A){
+  if(!A.n) return "";
+  const exp = A.tot/A.n;
+  const payoff = (A.wn && A.ln) ? (A.wr/A.wn)/Math.abs(A.lr/A.ln) : null;
+  const disc = A.ln ? Math.round(100*A.discOK/A.ln) : null;
+  const noisePct = A.tagged ? Math.round(100*A.noise/A.tagged) : null;
+  const planPct = Math.round(100*A.planned/A.n);
+  const discCol = disc==null ? "var(--mut)" : (disc>=80?"var(--green)":(disc>=60?"var(--amber)":"var(--red)"));
+  const noiseCol = noisePct==null ? "var(--mut)" : (noisePct<=20?"var(--green)":(noisePct<=40?"var(--amber)":"var(--red)"));
+  // All three rates share one denominator — every closed trade — so they read as one idea tightened
+  // twice rather than three separate samples. The middle one counts the setups that went nowhere
+  // against you, which is the cost in time and buying power.
+  const p = a => (Math.round(1000*a/A.n)/10).toFixed(1)+"%";
+  const gap = Math.round(100*(A.wins-A.decisive)/A.n);
+  return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
+    // Two columns: this tile carries three rates where its neighbours carry one number, and at a
+    // single column both the definitions and the values ran past the edge.
+    '<div class="metric" style="grid-column:span 2" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+SCRATCH_HI+'R. '+WIN_R+'R+: paid for a full loss.">' +
+      // Name on one line, the three definitions on the next, so the break never lands mid-word.
+      '<div class="k">Win rate</div>' +
+      '<div class="k" style="white-space:nowrap">raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+WIN_R+'R</div>' +
+      '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div>' +
+      '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>'
+                     : "each stricter than the last") + '</div></div>' +
+    '<div class="metric"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
+    '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade &mdash; the number that matters</div></div>' +
+    '<div class="metric"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under 1.2R &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(A.tagged?A.noise+" of "+A.tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(A.violations?"var(--red)":"var(--green)")+'">'+(A.tagged?A.violations:"&mdash;")+'</div><div class="r">'+(A.tagged?(A.violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">full pre-trade check on open</div></div>';
+}
+
+// Closed group trades: the visible line is the whole group, the expansion is one row per account.
+function renderGroupClosed(){
+  const closed = scopeTrades("closed");
+  const tbl = $("closedTbl"), sum = $("closedSummary");
+  const groups = {}, order = [];
+  closed.forEach(x=>{
+    const k = x.t.gid || ("solo:"+x.t.id);
+    if(!groups[k]){ groups[k] = []; order.push(k); }
+    groups[k].push(x);
+  });
+  order.sort((a,b)=>{
+    const la = Math.max(...groups[a].map(x=>x.t.closedAt||0));
+    const lb = Math.max(...groups[b].map(x=>x.t.closedAt||0));
+    return lb-la;
+  });
+
+  const totR = closed.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
+  const badge = reviewsDueHtml();
+  sum.innerHTML = order.length ? order.length+" group trade"+(order.length===1?"":"s")+
+    " &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>"+(badge?" &middot; "+badge:"") : "";
+
+  if(!order.length){
+    tbl.innerHTML = "<tr><td class='muted'>No closed trades in this group yet.</td></tr>";
+    $("stats").innerHTML = "";
+    return;
+  }
+
+  const rows = order.map(k=>{
+    const legs = groups[k], f = legs[0].t;
+    const realized = legs.reduce((a,x)=>a+derive(x.t).realized, 0);
+    const rSum = legs.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
+    const rMean = rSum/legs.length;
+    const days = Math.max(...legs.map(x=>stats(x.t).days));
+    const due = legs.some(reviewDueLeg);
+    const detail = "<tr><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+      "<div class='scroll'><table><tr><th>Account</th><th class='num'>1R</th><th class='num'>Realized</th>" +
+      "<th class='num'>R internal</th><th class='num'>R account</th><th class='num'>Days</th><th class='num'>R/day</th>" +
+      "<th class='num'>Position P/L %</th><th class='num'>% equity</th><th>Loss audit</th><th></th></tr>" +
+      legs.map(x=>{
+        const S = stats(x.t), rm = S.rm;
+        return "<tr><td>"+esc(x.acct)+"</td><td class='num'>"+fmt$(x.t.rUnit)+"</td>" +
+          "<td class='num "+cls(S.d.realized)+"'>"+fmt$(S.d.realized)+"</td>" +
+          "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
+          "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
+          "<td class='num'>"+S.days+"</td><td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
+          "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
+          "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
+          "<td>"+lossTagSelect(x.t)+"</td>" +
+          "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
+      }).join("") + "</table></div></td></tr>";
+    return "<tr"+(due?" class='reviewdue'":"")+">" +
+      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
+        (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
+      "<td>"+(f.side>0?"L":"S")+"</td><td>"+TIERS[f.tier]+"</td><td>"+esc(f.concept)+"</td>" +
+      "<td class='num'>"+legs.length+"</td>" +
+      "<td class='num "+cls(realized)+"'>"+fmt$(realized)+"</td>" +
+      "<td class='num "+cls(rMean)+"'>"+fmtR(rMean)+"</td>" +
+      "<td class='num'>"+days+"</td>" +
+      "<td class='num'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">&#10005;</button></td></tr>" +
+      "<tr id='log_"+k+"' style='display:none'>"+detail.slice(4);
+  }).join("");
+
+  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>Accounts</th>" +
+    "<th class='num'>Realized</th><th class='num'>Mean R</th><th class='num'>Days</th><th></th></tr>" + rows;
+  $("stats").innerHTML = '<div class="metric"><div class="k">Group totals</div><div class="v '+cls(totR)+'">'+fmtR(totR)+'</div>'+
+    '<div class="r">summed across accounts &mdash; per-account statistics live in section 05</div></div>';
+}
+// Shared by the account view and the group expansion, so a tag looks and behaves the same in both.
+function lossTagSelect(t){
+  if(derive(t).realized >= 0) return '<span class="muted">&mdash;</span>';
+  const legacy = t.lossTag && !LOSS_TAGS.some(o=>o.v===t.lossTag);
+  return '<select onchange="setLossTag(\x27'+t.id+'\x27,this.value)" style="max-width:230px">' +
+    '<option value="">tag this loss…</option>' +
+    LOSS_TAGS.map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
+    (legacy ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired tag)</option>' : "") +
+    '</select>';
+}
+const reviewDueLeg = x => reviewDue(x.t);
+window.gDeleteClosed = k => {
+  const legs = scopeTrades("closed").filter(x=>(x.t.gid||("solo:"+x.t.id))===k);
+  if(!confirm("Delete this trade from all "+legs.length+" account(s)? This cannot be undone.")) return;
+  legs.forEach(x=>{ root.portfolios[x.acct].trades = root.portfolios[x.acct].trades.filter(t=>t.id!==x.t.id); });
+  save(); render();
+};
+
+/* ========================= charts & statistics ========================= */
+function renderCharts(chrono){
+  const sum = $("chartsSummary");
+  // A group picks one account at a time: none of these statistics survive being pooled across
+  // accounts of different size.
+  const pick = $("chartsAcct");
+  if(inGroup()){
+    const members = groupMembers(root.active), cur = chartAcct();
+    pick.innerHTML = members.length
+      ? '<span class="muted" style="margin-right:6px">account</span><select style="width:auto;max-width:200px" onchange="setChartAcct(this.value)">' +
+        members.map(m=>'<option value="'+esc(m)+'"'+(m===cur?" selected":"")+'>'+esc(m)+'</option>').join("") + '</select>'
+      : "";
+  } else pick.innerHTML = "";
+  if(!chrono || chrono.length < 2){
+    $("chartsBox").style.display = "none";
+    $("chartsEmpty").style.display = "";
+    $("stats2").innerHTML = "";
+    if(sum) sum.textContent = chrono && chrono.length ? "needs at least 2 closed trades" : "";
+    return;
+  }
+  $("chartsBox").style.display = "";
+  $("chartsEmpty").style.display = "none";
+
+  const S = chrono.map(t=>stats(t));
+  const rms = S.map(s=>s.rm);
+  const pls = S.map(s=>s.d.realized);
+  if(sum) sum.textContent = chrono.length + " closed trades";
+
+  // --- distribution. Buckets span only the range actually traded, so the worst loss is the leftmost
+  // column and the best win the rightmost — no dead space at either end.
+  // floor+1 on the top end, so a trade landing exactly on a boundary (+2.00R) gets its own bucket
+  // instead of being folded back into the one below it.
+  const from = Math.min(Math.floor(Math.min(...rms)), 0);
+  const to   = Math.max(Math.floor(Math.max(...rms)) + 1, 1);
+  const counts = [];
+  for(let b=from; b<to; b++) counts.push(rms.filter(r=> r>=b && r<b+1 ).length);
+  $("histChart").innerHTML = svgRHist(counts, from, to);
+
+  // --- cumulative R over trades
+  let run = 0;
+  $("curveChart").innerHTML = svgLine(rms.map(r=>(run+=r)), {labels:chrono.map(t=>t.ticker)});
+
+  // --- P/L per trade, and cumulative by trade
+  $("plBars").innerHTML = svgSignedBars(pls, chrono.map(t=>t.ticker), fmt$);
+  let runPl = 0;
+  const cumPl = pls.map(p=>(runPl+=p));
+  $("plTrades").innerHTML = svgSignedBars(cumPl, chrono.map(t=>t.ticker), fmt$);
+
+  // --- time series. Several trades can close on one day, so collapse to one point per day.
+  const byDay = new Map();
+  S.forEach(s=>{ const k = dayOf(s.endTs); byDay.set(k, (byDay.get(k)||0) + s.d.realized); });
+  const days = [...byDay.keys()].sort((a,b)=>a-b);
+  let acc = 0;
+  const cumByDay = days.map(k=>({ x:k, y:(acc += byDay.get(k)) }));
+  $("plTime").innerHTML = svgTimeLine(cumByDay, fmt$);
+
+  // Baseline is the equity the first trade was sized against — the same anchor the R unit used.
+  const startEquity = S[0].aum0 || state.settings.aum;
+  $("plPct").innerHTML = svgTimeLine(cumByDay.map(p=>({x:p.x, y:p.y/startEquity*100})), v=>v.toFixed(1)+"%");
+  $("eqCurve").innerHTML = svgTimeLine(
+    [{x: days[0]-864e5, y: startEquity}].concat(cumByDay.map(p=>({x:p.x, y:startEquity+p.y}))), fmt$, {zeroBase:false});
+
+  // --- statistics
+  const wins = S.filter(s=>s.rm>0), losses = S.filter(s=>s.rm<=0);
+  const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+  const avgDaysWin = avg(wins.map(s=>s.days)), avgDaysLoss = avg(losses.map(s=>s.days));
+
+  // Max drawdown of the R curve: worst peak-to-trough, the stretch you actually had to sit through.
+  let peak = 0, cum = 0, maxDD = 0;
+  rms.forEach(r=>{ cum += r; if(cum>peak) peak = cum; if(peak-cum > maxDD) maxDD = peak-cum; });
+
+  const longs = S.filter((s,i)=>chrono[i].side>0), shorts = S.filter((s,i)=>chrono[i].side<0);
+  const expOf = a => a.length ? avg(a.map(s=>s.rm)) : null;
+  // Total R over total days of exposure, not the mean of per-trade rates: averaging rates lets a
+  // one-day loser count as heavily as a month-long winner and drags the figure to nonsense.
+  const totDays = S.reduce((a,s)=>a+s.days, 0);
+  const rpd = totDays ? S.reduce((a,s)=>a+s.rm, 0)/totDays : null;
+
+  // Holding winners longer than losers is the healthy direction; the reverse is the disposition
+  // effect showing up in your own record.
+  const holdOk = (avgDaysWin!=null && avgDaysLoss!=null) ? avgDaysWin >= avgDaysLoss : null;
+
+  $("deepStats").innerHTML =
+    '<div class="metric"><div class="k">Avg days held</div><div class="v">'+
+      (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+VBAR+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
+      '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span>' +
+      (holdOk===false?'<span class="neg"> &mdash; losers held longer</span>':"")+'</div></div>' +
+    '<div class="metric"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
+    '<div class="metric"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
+    '<div class="metric"><div class="k">Long '+VBAR+' short</div><div class="v">'+
+      (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+VBAR+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
+      '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
+
+  $("stats2").innerHTML = statsHtml(bookStats(chrono));
+  $("tierTbl").innerHTML = groupTable(chrono, S, t=>TIERS[t.tier], "Tier");
+  $("conceptTbl").innerHTML = groupTable(chrono, S, t=>(t.concept||"").trim() || "(none)", "Concept");
+}
+
+// Expectancy grouped by any key. Small samples are marked rather than hidden — you need to see the
+// n before you read anything into the number.
+function groupTable(trades, S, keyOf, label){
+  const g = new Map();
+  trades.forEach((t,i)=>{
+    const k = keyOf(t);
+    if(!g.has(k)) g.set(k, []);
+    g.get(k).push(S[i]);
+  });
+  const rows = [...g.entries()].map(([k,arr])=>{
+    const tot = arr.reduce((s,x)=>s+x.rm, 0);
+    const exp = tot/arr.length;
+    const wins = arr.filter(x=>x.rm>0).length;
+    return {k, n:arr.length, tot, exp, wr:Math.round(100*wins/arr.length)};
+  }).sort((a,b)=>b.exp-a.exp);
+  return "<tr><th>"+label+"</th><th class='num'>n</th><th class='num'>Win %</th><th class='num'>Total R</th><th class='num'>Expectancy</th></tr>" +
+    rows.map(r=>"<tr><td>"+esc(r.k)+(r.n<5?" <span class='muted' title='Too few trades to read much into'>small n</span>":"")+
+      "</td><td class='num'>"+r.n+"</td><td class='num'>"+r.wr+"%</td><td class='num "+cls(r.tot)+"'>"+fmtR(r.tot)+
+      "</td><td class='num "+cls(r.exp)+"'>"+fmtR(r.exp)+"</td></tr>").join("");
+}
+
+/* ========================= group mode ========================= */
+// One ruleset fanned across accounts. Everything here renders a list with a row per account, because
+// the numbers genuinely differ per account even though the decision is one decision.
+
+function gSel(){ return root.gsel || {}; }                 // per-trade member opt-outs
+window.toggleMember = m => {
+  const s = root.gsel || (root.gsel = {});
+  s[m] = !s[m];
+  newTradeCal();
+};
+const memberIn = m => !gSel()[m];
+
+// Per-member fill overrides for the trade being entered. Deliberately not on root: a price is only
+// true for the fill it came from, and one surviving a reload would quietly size the next trade.
+let gPx = {};
+const pxFor = (m, P) => { const v = gPx[m]; return (v>0) ? v : P; };
+window.setMemberPx = (m, v) => {
+  const x = parseFloat(v);
+  if(v === "" || isNaN(x) || x <= 0) delete gPx[m]; else gPx[m] = x;
+  repaintGroupCalc();
+};
+const clearFills = () => { gPx = {}; };
+
+// The table addresses members by row index — see the note where it is built.
+const memberAt = i => groupMembers(root.active)[i];
+window.toggleMemberAt = i => toggleMember(memberAt(i));
+window.setMemberPxAt = (i, v) => setMemberPx(memberAt(i), v);
+
+// Sizing preview: one row per member, off its own equity.
+//
+// Size is decided before any of this fills, so every account sizes off the SHARED entry and a per
+// account fill never moves a share count — the number you sized on is the number you take. The fill
+// is a recording correction: it sets the price the trade is opened at, and with it the cost, the
+// allocation, and every statistic downstream that reads back the entry price.
+function groupSizeRows(P, S, side, ti){
+  const den = side*(P-S);
+  return groupMembers(root.active).map(m=>{
+    const px = pxFor(m, P);
+    const s = settingsFor(m), R = rUnitOf(m), mult = s.tiers[ti], budget = R*mult;
+    const qR = den>0 ? Math.floor(budget/den) : 0;
+    const free = bpFree(m);
+    const qBP = P>0 ? Math.floor(free/P) : 0;
+    const q = Math.min(qR, qBP);
+    const aum = root.portfolios[m].settings.aum;
+    return { m, px, den, R, mult, budget, q, qR, free, capped:qBP<qR, cost:q*px, aum,
+             alloc: aum>0 ? q*px/aum*100 : 0,
+             on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 };
+  });
+}
+
+// Two entry points. renderGroupNewTrade rebuilds the table and is what the shared fields call.
+// repaintGroupCalc only rewrites the derived cells, so typing into a per-account fill never blows
+// away the input the cursor is sitting in.
+function renderGroupNewTrade(){
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  $("nt_err").textContent = "";
+  if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
+  if(!side){
+    $("nt_calbox").style.display="none";
+    $("nt_err").textContent = "Entry and stop can't be the same price — the stop is what tells this which way you are trading.";
+    return null;
+  }
+  const rows = groupSizeRows(P,S,side,ti);
+  $("nt_calbox").style.display = "block";
+  $("nt_ladder").innerHTML =
+    '<div class="scroll" style="width:100%"><table>' +
+    "<tr><th>Take</th><th class='num'>Shares</th><th>Account</th><th class='num'>Equity</th><th class='num'>Fill</th>" +
+    "<th class='num'>1R</th><th class='num'>Risk</th><th class='num'>Cost</th><th class='num'>BP free</th><th class='num'>Allocation</th></tr>" +
+    // Handlers take the row index, not the account name: an index needs no escaping, and a name
+    // carrying an apostrophe would break out of the attribute no matter how it were quoted.
+    rows.map((r,i)=>{
+      return "<tr id='grow_"+i+"'>" +
+        "<td><input type='checkbox' style='width:auto' "+(r.on?"checked":"")+
+          " onchange=\"toggleMemberAt("+i+")\"></td>" +
+        // Shares first and in gold: it is the number you act on, everything else is why.
+        "<td class='num' id='gq_"+i+"' style='font-size:15px'></td>" +
+        "<td>"+esc(r.m)+"</td>" +
+        "<td class='num'>"+fmtE(r.aum)+"</td>" +
+        // Each account gets the price it was actually filled at; blank means the shared entry above.
+        // Cent steps: fills on a liquid name differ by pennies, so that is what the arrows should nudge.
+        "<td class='num'><input id='gfill_"+i+"' type='number' step='0.01' value='"+
+          (gPx[r.m]>0 ? gPx[r.m] : "")+"' placeholder='"+P+"' title='Fill for "+esc(r.m)+
+          " &mdash; blank uses the entry above' style='width:88px;padding:4px 7px;font-size:13px;text-align:right'"+
+          " oninput=\"setMemberPxAt("+i+", this.value)\"></td>" +
+        "<td class='num'>"+fmt$(r.R)+"</td>" +
+        "<td class='num'>"+fmt$(r.budget)+"</td>" +
+        "<td class='num' id='gcost_"+i+"'></td>" +
+        "<td class='num' id='gbp_"+i+"'></td>" +
+        "<td class='num' id='galloc_"+i+"'></td></tr>";
+    }).join("") + "</table></div>";
+  paintGroupCalc(rows, P, S, side, ti);
+  return rows;
+}
+
+function repaintGroupCalc(){
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  if(isNaN(P) || isNaN(S) || !(side*(P-S)>0) || !$("grow_0")) return null;
+  const rows = groupSizeRows(P,S,side,ti);
+  paintGroupCalc(rows, P, S, side, ti);
+  return rows;
+}
+
+function paintGroupCalc(rows, P, S, side, ti){
+  const taking = rows.filter(r=>r.on && !r.skipped);
+  // Opting an account out survives the open and the reload, so an untick made once for one trade
+  // silently governs every trade after it. That deserves to be loud, not a quieter count.
+  const off = rows.filter(r=>!r.on);
+  $("nt_calans").innerHTML = sidePill(side) +
+    (off.length ? '<span style="color:var(--amber)">'+taking.length+" of "+rows.length+" accounts</span>"
+                : taking.length+" of "+rows.length+" accounts") +
+    " &middot; " + fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total" +
+    (off.length ? '<div style="color:var(--amber);font-size:12.5px;font-weight:600;font-family:var(--sans)">' +
+      "Unticked: "+off.map(r=>esc(r.m)).join(", ")+" &mdash; and they stay unticked for every trade " +
+      "until you tick them back.</div>" : "");
+
+  // One risk per share, because sizing is settled at the shared entry regardless of where each
+  // account actually filled.
+  const mult0 = rows.length ? rows[0].mult : 1;
+  $("nt_calsub").innerHTML = "Risk per share <b>"+fmtP(side*(P-S))+"</b>" +
+    " &middot; every account sizes off its own equity at "+TIERS[ti]+" ("+mult0+"R)";
+
+  rows.forEach((r,i)=>{
+    const tr = $("grow_"+i); if(!tr) return;
+    tr.style.opacity = (!r.on || r.skipped) ? ".5" : "";
+    $("gq_"+i).innerHTML = r.skipped
+      ? "<span class='muted'>0 &mdash; too small</span>"
+      : "<b style='color:var(--gold)'>"+fmtQ(r.q)+"</b>";
+    const px = $("gfill_"+i); if(px) px.style.color = (gPx[r.m]>0) ? "var(--gold)" : "";
+    $("gcost_"+i).textContent = fmt$(r.cost);
+    $("galloc_"+i).textContent = r.alloc.toFixed(1)+"%";
+    const bp = $("gbp_"+i);
+    bp.textContent = fmtE(r.free);
+    bp.style.color = r.capped ? "var(--amber)" : "";
+    bp.title = r.capped ? ("R alone wants "+fmtQ(r.qR)+" shares here") : "";
+  });
+
+  // A target price does not depend on account size — shares scale with R, so k*R/shares reduces to
+  // k*risk-per-share/mult — but it does depend on the fill, so it is quoted off the shared entry.
+  const den0 = side*(P-S);
+  const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
+  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">internal targets'+
+    (overridden ? " at "+fmtP(P) : "")+':</span>' +
+    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den0, hit:false})));
+
+  const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
+  const skipped = rows.filter(r=>r.on && r.skipped);
+  const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
+  const adr = parseFloat($("nt_adr").value);
+  const a = adrAudit(P, adr, den0);
+  let vol = a
+    ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.adrs.toFixed(1)+" ADRs away.</span> " +
+      (a.adrs<1.5 ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
+    : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
+  // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
+  if(badRows.length) vol += '<br><span style="color:var(--amber)">Fill is already past the stop for: '+
+    badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+" &mdash; check the entry. These still open.</span>";
+  if(skipped.length) vol += '<br><span style="color:var(--amber)">Skipped: '+skipped.map(r=>esc(r.m)).join(", ")+
+    " &mdash; no room at this stop, on risk or on buying power. Nothing is opened for them.</span>";
+  if(cappedRows.length) vol += '<br><span style="color:var(--amber)">Capped by buying power: '+
+    cappedRows.map(r=>esc(r.m)+" ("+fmtQ(r.q)+" of "+fmtQ(r.qR)+")").join(", ")+
+    " &mdash; those accounts take less than a full "+mult0+"R.</span>";
+  $("nt_vol").innerHTML = vol;
+}
+
+function openGroupTrade(){
+  const tk = $("nt_tk").value.trim().toUpperCase();
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const rows = renderGroupNewTrade();
+  if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
+  if(!rows){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
+  const taking = rows.filter(r=>r.on && !r.skipped);
+  if(!taking.length){ $("nt_err").textContent = "No account can take this trade — every member is unticked or sized to zero."; return; }
+
+  const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
+  const adr = parseFloat($("nt_adr").value);
+  const plan = { cutIf:$("nt_cut_if").value.trim(),
+                 waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() };
+  const checks = [0,1,2,3].map(i=>$("nt_c"+i).checked);
+  const now = Date.now();
+  taking.forEach(r=>{
+    root.portfolios[r.m].trades.unshift({
+      id: now+""+Math.floor(Math.random()*1e6),
+      gid, gname: root.active,
+      ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti, mult: r.mult,
+      adr: (!isNaN(adr)&&adr>0) ? adr : null,
+      // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
+      adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
+      rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
+      plan: Object.assign({}, plan), checks: checks.slice(),
+      events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
+      createdAt: now, lastMarkTs: now
+    });
+  });
+  clearNewTrade();                           // a fill belongs to the trade it came from
+  save(); render();
+}
+
+/* ---- group actions: one decision, applied to each leg on its own numbers ---- */
+const legsOf = gid => scopeTrades("open").filter(x=>x.t.gid===gid);
+function gEach(gid, fn){ legsOf(gid).forEach(x=>fn(x.t, x.acct)); save(); render(); }
+
+// These used to read inputs out of the group card. They take their values as arguments now, which
+// is what lets the same broadcast run from a modal -- and means the trim fraction, the one piece of
+// real logic here, is not tangled up with where the number was typed.
+window.gMoveStopTo = (gid, v) => {
+  if(isNaN(v)) return "Enter a stop price.";
+  gEach(gid, t=>t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()}));
+  return null;
+};
+// Trims broadcast as a fraction, never a share count — the accounts hold different sizes.
+window.gTrimFrac = (gid, f, P0) => {
+  if(!(f>0)) return "Enter a percentage.";
+  if(f>1) f = 1;
+  let any = false;
+  legsOf(gid).forEach(x=>{
+    const d = derive(x.t), q = Math.floor(d.Q*f);
+    if(q<=0) return;
+    const P = isNaN(P0) ? x.t.last : P0;
+    const all = q >= d.Q;
+    x.t.events.push({type: all?"close":"trim", qty:q, price:P, ts:Date.now()});
+    x.t.last = P; x.t.lastMarkTs = Date.now();
+    if(all){ x.t.status = "closed"; x.t.closedAt = Date.now(); }
+    syncCompound(x.t, x.acct); any = true;
+  });
+  return any ? null : "That percentage rounds to zero shares in every account.";
+};
+window.gCloseAt = (gid, P) => {
+  if(isNaN(P)) return "Enter the exit price.";
+  legsOf(gid).forEach(x=>{
+    const d = derive(x.t);
+    if(d.Q>0) x.t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
+    x.t.status="closed"; x.t.closedAt=Date.now(); x.t.last=P; x.t.lastMarkTs=Date.now();
+    syncCompound(x.t, x.acct);
+  });
+  return null;
+};
+window.gDelete = gid => {
+  const legs = legsOf(gid);
+  if(!confirm("Delete this group trade from all "+legs.length+" account(s)? This cannot be undone.")) return;
+  legs.forEach(x=>{ root.portfolios[x.acct].trades = root.portfolios[x.acct].trades.filter(t=>t.id!==x.t.id); });
+  save(); render();
+};
+
+/* ---- the group header row's actions ----
+   A fanned-out trade is one decision taken in several accounts, so the header acts on all of them
+   at once. Per-leg actions are still on each leg's own row, for correcting one account. */
+window.gSellUI = gid => {
+  const legs = legsOf(gid);
+  if(!legs.length) return;
+  const first = legs[0].t, totQ = legs.reduce((a,x)=>a+derive(x.t).Q, 0);
+  openModal((first.side>0?"Sell ":"Buy to cover ") + esc(first.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
+    '<div class="row">' +
+      '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>' +
+      '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="33"></div>' +
+    '</div>' +
+    '<div class="muted" style="margin-top:6px">A percentage, not a share count &mdash; the accounts hold different sizes. ' +
+      fmtQ(totQ)+' shares open in total.</div>',
+    "Sell",
+    () => gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))));
+};
+window.gStopUI = gid => {
+  const legs = legsOf(gid);
+  if(!legs.length) return;
+  const first = legs[0].t, d0 = derive(first);
+  openModal("Stop &mdash; " + esc(first.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
+    '<div><label for="m_stop">Stop price</label><input id="m_stop" type="number" step="any" value="'+
+      (d0.stop!=null?d0.stop:"")+'"></div>',
+    "Move", () => gMoveStopTo(gid, parseFloat(mv("m_stop"))));
+};
+window.gCloseUI = gid => {
+  const legs = legsOf(gid);
+  if(!legs.length) return;
+  const first = legs[0].t;
+  openModal("Close " + esc(first.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">in all ' +
+      legs.length + ' accounts</span>',
+    '<div><label for="m_px">Exit price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>',
+    "Close", () => gCloseAt(gid, parseFloat(mv("m_px"))));
+};
+// gToggleCard, legStats and groupTradeCard are gone: the position list renders both modes, so
+// there is no second card renderer to keep in step.
+
+/* ========================= book bar ========================= */
+// The section header lives inside this card rather than floating above it, so section 03 lines up
+// with every other section's card edge.
+// The summary tiles sit above the list in their own card. The pane header owns the title and the
+// open count now, so this carries only the figures and the refresh control.
+function openHead(extra){
+  return '<div class="sechead" style="margin-bottom:10px">' +
+    '<div class="head" style="margin-bottom:0">Book</div>' +
+    (extra||"") + '</div>';
+}
+
+// The refresh control sits with the positions it updates, and wears the staleness so you can see
+// the book needs marking without reading a number.
+function refreshBtnHtml(staleN, hasKey){
+  const label = staleN ? "Refresh marks &mdash; " + staleN + " stale" : "Refresh marks";
+  const title = hasKey
+    ? (staleN ? staleN+" position(s) last marked over "+STALE_HOURS+"h ago" : "Pull last prices for every open ticker")
+    : "Add a Finnhub key under Data Management to pull prices automatically";
+  return '<button class="small'+(staleN?" warn":"")+'" title="'+title+'" onclick="refreshMarks()">'+label+'</button>';
+}
+
+function renderBook(open){
+  const hb = $("bookBar");
+  overHeat = null;
+  if(!open.length){
+    hb.innerHTML = '<div class="card">' + openHead() +
+'</div>';   // the empty-state line lives in #openTrades, inside the collapsible body
+    return;
+  }
+  const heat = open.map(t=>{ const d = derive(t); const seq = riskAtStop(t,d)-d.realized; return {t,d,seq,seqR:seq/t.rUnit}; });
+  const heat$ = heat.reduce((s,h)=>s+Math.max(0,h.seq), 0);
+  const heatR = heat.reduce((s,h)=>s+Math.max(0,h.seqR), 0);
+  const houseN = heat.filter(h=>h.seq<=1e-4 && h.d.Q>0).length;
+  const totPL = heat.reduce((s,h)=>s+h.d.realized+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
+  const stale = heat.filter(h=>isStale(h.t)).length;
+  const cap = settingsFor(acctInView()).heatCap;
+  const overCap = heatR > cap;
+  overHeat = overCap ? {heatR, cap} : null;      // read by New Trade, which is where it matters
+
+  // Across whatever is in view, so a group reads its own last five rather than the first member's.
+  const recent = scopeTrades("closed").map(x=>x.t)
+    .sort((a,b)=>(b.closedAt||0)-(a.closedAt||0)).slice(0,5);
+  const streakR = recent.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
+  const coldHit = recent.length>=3 && streakR <= -settingsFor(acctInView()).coldR;
+
+  hb.innerHTML =
+    // Both of these state your rule and flag the breach. Neither blocks the Open button — that is
+    // deliberate, and saying so is the honest version. The old wording claimed an enforcement the
+    // code never had, which is worse than no warning: it invites you to trust it.
+    (overCap ? '<div class="banner red">Heat cap breached: '+heatR.toFixed(2)+"R open against your "+cap+
+      "R cap. Your rule is no new trades until it comes back under &mdash; trim, tighten, " +
+      "or let stops ratchet. Flagged here and on the New Trade button; not blocked.</div>" : "") +
+    (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
+      " closed trades (threshold &minus;"+settingsFor(acctInView()).coldR+"R). The lever here is stepping back and reviewing &mdash; " +
+      "never resizing R to win it back. Flagged, not blocked.</div>" : "") +
+'<div class="card">' + openHead(refreshBtnHtml(stale, !!root.finnhub)) +
+    '<div class="hint" id="refreshStatus"></div>' +
+    '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
+      '<div class="statrow" style="flex:1;min-width:280px">' +
+        // Gold as the resting colour, matching the R it is denominated in — but a breached cap is a
+        // survival lever, so that one state still shouts in red.
+        '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
+        (function(){
+          // The other side of open heat. Heat is what an ordinary day costs if every stop hits;
+          // this is what an ordinary day moves when nothing goes wrong: each position's share of
+          // equity times its own ADR, summed. A position with no ADR set contributes nothing, so
+          // the count of those is stated rather than letting the figure quietly read low.
+          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          let dollars = 0, missing = 0;
+          open.forEach(t=>{
+            const val = Math.abs(t.last*derive(t).Q);        // shorts move the book too
+            if(!(val>0)) return;
+            if(t.adr>0) dollars += val*t.adr/100; else missing++;
+          });
+          const pct = eq>0 ? dollars/eq*100 : 0;
+          return '<div class="metric"><div class="k">Weighted ADR</div>' +
+            '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmtE(dollars)+
+            ' of ordinary daily movement' +
+            (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without ADR</span>" : "") +
+            '</div></div>';
+        })() +
+        '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
+        '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
+        (function(){
+          // Buying power across whatever is in view, so over-extension shows next to open heat.
+          const bp = scope().reduce((a,x)=>a+buyingPower(x), 0);
+          const used = scope().reduce((a,x)=>a+bpUsed(x), 0);
+          const pct = bp>0 ? used/bp*100 : 0;
+          const col = pct>=100 ? "var(--red)" : (pct>=80 ? "var(--amber)" : "var(--green)");
+          return '<div class="metric"><div class="k">Buying power used</div><div class="v" style="color:'+col+'">'+
+            pct.toFixed(0)+'%</div><div class="r">'+fmtE(used)+" of "+fmtE(bp)+" &middot; "+fmtE(Math.max(0,bp-used))+" free</div></div>";
+        })() +
+        '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
+      '</div>' +
+    '</div></div>';
+  return heat;
+}
+
+/* ========================= render ========================= */
+// Everything above the content scroll is always visible, so it is always rebuilt. Everything inside
+// a tab is built only when that tab is the one on screen -- which is what the tab layout buys, and
+// the reason render() no longer touches all nine charts and the whole closed table on every click.
+function render(){
+  const tab = tabOf();
+  renderTabs();
+  renderTabStrip();
+  renderSettings();
+  renderBackupBadge();
+  renderSaveAlert();
+  renderFastCalc();
+
+  // renderBook decides the heat breach and New Trade is where it lands, so the book has to be
+  // measured whichever tab is open. The wash check spans every account and goes stale on a switch.
+  const open = scopeTrades("open").map(x=>x.t);
+  renderBook(open);
+  renderHeatNotice();
+  updateWash();
+
+  if(tab==="portfolio"){ renderCash(); renderPortfolio(); }
+  if(tab==="tally")  renderClosed();
+  if(tab==="charts") renderCharts(chartTrades());
+  if(tab==="audit")  renderLedger();
+
+  const os = $("openSummary");
+  if(os) os.textContent = open.length ? open.length+" open" : "none open";
+}
+
+/* ========================= audit ledger =========================
+   Every transaction in the book, newest first, across whatever is in view. The CSV side of Audit
+   needs a thinkorswim test case, but the ledger does not, and it is the half that gets used daily.
+   An edited transaction carries an "Adj." tag -- nothing writes one yet, because editing arrives
+   with the Buy / Sell / Stop phase. */
+function renderLedger(){
+  const box = $("ledger"), sum = $("auditSummary");
+  if(!box) return;
+  const rows = [];
+  scope().forEach(acct=>(root.portfolios[acct].trades||[]).forEach(t=>{
+    t.events.forEach((e,i)=>rows.push({acct, t, e, i}));
+  }));
+  if(sum) sum.textContent = rows.length ? rows.length + " transactions" : "";
+  if(!rows.length){ box.innerHTML = '<div class="muted">No transactions yet.</div>'; return; }
+  rows.sort((a,b)=>b.e.ts - a.e.ts);
+  const g = inGroup();
+  box.innerHTML = '<table><tr><th>Date</th>' + (g?'<th>Account</th>':'') +
+    '<th>Ticker</th><th>Event</th><th class="num">Shares</th><th class="num">Price</th>' +
+    '<th class="num">Stop</th><th></th></tr>' +
+    rows.map(r=>{
+      const e = r.e;
+      return '<tr><td>'+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+'</td>' +
+        (g?'<td>'+esc(r.acct)+'</td>':'') +
+        '<td class="tickcell"><span style="font-family:var(--mono);font-weight:600">'+esc(r.t.ticker)+'</span>' +
+          (r.t.status==="closed"?' <span class="muted">closed</span>':'')+'</td>' +
+        '<td>'+e.type+'</td>' +
+        '<td class="num">'+(e.qty!=null?fmtQ(e.qty):"&mdash;")+'</td>' +
+        '<td class="num">'+(e.price!=null?fmtP(e.price):"&mdash;")+'</td>' +
+        '<td class="num">'+(e.stop!=null?fmtP(e.stop):"&mdash;")+'</td>' +
+        '<td>'+(e.adj?'<span class="pill tier">Adj.</span>':'')+'</td></tr>';
+    }).join("") + '</table>';
+}
+
+// Charts read one account at a time — a group picks which through the dropdown, since none of the
+// statistics are meaningful pooled across accounts of different size.
+function chartAcct(){
+  if(!inGroup()) return acctInView();
+  const members = groupMembers(root.active);
+  if(!members.length) return null;
+  return members.indexOf(root.chartAcct)>=0 ? root.chartAcct : members[0];
+}
+window.setChartAcct = a => { root.chartAcct = a; save(); render(); };
+function chartTrades(){
+  const a = chartAcct();
+  if(!a) return [];
+  return root.portfolios[a].trades.filter(t=>t.status==="closed")
+    .sort((x,y)=>(x.closedAt||x.createdAt||0)-(y.closedAt||y.createdAt||0));
+}
+
+/* ========================= bindings ========================= */
+function bindSettings(){
+  $("aum").addEventListener("change", e=>{
+    const v = parseFloat(e.target.value.replace(/[^0-9.]/g,""));
+    if(!isNaN(v) && v>0) state.settings.aum = v;
+    save(); render();
+  });
+  // A ruleset edit lands on the group when one is open, otherwise on the account. Members read
+  // through to the group, so one write reaches every account under it.
+  const ruleset = () => {
+    if(inGroup()) return root.groups[root.active].settings;
+    const g = groupOf(acctInView());
+    return g ? root.groups[g].settings : state.settings;
+  };
+  $("rpct").addEventListener("change", e=>{
+    const v = parseFloat(e.target.value);
+    if(!isNaN(v) && v>0){ ruleset().rPct = v; save(); render(); }
+  });
+  ["t0","t1","t2"].forEach((id,i)=>$(id).addEventListener("change", e=>{
+    const v = parseFloat(e.target.value);
+    if(!isNaN(v) && v>0){ ruleset().tiers[i] = v; save(); render(); }
+  }));
+  $("compound").addEventListener("change", e=>{ ruleset().compound = e.target.value==="1"; save(); });
+  // Margin belongs to the account, not the ruleset — it is a broker arrangement, not a method.
+  ["fc_price","fc_stop"].forEach(id=>$(id).addEventListener("input", renderFastCalc));
+  $("fc_clear").addEventListener("click", clearFc);
+  $("nt_clear").addEventListener("click", ()=>clearNewTrade(true));
+  $("marginX").addEventListener("change", e=>{
+    const a = acctInView();
+    if(root.portfolios[a]) root.portfolios[a].settings.marginX = parseFloat(e.target.value)||1;
+    save(); render();
+  });
+  $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
+  $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
+  ["nt_entry","nt_stop","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  $("nt_open").addEventListener("click", openTrade);
+  [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
+  updateGate();
+  $("nt_tk").addEventListener("input", updateWash);
+  updateWash();
+  $("fhkey").addEventListener("change", e=>{ root.finnhub = e.target.value.trim(); save(); render(); });
+
+  $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
+  $("downloadBtn").addEventListener("click", ()=>{
+    const json = JSON.stringify(root,null,1);
+    // Always put the book in the box too: some sandboxed viewers block page-initiated downloads,
+    // and a button that silently does nothing is worse than no button.
+    $("io").value = json;
+    const name = backupName();
+    let started = false;
+    try{
+      const blob = new Blob([json], {type:"application/json"});
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+      started = true;
+    }catch(e){}
+    if(started) markBackedUp();
+    $("io_err").className = "okmsg";
+    $("io_err").textContent = started
+      ? "Saving "+name+". If no file appeared, this viewer blocks downloads — your whole book is in the box above, so copy it out."
+      : "This viewer blocks downloads. Your whole book is in the box above — copy it out and save it yourself.";
+  });
+  $("copyBtn").addEventListener("click", async ()=>{
+    const json = JSON.stringify(root,null,1);
+    $("io").value = json;
+    try{
+      await navigator.clipboard.writeText(json);
+      markBackedUp();
+      $("io_err").className = "okmsg"; $("io_err").textContent = "Copied to the clipboard.";
+    }catch(e){
+      $("io").select();
+      $("io_err").className = "okmsg"; $("io_err").textContent = "Selected in the box above — press Ctrl+C to copy.";
+    }
+  });
+  $("uploadBtn").addEventListener("click", ()=>$("fileInput").click());
+  $("fileInput").addEventListener("change", e=>{
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = () => { $("io").value = String(r.result); applyImport(); };
+    r.readAsText(f);
+    e.target.value = "";
+  });
+  $("importBtn").addEventListener("click", applyImport);
+
+  // Irreversible and there is no server-side copy, so it asks twice and puts the book in the box
+  // first — if the second answer was a mistake, the export is still sitting there to paste back.
+  $("wipeBtn").addEventListener("click", ()=>{
+    const nTrades = Object.values(root.portfolios).reduce((n,p)=>n+p.trades.length, 0);
+    const nBooks = Object.keys(root.portfolios).length;
+    if(!confirm("Delete everything: "+nTrades+" trade(s) across "+nBooks+" portfolio(s), plus all settings.\n\nThis cannot be undone. Continue?")) return;
+    $("io").value = JSON.stringify(root,null,1);
+    if(!confirm("Last check.\n\nYour current book has been placed in the box below — copy it out now if there is any chance you want it back.\n\nErase everything?")) return;
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    root = newRoot(); normalize(); save(); render();
+    $("io_err").className = "okmsg";
+    $("io_err").textContent = "Everything cleared. The box above still holds your old book until you leave this page.";
+  });
+}
+function applyImport(){
+  try{
+    const p = JSON.parse($("io").value);
+    const whole = !!(p.portfolios && p.active);
+    if(!whole && !(p.settings && p.trades)) throw 0;
+
+    // Clearing data asks twice and keeps a copy; importing over the same book used to ask nothing,
+    // which made one stray click on a populated box exactly as destructive and completely silent.
+    const nTrades = whole
+      ? Object.values(root.portfolios).reduce((n,x)=>n+x.trades.length, 0)
+      : (root.portfolios[root.active] ? root.portfolios[root.active].trades.length : 0);
+    if(nTrades){
+      const scopeTxt = whole
+        ? nTrades+" trade(s) across "+Object.keys(root.portfolios).length+" account(s)"
+        : nTrades+' trade(s) in "'+root.active+'"';
+      const incoming = whole
+        ? Object.values(p.portfolios).reduce((n,x)=>n+((x.trades||[]).length), 0)+" trade(s)"
+        : ((p.trades||[]).length)+" trade(s)";
+      if(!confirm("Import replaces what you have: "+scopeTxt+" will be discarded and replaced with "+
+                  incoming+".\n\nThis cannot be undone, and the box holds the incoming data, not a "+
+                  "copy of yours. Cancel and use Download .json first if you are not certain.\n\nContinue?")) return;
+    }
+    if(whole) root = p;
+    else root.portfolios[root.active] = p;
+    normalize(); save(); render();
+    $("io_err").className = "okmsg"; $("io_err").textContent = "Imported.";
+  }catch(e){
+    $("io_err").className = "err"; $("io_err").textContent = "That isn't an export from this app — nothing was imported.";
+  }
+}
+
+/* ========================= live marks ========================= */
+// Optional. Marks only ever move t.last — never a stop, a size, or a decision.
+//
+// Refresh is deliberately book-wide rather than scoped to the tab you happen to be on. A mark is a
+// fact about a ticker, not about a tab, and a position left unmarked in another account quietly
+// falsifies its open P/L, its heat, and the buying power it is consuming. One request per distinct
+// ticker, applied to every position holding it — four accounts in the same name is one call, not
+// four, which matters against a 60-a-minute free tier.
+let refreshing = false;
+window.refreshMarks = refreshMarks;
+function allOpenTrades(){
+  const out = [];
+  Object.keys(root.portfolios).forEach(a=>{
+    (root.portfolios[a].trades||[]).forEach(t=>{ if(t.status==="open") out.push(t); });
+  });
+  return out;
+}
+async function refreshMarks(){
+  if(refreshing) return;
+  const key = root.finnhub;
+  const open = allOpenTrades();
+  // The status line lives inside the book bar, which is absent when nothing is open.
+  const say = m => { const st = $("refreshStatus"); if(st) st.textContent = m; };
+  if(!key){ say("No Finnhub key set — add one under Data Management, or keep setting marks by hand."); return; }
+  if(!open.length){ say("No open trades to refresh."); return; }
+
+  const byTicker = new Map();
+  open.forEach(t=>{
+    const k = String(t.ticker||"").toUpperCase();
+    if(!byTicker.has(k)) byTicker.set(k, []);
+    byTicker.get(k).push(t);
+  });
+
+  refreshing = true;
+  const dup = open.length - byTicker.size;
+  say("Refreshing " + byTicker.size + " ticker(s) across " + open.length + " position(s)…");
+  const results = [];
+  for(const [tk, legs] of byTicker){
+    try{
+      const res = await fetch("https://finnhub.io/api/v1/quote?symbol="+encodeURIComponent(tk)+"&token="+encodeURIComponent(key));
+      if(res.status===429) throw new Error("rate limited");
+      if(!res.ok) throw new Error("HTTP "+res.status);
+      const j = await res.json();
+      if(j && typeof j.c==="number" && j.c>0){
+        const now = Date.now();
+        legs.forEach(t=>{ t.last = j.c; t.lastMarkTs = now; });
+        results.push(tk+" "+fmtP(j.c)+(legs.length>1 ? " ("+legs.length+" positions)" : ""));
+      } else results.push(tk+": no quote");
+    }catch(err){ results.push(tk+": "+((err&&err.message==="rate limited") ? "rate limited" : "failed")); }
+  }
+  save(); render();
+  const allFailed = results.length && results.every(r=>/(failed|rate limited)$/.test(r));
+  say("Marks as of " + new Date().toLocaleTimeString() + " — " + results.join(" · ") +
+    (dup>0 ? "  ("+dup+" duplicate position(s) updated without extra calls.)" : "") +
+    (allFailed ? "  Every request failed. In a sandboxed preview outside connections are blocked — use the hosted page. Otherwise check the key." : ""));
+  refreshing = false;
+}
+function pollMarks(){
+  if(!root.finnhub) return;
+  if(!allOpenTrades().length) return;
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA")) return;  // don't re-render under the cursor
+  refreshMarks();
+}
+
+/* ========================= clock ========================= */
+// Local time, 24-hour, ticking every second. Touches only its own element, so it can never pull the
+// page out from under a field you are typing into.
+// Keyed MM-DD. Deliberately impersonal — this file is public.
+const DATE_NOTES = {
+  "01-01": "Happy New Year!",
+  "02-14": "Don't forget to tell the misses Happy Valentines Day!",
+  "04-15": "Tax day...",
+  "07-04": "USA! USA! USA!",
+  "12-24": "No work during Christmas! For shame!",
+  "12-25": "No work during Christmas! For shame!",
+  "12-26": "No work during Christmas! For shame!"
+};
+function tickClock(){
+  const el = $("clock");
+  if(!el) return;
+  const d = new Date();
+  const p = n => String(n).padStart(2,"0");
+  const c = '<span class="c">:</span>';
+  const note = DATE_NOTES[p(d.getMonth()+1)+"-"+p(d.getDate())];
+  el.innerHTML =
+    '<div class="t">'+p(d.getHours())+c+p(d.getMinutes())+c+p(d.getSeconds())+'</div>' +
+    '<div class="d">'+d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"})+'</div>' +
+    (note ? '<div class="n">'+esc(note)+'</div>' : "");
+}
+
+// Mark the rail link for whichever section is currently nearest the top of the viewport.
+// Position-based rather than IntersectionObserver: sections here change height constantly as
+// trades open and close, and "nearest the top" stays correct through all of it.
+/* ========================= boot ========================= */
+load(); bindSettings(); render();
+tickClock(); setInterval(tickClock, 1000);
+if(root.finnhub && allOpenTrades().length) refreshMarks();
+setInterval(pollMarks, 60000);
+</script>
+</body>
+</html>
