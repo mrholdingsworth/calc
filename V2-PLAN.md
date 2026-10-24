@@ -115,8 +115,15 @@ it. To stop a real trade being typed into the wrong tab:
 
    This **supersedes min-size-in-shares** from the older backlog item, which noted the flaw itself:
    a 100-share floor means different things in a $20k account and a $200k one, where a percentage of
-   equity scales on its own. Max *stop width* is a different quantity and survives unchanged — one
-   is a ceiling on position value, the other on risk per share.
+   equity scales on its own.
+
+   **Max stop width joins them as a third toggled setting.** A different quantity — a ceiling on risk
+   per share rather than on position value — so it is its own switch and its own field, and it comes
+   off the backlog into v2. All three sit on the same settings screen. The old item's crossover
+   arithmetic, which treated max-stop-width and min-size as one constraint, no longer applies now
+   that min is a percentage of equity; what survives from that item is the reasoning for *why* a
+   too-wide stop matters (a 1R win needs an implausible move) and the warning about its collision
+   with the 1.5-APTR floor, which is still live.
 
 5. **Tier stays on New Trade.** R becomes a calculated value with a fuzziness warning, and a warning
    needs something to deviate *from*, so the tier remains selectable at entry even though it no
@@ -139,37 +146,62 @@ it. To stop a real trade being typed into the wrong tab:
    book, so the switch changes nothing retroactively.
 9. **Which stop feeds the APTR check.** The **furthest** stop, since it defines the worst case.
 
-### Open
+### Also settled 2026-10-24, after I got two of them wrong
 
-10. **Split stops meet protected equity, and a partially covered position has no floor.** New, and
-    created by two v2 features colliding. With 100 held and stops covering 60, the other 40 have no
-    defined worst case, so protected equity over that book is not a floor at all. The backlog's rule
-    for a position with no stop was *bar the basis outright rather than silently counting as zero*,
-    and that extends: **any uncovered shares disable the protected basis**, visibly, falling back to
-    realised-only until the stops cover the position. The alternative — counting uncovered shares at
-    zero — drops protected equity by the full value of those shares and quietly shrinks every size.
-    Recommending the bar-and-say-so version.
+10. **Unguarded shares are counted, not excluded, and the asymmetry is the point.** I called
+    counting uncovered shares at zero "severe" and proposed barring the basis instead. That was
+    wrong, and the formula already said so: an unguarded long share has a floor of **zero**, because
+    the stock can go to zero. So `cash + Σ(stop × shares)` with `stop = 0` for unguarded shares is
+    not a quirk to work around, it is the literal and correct reading. If 40 shares sit unstopped,
+    more genuinely is at risk than intended, the Stop button says so, and the next trade sizes
+    against that reality. **Default behaviour for all unguarded long shares.**
 
-    Independently of the basis, `riskAtStop` returns `{risk$, uncoveredQty, overQty}` so the figure
-    is never understated in silence, and `uncoveredQty` is what lights the Stop button
-    (I.C.4.ii.b).
+    **Shorts are different in kind, not degree.** An unguarded short has no floor at all — the loss
+    is unbounded, so protected equity is −∞ and the budget is meaningless. So on the short side the
+    app **refuses new positions in that account until a stop is added.**
 
-11. **Open heat's unit.** v1's cap is in **R**. IV.C redefines open heat as cash at risk as a
-    **percentage of account value**, so the cap presumably follows into a percentage with a preset
-    default. Both are implementable; mixing them is not. Blocks phases 2 and 3.
+    This is the only blocking rule in the app, and it needs recording as a deliberate carve-out from
+    **flag-don't-block** or a future session will "fix" it. The distinction that justifies it: every
+    other guard — heat cap, cold streak, wash sale, over-withdrawal — blocks a *judgment call*, and
+    judgment is Steve's. This one blocks an *undefined number*. There is nothing to flag, because
+    there is no figure to put in the warning.
 
-12. **Fuzziness: what it measures, and its default.** Proposed reading — it is a **tolerance band
-    around intended R**, used two ways: the fast calculator shows the range of share counts whose
-    risk falls inside the band instead of one number, and New Trade warns when the R implied by your
-    actual shares and fill falls outside it. That also makes "push size toward max allocation"
-    concrete: take the largest count still inside the band, subject to the ceilings. Suggested
-    default **10%** — a $500 budget accepts $450–$550. Blocks phase 6.
+11. **Open heat stays in R.** The percentage-of-account-value phrasing in IV.C was shorthand in
+    conversation, not a redefinition. So `heatCap` keeps its unit and v1's `heatR` survives
+    unchanged, and phase 1's work here is a **rename only** — cash at risk is the dollar figure
+    (v1's `heat$`), open heat is the same quantity in R. No migration, no changed threshold.
 
-### Still open from the document's own list
+12. **Fuzziness is about integer-share granularity, not a tolerance band around R.** My reading was
+    wrong and so was the rule I derived from it. Steve's case: at 3 shares a trade is 0.81R, at 4 it
+    is 1.08R. The 4th share overshoots the budget by 0.08R and increases the position by **33%**. On
+    small share counts the quantisation error in R is enormous, and refusing the overshoot costs a
+    third of the position to save 8% of one R.
 
-Tier selector vs a full range across tiers in the fast calculator, initial stop as a sizing-basis
-option, thinkorswim CSV details, the ADR/Loss audit test-case review, and the Closed Trades /
-Statistics / 30-day review pass.
+    So **"lot rounding always rounds down" was exactly backwards.** Rounding to nearest, with the
+    overshoot bounded by fuzziness, is the point. The consequence has to be stated rather than
+    discovered later: **the risk budget stops being a hard ceiling and becomes a target with a
+    declared tolerance.** That is acceptable because the heat cap is the actual survival lever and it
+    is computed from real risk, so an 8% per-trade overshoot shows up there honestly rather than
+    being hidden by the rounding.
+
+    One property worth keeping in mind when the pipeline is designed: this only ever bites on small
+    positions. At 300 shares versus 301 the quantisation is 0.3%, so a percentage tolerance
+    self-limits and needs no special case for small counts.
+
+    It also decides I.A.2.v: **drop the tier selector and show a range across the pre-set R
+    multiples**, with min and max allocation as *soft* walls. A single recommended share count is
+    the thing being moved away from.
+
+### Still open
+
+- **The sizing pipeline**, to be designed together before any building starts. See phase 6 for the
+  settled inputs it begins from.
+- **`bpUsed` marks at `t.last`** — the one place the tape still reaches a cost-based number. Cost is
+  right for a cash account; a margin account's maintenance requirement genuinely is marked, so it
+  may have to follow `marginX` rather than be one rule (from decision 2).
+- From the document's own list: initial stop as a sizing-basis option, thinkorswim CSV details, the
+  APTR/Loss audit test-case review, and the Closed Trades / Statistics / 30-day review pass. The
+  tier-selector question is now closed by decision 12.
 
 ---
 
@@ -193,9 +225,10 @@ all of it is cheap to verify against a copied book.
   `stop`; `riskAtStop(t,d)` sums covered risk and returns `{risk$, uncoveredQty, overQty}`. One stop
   covering the full position is the migrated and default case, so every number should come out
   identical to v1.3 on a copied book — which is exactly the test.
-- **Cash at risk / open heat redefined** (IV.C): cash at risk is `Math.max(0, riskAtStop - realized)`
-  summed, which is what v1 already computes as `seq`; open heat becomes that over equity, as a
-  percentage. Value at risk and open risk are deleted (III.D).
+- **Cash at risk / open heat renamed, not redefined** (IV.C, decision 11). Cash at risk is
+  `Math.max(0, riskAtStop - realized)` summed — v1's `heat$` — and open heat is that same quantity
+  in R, v1's `heatR`. The unit does not change and neither does the cap, so there is no migration
+  here. Value at risk and open risk are deleted (III.D).
 - **Borrow Wheeler's modal helper.** `openModal(title, body, okLabel, onOk, onInput)` — the
   `onInput` hook is precisely what the Buy/Sell popups need for live break-even (I.C.4.i.a), and
   cal's current modal has no such affordance.
@@ -215,7 +248,8 @@ two-stop position sums correctly and reports uncovered shares.
   account, group overrides (II.A.2.i–iv). The existing group-members modal moves here.
 - New: **Sizing and risk** — tiers, the setups list, the targets toggle with up to two user levels,
   the sizing basis (default realised-only, switchable to protected equity per decision 2, reversible
-  on a live book), and **max and min allocation**, each a toggle plus a field (decision 4).
+  on a live book), and three guards each a toggle plus a field (decision 4): **max allocation**,
+  **min allocation** and **max stop width**.
 - `GROUP_KEYS` loses `compound`, gains the new overridable keys.
 - The Desk section becomes the fast calculator alone (I.A, III.A), still at `#sec-desk`.
 
@@ -280,33 +314,25 @@ blocking; a setup chosen later reaches the by-concept statistics table.
 
 ### 6 — The fast calculator finished
 
-Five ceilings, a floor, a rounding rule and a tolerance band now meet in one number, and the order
-they apply in decides whether the answer is right. Written out so it cannot drift:
+**The pipeline itself is a pre-build item, to be worked through together at Steve's say-so.** Not
+designed here, because my first attempt at it got the central rule backwards (see decision 12). What
+follows is only the material that session starts from.
 
-```
-equity  = realised-only, or protected (decision 2)
-budget  = equity × rPct/100 × tierMult
-qR      = floor(budget / riskPerShare)                      risk ceiling
-qFuzz   = floor(budget × (1 + fuzz) / riskPerShare)          top of the tolerance band
-qMax    = floor(maxAlloc/100 × equity / price)               concentration ceiling, if enabled
-qBP     = floor(bpFree / price)                              buying power ceiling
-lo      = roundToLot(min(qR,   qMax, qBP))                   always rounds DOWN
-hi      = roundToLot(min(qFuzz, qMax, qBP))
-```
+Settled inputs:
 
-- Show `lo`–`hi` as a **range** when they differ, one number when they do not (I.A.2.ii). "Push size
-  toward max allocation" is `hi` (I.A.2.iii): the largest count still inside the band, under every
-  ceiling.
-- **Lot rounding always rounds down.** Rounding up breaches the risk ceiling that every number above
-  it was computed to respect.
-- Warn when `hi × price < minAlloc/100 × equity` — too small to be worth taking (decision 4).
-- Tier selector or a full range across tiers (I.A.2.v) — still his open item.
-- Protected basis barred while any position has uncovered shares (decision 10), stated on screen.
-- `rUnitOf()` is the single place the basis enters, so switching it cannot miss a call site.
+- **No single recommended share count.** Show a **range across the pre-set R multiples** from
+  settings, which closes I.A.2.v in favour of dropping the tier selector.
+- **Min and max allocation are soft walls** — drawn, warned at, never enforced.
+- **Fuzziness is about integer-share granularity**, per decision 12.
+- Equity is realised-only or protected (decision 2); `rUnitOf()` is the single place the basis
+  enters, so switching it cannot miss a call site.
+- Protected equity counts unguarded long shares at zero and refuses while a short is unguarded
+  (decision 10).
+- Max stop width is now a toggled setting too (decision 4), so it joins the same screen.
 
-*Verify:* realised-only reproduces v1.3's share counts exactly; protected equity on the backlog's
-worked case — a 1000-share long at avg 100 — moves the basis by −$4,000 at a 96 stop and +$4,000 at
-104, and bars itself the moment a stop is removed.
+*Verify, whatever the design turns out to be:* realised-only with fuzziness off reproduces v1.3's
+share counts exactly; protected equity on the backlog's worked case — a 1000-share long at avg 100 —
+moves the basis by −$4,000 at a 96 stop and +$4,000 at 104.
 
 ### 7 — Marks
 
@@ -368,10 +394,12 @@ As set out in section 0.
 - **Fixed in passing.** `deleteTrade` deletes from `state` rather than the trade's own account, and
   Shares-override is silently ignored in group mode. Both die with the rewrites in phases 3 and 5;
   both should get a verification case rather than being assumed gone.
-- **Half absorbed.** *A stop that is too wide, and a size that is too small* — the min-size half is
-  replaced by min allocation, which removes the crossover arithmetic that made the two one
-  constraint. The **max-stop-width** half is untouched by the v2 document and stays on the backlog,
-  now standing alone.
+- **Fully absorbed.** *A stop that is too wide, and a size that is too small* — min size becomes min
+  allocation, and max stop width becomes its own toggled setting (decision 4). The crossover
+  arithmetic that made them one constraint goes with it, since min is now a percentage of equity
+  rather than a share count. The item's collision warning survives and is still live: max stop width
+  against the 1.5-APTR floor leaves an empty band on a volatile enough name, which is one conclusion
+  — *this stock is too volatile for your rules* — not two warnings.
 - **Untouched, still open.** Top themes, the interactive calendar, dividends, the extension check,
   recomputation cost, `render()` cost, per-account collapse state (moot after phase 3), naming the
   app, the rules panel.
@@ -392,5 +420,10 @@ The handoff asserts these; v2 retires two, and they should not be left asserted.
   one more case, though — the Portfolio panel shows a mark-dependent figure for the first time, so
   the line is "equity *for sizing* responds to decisions", and net liq is labelled as what it is.
 
+- **Flag, don't block** → **survives with one named exception.** An unguarded short refuses new
+  positions (decision 10), because protected equity is unbounded there and there is no figure to put
+  in a warning. Every other guard blocks a judgment call, which stays Steve's. Record the exception
+  with its reason, or it reads as a bug.
+
 Unchanged and still load-bearing: locked-at-open fields, `syncCompound` on every realising path,
-remove-what-creates-never-what-reads, flag-don't-block, `jsq()` for inline handlers.
+remove-what-creates-never-what-reads, `jsq()` for inline handlers.
