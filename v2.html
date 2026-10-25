@@ -2432,31 +2432,56 @@ window.stopUI = id => {
   stopNote();
 };
 
+/* ---- the gear: history and corrections ----
+   Any transaction can be edited or removed. Nothing needs recomputing afterwards, because nothing
+   is stored: derive() replays the log, so correcting an entry price six events ago moves the
+   average, the realised total, every R multiple and the equity that was compounded from them. That
+   is IV.E, and the event-sourced model is the reason it costs nothing.
+
+   An edited event keeps what it was, once, so the ledger can say what changed rather than only
+   that something did. */
+const EVENT_DESC = e => {
+  if(e.type==="entry"||e.type==="add") return fmtQ(e.qty)+" @ "+fmtP(e.price)+(e.stop!=null?" &middot; stop "+fmtP(e.stop):"");
+  if(e.type==="trim"||e.type==="close") return fmtQ(e.qty)+" @ "+fmtP(e.price);
+  if(e.type==="stop")   return stopDesc(e);
+  if(e.type==="budget") return "risk &rarr; "+e.mult+"R";
+  if(e.type==="adjust") return [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null,
+                                e.price!=null?"avg &rarr; "+fmtP(e.price):null,
+                                e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
+  return "";
+};
+// The title is plain text, so the description is stripped of markup BEFORE escaping -- running an
+// entity through esc() turns &mdash; into the five characters a reader actually sees.
+const adjPill = e => e.adj
+  ? ' <span class="pill tier" title="'+esc("Edited" + (e.was ? " — was " + stripTags(EVENT_DESC(e.was)) : ""))+'">Adj.</span>'
+  : "";
+const stripTags = s => String(s).replace(/<[^>]*>/g,"").replace(/&middot;/g,"·").replace(/&mdash;/g,"—").replace(/&rarr;/g,"→");
+
 window.gearUI = id => {
   const t = getTrade(id);
   if(!t) return;
   const d = derive(t);
-  const rows = t.events.map(e=>{
-    let det = "";
-    if(e.type==="entry"||e.type==="add") det = fmtQ(e.qty)+" @ "+fmtP(e.price)+(e.stop!=null?" &middot; stop "+fmtP(e.stop):"");
-    else if(e.type==="trim"||e.type==="close") det = fmtQ(e.qty)+" @ "+fmtP(e.price);
-    else if(e.type==="stop") det = stopDesc(e);
-    else if(e.type==="budget") det = "risk &rarr; "+e.mult+"R";
-    else if(e.type==="adjust") det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
-                                      e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
-    return "<tr><td>"+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric"})+
-      "</td><td>"+e.type+"</td><td>"+det+"</td></tr>";
-  }).join("");
+  const rows = t.events.map((e,i)=>
+    "<tr><td>"+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td>" +
+    "<td>"+e.type+adjPill(e)+"</td><td>"+EVENT_DESC(e)+"</td>" +
+    "<td class='num' style='white-space:nowrap'>" +
+      '<button class="small" onclick="editEvent(\''+t.id+'\','+i+')">Edit</button> ' +
+      (e.type==="entry" ? "" :
+        '<button class="small danger" title="Remove this transaction" onclick="deleteEvent(\''+t.id+'\','+i+')">&#10005;</button>') +
+    "</td></tr>").join("");
+
   openModal(esc(t.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">history and corrections</span>',
-    '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th></tr>'+rows+'</table></div>' +
-    '<div class="row" style="margin-top:12px">' +
-      '<div style="flex:1"><label for="m_aq">Position override</label>' +
+    '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th><th></th></tr>'+rows+'</table></div>' +
+    '<div class="lbl" style="margin-top:14px">Override</div>' +
+    '<div class="row">' +
+      '<div style="flex:1"><label for="m_aq">Position</label>' +
         '<input id="m_aq" type="number" step="any" placeholder="'+fmtQ(d.Q)+' sh"></div>' +
-      '<div style="flex:1"><label for="m_aa">Average price override</label>' +
+      '<div style="flex:1"><label for="m_aa">Average price</label>' +
         '<input id="m_aa" type="number" step="any" placeholder="'+fmtP(d.avg)+'"></div>' +
     '</div>' +
-    '<div class="muted" style="margin-top:6px">Editing a past transaction, and the Adj. ledger tag, ' +
-    'arrive with the Buy / Sell / Stop phase. A blank field keeps its current value.</div>',
+    '<div class="muted" style="margin-top:6px">Forces the position to match your broker without ' +
+      'rewriting history. A blank field keeps its current value. Prefer editing the transaction ' +
+      'that is wrong.</div>',
     "Apply override",
     () => {
       const q = parseFloat(mv("m_aq")), a = parseFloat(mv("m_aa"));
@@ -2467,6 +2492,95 @@ window.gearUI = id => {
       return null;
     });
 };
+
+// Reopen the gear after a correction, so the effect is visible where the decision was made.
+const reopenGear = id => setTimeout(()=>gearUI(id), 0);
+
+window.editEvent = (id, i) => {
+  const t = getTrade(id);
+  if(!t || !t.events[i]) return;
+  const e = t.events[i], type = e.type;
+  const num = (lbl, fid, val, step) =>
+    '<div style="flex:1"><label for="'+fid+'">'+lbl+'</label>' +
+    '<input id="'+fid+'" type="number" step="'+(step||"any")+'" value="'+(val==null?"":val)+'"></div>';
+
+  let body = '<div class="row">' +
+    '<div style="flex:1"><label for="m_date">Date</label>' +
+      '<input id="m_date" type="date" value="'+dateVal(e.ts)+'"></div>';
+  if(type==="entry" || type==="add")      body += num("Shares","m_q",e.qty) + num("Price","m_p",e.price);
+  else if(type==="trim" || type==="close") body += num("Shares","m_q",e.qty) + num("Price","m_p",e.price);
+  else if(type==="budget")                 body += num("Risk budget (R)","m_m",e.mult,"0.25");
+  else if(type==="adjust")                 body += num("Position","m_q",e.qty) + num("Average price","m_p",e.price);
+  body += '</div>';
+  if(type==="entry") body += '<div class="row" style="margin-top:8px">' + num("Stop at entry","m_s",e.stop) + '</div>';
+  if(type==="stop")  body += '<div class="lbl" style="margin-top:10px">Shares at price &mdash; blank covers the whole position</div>' +
+                             '<div id="stopRows"></div>' +
+                             '<button class="small" onclick="addStopRow()">Add a stop</button>';
+
+  openModal("Edit " + type + " &mdash; " + esc(t.ticker),
+    body +
+    '<div class="muted" style="margin-top:8px">Everything after this transaction is recalculated: ' +
+      'average, realised, every R multiple, and the equity compounded from them.</div>',
+    "Save",
+    () => {
+      const before = JSON.parse(JSON.stringify(e));
+      const ts = tsFromDateVal(mv("m_date"), e.ts);
+      if(isNaN(ts)) return "Enter a valid date.";
+      if(type==="entry" || type==="add" || type==="trim" || type==="close"){
+        const q = parseFloat(mv("m_q")), p = parseFloat(mv("m_p"));
+        if(isNaN(q) || q<=0) return "Shares must be positive.";
+        if(isNaN(p) || p<=0) return "Enter a price.";
+        e.qty = q; e.price = p;
+        if(type==="entry"){
+          const s = parseFloat(mv("m_s"));
+          e.stop = isNaN(s) ? null : s;
+        }
+      } else if(type==="budget"){
+        const m = parseFloat(mv("m_m"));
+        if(isNaN(m) || m<=0) return "Enter a risk budget.";
+        e.mult = m;
+      } else if(type==="adjust"){
+        const q = parseFloat(mv("m_q")), p = parseFloat(mv("m_p"));
+        if(isNaN(q) && isNaN(p)) return "Enter a position size or an average price.";
+        e.qty = isNaN(q) ? null : q;
+        e.price = isNaN(p) ? null : p;
+      } else if(type==="stop"){
+        const rows = readStopRows().filter(r=>r.p!=="" && !isNaN(+r.p));
+        if(!rows.length) return "Enter at least one stop price.";
+        const stops = rows.map(r=>({qty: r.q==="" ? null : Math.abs(+r.q), price:+r.p}));
+        if(stops.length===1 && stops[0].qty==null){ e.stop = stops[0].price; delete e.stops; }
+        else { e.stops = stops; delete e.stop; }
+      }
+      e.ts = ts;
+      // Keep the ORIGINAL, not the previous edit: "was" should answer what it started as.
+      if(!e.adj){ e.was = before; e.adj = true; }
+      // Events are replayed in array order, so a re-dated one has to be moved to keep the log and
+      // the arithmetic agreeing about what happened first.
+      t.events.sort((a,b)=>a.ts-b.ts);
+      syncCompound(t, acctOf(id));
+      reopenGear(id);
+      return null;
+    });
+
+  if(type==="stop"){
+    const st = stopsFrom(e);
+    paintStopRows(st.length ? st.map(s=>({q:s.qty==null?"":String(s.qty), p:String(s.price)})) : [{q:"",p:""}]);
+  }
+};
+
+window.deleteEvent = (id, i) => {
+  const t = getTrade(id);
+  if(!t || !t.events[i]) return;
+  const e = t.events[i];
+  if(e.type==="entry"){ alert("The opening entry cannot be removed. Delete the trade instead."); return; }
+  if(!confirm("Remove this "+e.type+" ("+stripTags(EVENT_DESC(e))+")?\n\nEverything after it is recalculated.")) return;
+  t.events.splice(i,1);
+  // Removing the close of a closed trade puts it back on the book, since what closed it is gone.
+  if(t.status==="closed" && !t.events.some(x=>x.type==="close")){ t.status = "open"; t.closedAt = null; }
+  syncCompound(t, acctOf(id));
+  save(); render(); reopenGear(id);
+};
+
 /* ========================= trade actions ========================= */
 window.setLast = id => {
   const t = getTrade(id), v = parseFloat($("px_"+id).value);
@@ -3572,7 +3686,10 @@ function renderLedger(){
   scope().forEach(acct=>(root.portfolios[acct].trades||[]).forEach(t=>{
     t.events.forEach((e,i)=>rows.push({acct, t, e, i}));
   }));
-  if(sum) sum.textContent = rows.length ? rows.length + " transactions" : "";
+  const adj = rows.filter(x=>x.e.adj).length;
+  if(sum) sum.textContent = rows.length
+    ? rows.length + (rows.length===1 ? " transaction" : " transactions") +
+      (adj ? " · " + adj + " adjusted" : "") : "";
   if(!rows.length){ box.innerHTML = '<div class="muted">No transactions yet.</div>'; return; }
   rows.sort((a,b)=>b.e.ts - a.e.ts);
   const g = inGroup();
@@ -3589,7 +3706,7 @@ function renderLedger(){
         '<td class="num">'+(e.qty!=null?fmtQ(e.qty):"&mdash;")+'</td>' +
         '<td class="num">'+(e.price!=null?fmtP(e.price):"&mdash;")+'</td>' +
         '<td class="num">'+(e.type==="stop" ? stopDesc(e) : (e.stop!=null?fmtP(e.stop):"&mdash;"))+'</td>' +
-        '<td>'+(e.adj?'<span class="pill tier">Adj.</span>':'')+'</td></tr>';
+        '<td>'+adjPill(e)+'</td></tr>';
     }).join("") + '</table>';
 }
 
