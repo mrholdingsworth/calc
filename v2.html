@@ -473,13 +473,11 @@ button.small{--r:7px}
       <div id="acctAdmin" style="margin-bottom:14px"></div>
       <div class="fields deskrow">
         <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
-        <div id="marginCell"><label for="marginX">Margin</label>
-          <select id="marginX">
-            <option value="1">Cash &mdash; no margin</option>
-            <option value="2">Margin 2&times; (Reg T)</option>
-            <option value="4">Margin 4&times; (day trading)</option>
-            <option value="6">Margin 6&times;</option>
-          </select></div>
+        <div id="marginCell"><label for="marginOn">Margin</label>
+          <div class="row" style="flex-wrap:nowrap;gap:8px;align-items:center">
+            <input type="checkbox" id="marginOn" style="width:auto;margin:0;accent-color:var(--blue)" title="Trade this account on margin">
+            <input id="marginX" type="number" step="0.1" min="1" placeholder="2" style="min-width:0" title="Buying power as a multiple of equity">
+          </div></div>
       </div>
       <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
     </div>
@@ -683,10 +681,14 @@ function settingsFor(acct){
 // Buying power. marginX is 1 for a cash account, 2 for Reg T, 4 for day-trading margin. Nothing
 // here is a broker calculation — no maintenance requirements, no per-security haircuts — it is a
 // ceiling so R-sizing cannot quietly hand you a position you could not pay for.
+// Two fields rather than a list of brokers' numbers: whether this account trades on margin, and at
+// what multiple. The rate is kept while the box is off, so turning it back on returns the number
+// you had rather than a guess.
 const marginXOf = acct => {
   const pf = root.portfolios[acct];
-  const x = pf ? pf.settings.marginX : 1;
-  return (x>0) ? x : 1;
+  if(!pf || !pf.settings.marginOn) return 1;
+  const x = pf.settings.marginX;
+  return (x>1) ? x : 1;
 };
 const buyingPower = acct => {
   const pf = root.portfolios[acct];
@@ -767,6 +769,10 @@ function normalize(){
     if(!pf.settings) pf.settings = defaults().settings;
     Object.keys(d).forEach(k=>{ if(pf.settings[k]==null) pf.settings[k] = d[k]; });
     if(!Array.isArray(pf.settings.tiers) || pf.settings.tiers.length!==3) pf.settings.tiers = [1,0.5,0.25];
+    // marginX used to carry both facts: 1 meant "no margin" and anything above it meant a rate.
+    // Split them, and park a usable rate on a cash account so ticking the box is not a blank field.
+    if(pf.settings.marginOn == null) pf.settings.marginOn = pf.settings.marginX > 1;
+    if(!(pf.settings.marginX > 1)) pf.settings.marginX = 2;
     if(!Array.isArray(pf.settings.targets)) pf.settings.targets = [1,2];
     if(!Array.isArray(pf.settings.setups)) pf.settings.setups = [];
     // Sections are tabs now, one visible at a time, so there is nothing to collapse. Any `collapsed`
@@ -1482,8 +1488,11 @@ function renderSettings(){
   $("aumCell").style.display = g ? "none" : "";
   $("marginCell").style.display = g ? "none" : "";
   if(!g){
+    const pf = root.portfolios[acctInView()];
     $("aum").value = fmtE(state.settings.aum);
-    $("marginX").value = String(marginXOf(acctInView()));
+    $("marginOn").checked = !!(pf && pf.settings.marginOn);
+    $("marginX").value = pf ? pf.settings.marginX : 2;
+    $("marginX").disabled = !(pf && pf.settings.marginOn);
   }
   $("rpct").value = s.rPct;
   $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
@@ -1508,9 +1517,15 @@ function renderSettings(){
               '" onclick="openCash(\''+jsq(m)+'\',\'deposit\')">+</button> ' +
               '<button class="small" title="Withdraw from '+esc(m)+
               '" onclick="openCash(\''+jsq(m)+'\',\'withdraw\')">&minus;</button></td>' +
-            "<td><select style='max-width:120px' onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\">" +
-              [1,2,4,6].map(x=>"<option value='"+x+"'"+(marginXOf(m)===x?" selected":"")+">"+(x===1?"Cash":x+"&times;")+"</option>").join("") +
-            "</select></td>" +
+            "<td style='white-space:nowrap'>" +
+              "<input type='checkbox' style='width:auto;margin:0 6px 0 0;accent-color:var(--blue)'" +
+                (root.portfolios[m].settings.marginOn?" checked":"") +
+                " onchange=\"setMemberMarginOn('"+jsq(m)+"',this.checked)\" title='Trade on margin'>" +
+              "<input type='number' step='0.1' min='1' style='width:62px;display:inline-block'" +
+                " value='"+root.portfolios[m].settings.marginX+"'" +
+                (root.portfolios[m].settings.marginOn?"":" disabled") +
+                " onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\" title='Buying power multiple'>" +
+            "</td>" +
             "<td class='num'>"+fmtE(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmtE(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
@@ -1743,7 +1758,12 @@ function renderCash(){
 }
 
 window.setMemberMargin = (m,v) => {
-  if(root.portfolios[m]) root.portfolios[m].settings.marginX = parseFloat(v)||1;
+  const pf = root.portfolios[m], n = parseFloat(v);
+  if(pf && n>=1) pf.settings.marginX = n;
+  save(); render();
+};
+window.setMemberMarginOn = (m,on) => {
+  if(root.portfolios[m]) root.portfolios[m].settings.marginOn = !!on;
   save(); render();
 };
 window.setMemberAum = (m,v) => {
@@ -3388,9 +3408,14 @@ function bindSettings(){
   ["fc_price","fc_stop"].forEach(id=>$(id).addEventListener("input", renderFastCalc));
   $("fc_clear").addEventListener("click", clearFc);
   $("nt_clear").addEventListener("click", ()=>clearNewTrade(true));
+  $("marginOn").addEventListener("change", e=>{
+    const pf = root.portfolios[acctInView()];
+    if(pf) pf.settings.marginOn = e.target.checked;
+    save(); render();
+  });
   $("marginX").addEventListener("change", e=>{
-    const a = acctInView();
-    if(root.portfolios[a]) root.portfolios[a].settings.marginX = parseFloat(e.target.value)||1;
+    const pf = root.portfolios[acctInView()], v = parseFloat(e.target.value);
+    if(pf && v>=1) pf.settings.marginX = v;
     save(); render();
   });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
