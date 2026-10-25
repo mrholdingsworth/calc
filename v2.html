@@ -2243,6 +2243,7 @@ function groupHeaderRow(gid, run, showAcct){
       '<td class="num">'+totHeat.toFixed(2)+'R</td>' +
       '<td class="num '+cls(totPL)+'">'+fmt$(totPL)+'</td>' +
       '<td class="acts">' +
+        '<button class="small" onclick="gBuyUI(\''+jsq(gid)+'\')" title="Buy a percentage into every leg">Buy</button>' +
         '<button class="small" onclick="gSellUI(\''+jsq(gid)+'\')" title="Sell a percentage of every leg">Sell</button>' +
         '<button class="small" onclick="gStopUI(\''+jsq(gid)+'\')" title="Move every leg\'s stop">Stop</button>' +
         '<button class="small danger" onclick="gCloseUI(\''+jsq(gid)+'\')" title="Close in every account">Close</button>' +
@@ -2254,55 +2255,99 @@ function groupHeaderRow(gid, run, showAcct){
    Buy and Sell take a price and a quantity and nothing else; Stop takes a price. The break-even
    preview and split stops arrive with phase 4, along with Buy, which needs the `add` event to be
    written again rather than only replayed. */
-window.buyUI = id => {
-  const t = getTrade(id);
-  if(!t) return;
-  openModal("Buy " + esc(t.ticker),
-    '<div class="muted">Adding shares needs the add event writing again, plus the running break-even ' +
-    'preview. Both arrive with the Buy / Sell / Stop phase.</div>', "OK", () => { closeModal(); return null; });
-};
+/* ---- Buy and Sell ----
+   Both buttons mean what they say at the broker, so on a short they swap roles: Buy covers and
+   Sell adds. Which means neither button is "add" or "reduce" -- the side decides, and getting that
+   backwards on a short is the kind of mistake that is invisible until the P/L is wrong.
 
-window.sellUI = id => {
+   Price and shares, and nothing else. The running figure is the trade's new overall break-even:
+   buy 10 at $10, then 10 at $20, and it reads $15. */
+const isAdd = (side, kind) => (kind==="buy") === (side>0);
+
+window.buyUI  = id => positionUI(id, "buy");
+window.sellUI = id => positionUI(id, "sell");
+
+function positionUI(id, kind){
   const t = getTrade(id);
   if(!t) return;
-  const d = derive(t);
-  openModal((t.side>0?"Sell ":"Buy to cover ") + esc(t.ticker),
-    '<div class="row">' +
-      '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+t.last+'"></div>' +
-      '<div style="flex:1"><label for="m_q">Shares</label><input id="m_q" type="number" step="any" placeholder="'+fmtQ(d.Q)+'"></div>' +
-    '</div>' +
+  const d = derive(t), acct = acctOf(id), add = isAdd(t.side, kind);
+  const verb = kind==="buy" ? "Buy" : "Sell";
+  const sub  = add ? "adds to the position" : (t.side>0 ? "reduces the position" : "covers the short");
+
+  const quick = add ? "" :
     '<div class="row" style="margin-top:6px">' +
-      '<button class="small" onclick="document.getElementById(\'m_q\').value='+Math.floor(d.Q*0.25)+';document.getElementById(\'m_q\').dispatchEvent(new Event(\'input\',{bubbles:true}))">25%</button>' +
-      '<button class="small" onclick="document.getElementById(\'m_q\').value='+Math.floor(d.Q*0.5)+';document.getElementById(\'m_q\').dispatchEvent(new Event(\'input\',{bubbles:true}))">50%</button>' +
-      '<button class="small" onclick="document.getElementById(\'m_q\').value='+d.Q+';document.getElementById(\'m_q\').dispatchEvent(new Event(\'input\',{bubbles:true}))">All</button>' +
-    '</div>',
-    "Sell",
+      [[0.25,"25%"],[0.5,"50%"],[1,"All"]].map(([f,label])=>
+        '<button class="small" onclick="setQty('+Math.floor(d.Q*f)+')">'+label+
+          ' <span class="muted">'+fmtQ(Math.floor(d.Q*f))+'</span></button>').join("") +
+    '</div>';
+
+  openModal(verb + " " + esc(t.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">' + sub + '</span>',
+    '<div class="row">' +
+      '<div style="flex:1"><label for="m_px">Price</label>' +
+        '<input id="m_px" type="number" step="any" value="'+t.last+'"></div>' +
+      '<div style="flex:1"><label for="m_q">Shares</label>' +
+        '<input id="m_q" type="number" step="any" placeholder="'+(add?"":fmtQ(d.Q))+'"></div>' +
+    '</div>' + quick,
+    verb,
     () => {
       const P = parseFloat(mv("m_px"));
       let q = parseFloat(mv("m_q"));
-      if(isNaN(P)) return "Enter a price.";
+      if(isNaN(P) || P<=0) return "Enter a price.";
       if(isNaN(q) || q<=0) return "Enter a quantity.";
-      if(q > d.Q) q = d.Q;
-      const all = q >= d.Q;
-      t.events.push({type: all?"close":"trim", qty:q, price:P, ts:Date.now()});
+      if(add){
+        t.events.push({type:"add", qty:q, price:P, ts:Date.now()});
+      } else {
+        if(q > d.Q) q = d.Q;
+        const all = q >= d.Q;
+        t.events.push({type: all?"close":"trim", qty:q, price:P, ts:Date.now()});
+        if(all){ t.status = "closed"; t.closedAt = Date.now(); }
+      }
       t.last = P; t.lastMarkTs = Date.now();
-      if(all){ t.status = "closed"; t.closedAt = Date.now(); }
-      syncCompound(t, acctOf(id));            // banked profit is equity the moment it is banked
+      syncCompound(t, acct);          // banked profit is equity the moment it is banked
       return null;
     },
     () => {
-      const P = parseFloat(mv("m_px")), q = parseFloat(mv("m_q"));
       const el = $("m_note");
       if(!el) return;
+      const P = parseFloat(mv("m_px")), q = parseFloat(mv("m_q"));
       if(isNaN(P) || isNaN(q) || q<=0){ el.innerHTML = ""; return; }
-      const left = Math.max(0, d.Q - Math.min(q, d.Q));
-      const realized = d.realized + t.side*(P-d.avg)*Math.min(q, d.Q);
-      el.innerHTML = left>0
-        ? fmtQ(left)+" shares left &middot; realized <b>"+fmt$(realized)+"</b> &middot; break-even stop <b>"+
-          fmtP(d.avg - t.side*realized/left)+"</b>"
-        : "Closes the position &middot; realized <b>"+fmt$(realized)+"</b> ("+fmtR(realized/t.rUnit)+")";
+      el.innerHTML = add ? addNote(t, d, P, q, acct) : reduceNote(t, d, P, q);
     });
+}
+window.setQty = n => {
+  const el = $("m_q");
+  if(!el) return;
+  el.value = n;
+  el.dispatchEvent(new Event("input", {bubbles:true}));
 };
+
+// Break-even is the average only while nothing has been realised. Once a trim has banked something,
+// the price that makes the whole sequence net zero is lower than the average by what it banked, and
+// that is the number that actually matters. Both are shown when they differ.
+function addNote(t, d, P, q, acct){
+  const Q2 = d.Q + q, avg2 = (d.avg*d.Q + P*q)/Q2;
+  const be2 = Q2>0 ? avg2 - t.side*d.realized/Q2 : null;
+  const bits = [fmtQ(Q2)+" shares &middot; average <b>"+fmtP(avg2)+"</b>"];
+  if(Math.abs(be2-avg2) > 1e-9) bits.push("break-even <b>"+fmtP(be2)+"</b>");
+  const cost = q*P, free = bpFree(acct);
+  bits.push("cost "+fmt$(cost));
+  if(cost > free) bits.push('<span style="color:var(--amber)">'+fmt$(cost-free)+" beyond free buying power</span>");
+  // The stops were written against the old size, so an add leaves part of the position uncovered
+  // unless a rung said "all". Worth saying here rather than only on the row afterwards.
+  const cov = coverage({Q:Q2, avg:avg2, stops:d.stops});
+  if(cov.under > 0) bits.push('<span style="color:var(--amber)">'+fmtQ(cov.under)+" would be left uncovered by the stops</span>");
+  return bits.join(" &middot; ");
+}
+
+function reduceNote(t, d, P, q){
+  const qq = Math.min(q, d.Q), left = d.Q - qq;
+  const realized = d.realized + t.side*(P-d.avg)*qq;
+  if(left <= 0)
+    return "Closes the position &middot; realized <b>"+fmt$(realized)+"</b> ("+fmtR(realized/t.rUnit)+")";
+  return fmtQ(left)+" shares left &middot; realized <b>"+fmt$(realized)+"</b> &middot; break-even <b>"+
+    fmtP(d.avg - t.side*realized/left)+"</b>";
+}
 
 /* ---- the stop dialog ----
    Rows of shares-at-a-price. A blank share count means the whole position, which is what a single
@@ -3310,12 +3355,47 @@ window.gDelete = gid => {
 /* ---- the group header row's actions ----
    A fanned-out trade is one decision taken in several accounts, so the header acts on all of them
    at once. Per-leg actions are still on each leg's own row, for correcting one account. */
+// Adds broadcast as a fraction too, for the same reason trims do: the accounts hold different
+// sizes, so "add 30%" is one decision and "add 200 shares" is three different ones.
+window.gAddFrac = (gid, f, P) => {
+  if(!(f>0)) return "Enter a percentage.";
+  if(isNaN(P) || P<=0) return "Enter a price.";
+  let any = false;
+  legsOf(gid).forEach(x=>{
+    const d = derive(x.t), q = Math.floor(d.Q*f);
+    if(q<=0) return;
+    x.t.events.push({type:"add", qty:q, price:P, ts:Date.now()});
+    x.t.last = P; x.t.lastMarkTs = Date.now();
+    any = true;
+  });
+  return any ? null : "That percentage rounds to zero shares in every account.";
+};
+window.gBuyUI = gid => {
+  const legs = legsOf(gid);
+  if(!legs.length) return;
+  const first = legs[0].t, add = isAdd(first.side, "buy");
+  const totQ = legs.reduce((a,x)=>a+derive(x.t).Q, 0);
+  openModal((add?"Buy ":"Buy to cover ") + esc(first.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
+    '<div class="row">' +
+      '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>' +
+      '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="25"></div>' +
+    '</div>' +
+    '<div class="muted" style="margin-top:6px">A percentage of what each account already holds. ' +
+      fmtQ(totQ)+' shares open in total.</div>',
+    add ? "Buy" : "Cover",
+    () => add ? gAddFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px")))
+              : gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))));
+};
 window.gSellUI = gid => {
   const legs = legsOf(gid);
   if(!legs.length) return;
-  const first = legs[0].t, totQ = legs.reduce((a,x)=>a+derive(x.t).Q, 0);
-  openModal((first.side>0?"Sell ":"Buy to cover ") + esc(first.ticker) +
-      ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
+  // Sell on a short is an add, exactly as it is on a single position.
+  const first = legs[0].t, add = isAdd(first.side, "sell");
+  const totQ = legs.reduce((a,x)=>a+derive(x.t).Q, 0);
+  openModal("Sell " + esc(first.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">' +
+      (add ? "adds to" : "reduces") + " " + legs.length + ' accounts</span>',
     '<div class="row">' +
       '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>' +
       '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="33"></div>' +
@@ -3323,7 +3403,8 @@ window.gSellUI = gid => {
     '<div class="muted" style="margin-top:6px">A percentage, not a share count &mdash; the accounts hold different sizes. ' +
       fmtQ(totQ)+' shares open in total.</div>',
     "Sell",
-    () => gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))));
+    () => add ? gAddFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px")))
+              : gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))));
 };
 window.gStopUI = gid => {
   const legs = legsOf(gid);
