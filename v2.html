@@ -282,83 +282,6 @@ button.small{--r:7px}
   </div>
 </div>
 
-<!-- Settings and Data Management are icons now, not sections. Their contents live permanently in
-     the DOM inside these hidden containers rather than being built on open, so renderSettings()
-     and every binding set up at boot keep working against the same ids. -->
-<div class="modal" id="smodal">
-  <div class="modalcard wide">
-    <div class="row" style="align-items:center;margin-bottom:4px">
-      <div class="head" style="margin-bottom:0">Settings</div>
-      <button class="small" style="margin-left:auto" title="Close" onclick="closeSettings()">&#10005;</button>
-    </div>
-
-    <div class="setgrp">
-      <div class="head">Accounts</div>
-      <div class="tabs" id="stabs" style="margin-bottom:10px"></div>
-      <div class="fields deskrow">
-        <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
-        <div id="marginCell"><label for="marginX">Margin</label>
-          <select id="marginX">
-            <option value="1">Cash &mdash; no margin</option>
-            <option value="2">Margin 2&times; (Reg T)</option>
-            <option value="4">Margin 4&times; (day trading)</option>
-            <option value="6">Margin 6&times;</option>
-          </select></div>
-      </div>
-      <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
-    </div>
-
-    <div class="setgrp">
-      <div class="head">Sizing and risk</div>
-      <div class="fields deskrow">
-        <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
-        <div><label for="t0">Tier A+ (R)</label><input id="t0" type="number" step="0.25" min="0.05"></div>
-        <div><label for="t1">Tier A (R)</label><input id="t1" type="number" step="0.25" min="0.05"></div>
-        <div><label for="t2">Tier B (R)</label><input id="t2" type="number" step="0.25" min="0.05"></div>
-        <div><label for="compound">Compound realized into AUM</label>
-          <select id="compound"><option value="1">Yes</option><option value="0">No</option></select></div>
-        <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
-        <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
-      </div>
-      <div class="muted" style="margin-top:8px" id="set_sizing_todo"></div>
-    </div>
-
-    <div class="setgrp">
-      <div class="head">Statistics and definitions</div>
-      <div class="muted" id="set_stats_todo"></div>
-    </div>
-
-    <div class="setgrp">
-      <div class="head">General and display</div>
-      <div class="muted" id="set_display_todo"></div>
-    </div>
-  </div>
-</div>
-
-<div class="modal" id="dmodal">
-  <div class="modalcard wide">
-    <div class="row" style="align-items:center;margin-bottom:4px">
-      <div class="head" style="margin-bottom:0">Data Management</div>
-      <button class="small" style="margin-left:auto" title="Close" onclick="closeData()">&#10005;</button>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="small" id="exportBtn">Export to box</button>
-      <button class="small" id="copyBtn">Copy to clipboard</button>
-      <button class="small" id="downloadBtn">Download .json</button>
-      <button class="small" id="uploadBtn">Load .json file</button>
-      <input type="file" id="fileInput" accept="application/json,.json" style="display:none;width:auto">
-      <button class="small primary" id="importBtn">Import from box</button>
-      <button class="small danger" id="wipeBtn" style="margin-left:auto">Clear all data</button>
-    </div>
-    <div class="row" style="margin-top:14px;align-items:flex-end">
-      <div style="min-width:230px"><label for="fhkey">Live marks &mdash; Finnhub key</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
-      <button class="small" onclick="reimportV1()" title="Re-read the v1 book and replace this one">Re-import from v1</button>
-    </div>
-    <textarea id="io" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON."></textarea>
-    <div class="err" id="io_err"></div>
-  </div>
-</div>
-
 <div class="wrap">
 
 <header class="topbar" id="topbar">
@@ -367,13 +290,7 @@ button.small{--r:7px}
   <div class="mast" style="align-items:flex-start;gap:12px">
     <div class="logo"><span class="gold">R</span><span class="devbadge">2.0-dev</span></div>
     <div class="tabs" id="tabs" style="margin-bottom:0;align-self:center"></div>
-    <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-      <div class="clock" id="clock" aria-live="off"></div>
-      <div style="display:flex;gap:6px">
-        <button class="icon" title="Settings" onclick="openSettings()">&#9881;</button>
-        <button class="icon" title="Data Management" onclick="openData()"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.2 2.2h8.3l3.3 3.3v8.3H2.2z"/><path d="M5 2.2v3.6h5V2.2"/><path d="M4.4 13.8V9.2h7.2v4.6"/></svg></button>
-      </div>
-    </div>
+    <div class="clock" id="clock" aria-live="off" style="margin-left:auto"></div>
   </div>
 
   <div class="fastcalc">
@@ -542,6 +459,73 @@ button.small{--r:7px}
   <div class="card">
     <div class="panehead"><h2>Audit</h2><span class="muted" id="auditSummary"></span></div>
     <div class="scroll" id="ledger"></div>
+  </div>
+</section>
+
+<section class="tabpane" id="pane-settings">
+  <div class="card">
+    <div class="panehead"><h2>Settings</h2></div>
+
+    <div class="setgrp">
+      <div class="head">Accounts</div>
+      <div class="fields deskrow">
+        <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
+        <div id="marginCell"><label for="marginX">Margin</label>
+          <select id="marginX">
+            <option value="1">Cash &mdash; no margin</option>
+            <option value="2">Margin 2&times; (Reg T)</option>
+            <option value="4">Margin 4&times; (day trading)</option>
+            <option value="6">Margin 6&times;</option>
+          </select></div>
+      </div>
+      <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">Sizing and risk</div>
+      <div class="fields deskrow">
+        <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
+        <div><label for="t0">Tier A+ (R)</label><input id="t0" type="number" step="0.25" min="0.05"></div>
+        <div><label for="t1">Tier A (R)</label><input id="t1" type="number" step="0.25" min="0.05"></div>
+        <div><label for="t2">Tier B (R)</label><input id="t2" type="number" step="0.25" min="0.05"></div>
+        <div><label for="compound">Compound realized into AUM</label>
+          <select id="compound"><option value="1">Yes</option><option value="0">No</option></select></div>
+        <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
+        <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
+      </div>
+      <div class="muted" style="margin-top:8px" id="set_sizing_todo"></div>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">Statistics and definitions</div>
+      <div class="muted" id="set_stats_todo"></div>
+    </div>
+
+    <div class="setgrp">
+      <div class="head">General and display</div>
+      <div class="muted" id="set_display_todo"></div>
+    </div>
+  </div>
+</section>
+
+<section class="tabpane" id="pane-data">
+  <div class="card">
+    <div class="panehead"><h2>Data Management</h2></div>
+    <div class="row" style="margin-top:10px">
+      <button class="small" id="exportBtn">Export to box</button>
+      <button class="small" id="copyBtn">Copy to clipboard</button>
+      <button class="small" id="downloadBtn">Download .json</button>
+      <button class="small" id="uploadBtn">Load .json file</button>
+      <input type="file" id="fileInput" accept="application/json,.json" style="display:none;width:auto">
+      <button class="small primary" id="importBtn">Import from box</button>
+      <button class="small danger" id="wipeBtn" style="margin-left:auto">Clear all data</button>
+    </div>
+    <div class="row" style="margin-top:14px;align-items:flex-end">
+      <div style="min-width:230px"><label for="fhkey">Live marks &mdash; Finnhub key</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
+      <button class="small" onclick="reimportV1()" title="Re-read the v1 book and replace this one">Re-import from v1</button>
+    </div>
+    <textarea id="io" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON."></textarea>
+    <div class="err" id="io_err"></div>
   </div>
 </section>
 
@@ -2143,16 +2127,30 @@ window.expandAll = v => {
 /* ---- tabs ----
    Sections are mutually exclusive views, so there is nothing to collapse and no index to scroll.
    The active tab lives on root, not on an account: it is a preference about the page. */
+const ICON_GEAR = '&#9881;';
+const ICON_SAVE = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
+  'stroke-width="1.3" stroke-linejoin="round" style="vertical-align:-2px">' +
+  '<path d="M2.2 2.2h8.3l3.3 3.3v8.3H2.2z"/><path d="M5 2.2v3.6h5V2.2"/><path d="M4.4 13.8V9.2h7.2v4.6"/></svg>';
+// The third field pushes a tab to the right end of the strip. Settings and Data are destinations
+// like any other pane -- they were overlays, which meant two dismissal mechanisms and a dialog you
+// could not leave open beside the book -- but they are not part of the daily left-to-right run, so
+// they sit apart.
 const TABS = [["portfolio","Portfolio"],["new","New Trade"],["tally","Closed Trades"],
-              ["charts","Statistics"],["audit","Audit"]];
+              ["charts","Statistics"],["audit","Audit"],
+              ["settings",ICON_GEAR,"right"],["data",ICON_SAVE,"right"]];
+const TAB_TITLE = {settings:"Settings", data:"Data Management"};
 const tabOf = () => TABS.some(t=>t[0]===root.tab) ? root.tab : "portfolio";
 window.setTab = key => { root.tab = key; save(); render(); };
 function renderTabStrip(){
   const cur = tabOf();
-  $("sectabs").innerHTML = TABS.map(([k,label])=>{
+  let first = true;
+  $("sectabs").innerHTML = TABS.map(([k,label,side])=>{
     const n = k==="portfolio" ? scopeTrades("open").length
             : k==="tally" ? scopeTrades("closed").length : null;
-    return '<button class="'+(k===cur?"on":"")+'" onclick="setTab(\''+k+'\')">'+label+
+    const push = side==="right" && first ? (first = false, ' style="margin-left:auto"') : "";
+    return '<button class="'+(k===cur?"on":"")+'"'+push+
+      (TAB_TITLE[k] ? ' title="'+TAB_TITLE[k]+'"' : "")+
+      ' onclick="setTab(\''+k+'\')">'+label+
       (n ? '<span class="n">'+n+'</span>' : "")+'</button>';
   }).join("");
   TABS.forEach(([k])=>{
@@ -2161,13 +2159,11 @@ function renderTabStrip(){
   });
 }
 
-/* ---- settings and data, as overlays ----
-   Their markup sits permanently in the DOM inside hidden containers, so renderSettings() and every
-   binding made at boot keep working against the same ids. Opening is display only. */
-window.openSettings = () => { renderSettings(); $("smodal").style.display = "flex"; };
-window.closeSettings = () => { $("smodal").style.display = "none"; };
-window.openData = () => { $("dmodal").style.display = "flex"; };
-window.closeData = () => { $("dmodal").style.display = "none"; };
+// Settings and Data are panes now, so opening one is a tab switch. Kept as named functions because
+// rescueBook calls openData() at the moment localStorage is refusing, which is not a place to be
+// chasing a renamed symbol.
+window.openSettings = () => setTab("settings");
+window.openData = () => setTab("data");
 // The v1 book keeps being traded while v2 is built, so the copy taken at first load goes stale.
 // This re-reads it. One way only -- nothing here ever writes to the v1 key.
 window.reimportV1 = () => {
@@ -3391,19 +3387,10 @@ function tickClock(){
 /* ========================= boot ========================= */
 // Click the backdrop to dismiss. The test is that the click landed on the overlay itself rather
 // than inside the card, so a drag that ends outside a text selection cannot close the dialog.
-["modal","smodal","dmodal"].forEach(id=>{
-  const el = $(id);
-  if(!el) return;
-  el.addEventListener("mousedown", e=>{
-    if(e.target !== el) return;
-    if(id==="modal") closeModal(); else if(id==="smodal") closeSettings(); else closeData();
-  });
-});
+// Only one overlay left: Settings and Data are panes, and a pane is left by going somewhere else.
+$("modal").addEventListener("mousedown", e=>{ if(e.target === $("modal")) closeModal(); });
 document.addEventListener("keydown", e=>{
-  if(e.key !== "Escape") return;
-  if($("modal").style.display === "flex") closeModal();
-  else if($("smodal").style.display === "flex") closeSettings();
-  else if($("dmodal").style.display === "flex") closeData();
+  if(e.key === "Escape" && $("modal").style.display === "flex") closeModal();
 });
 
 load(); bindSettings(); render();
