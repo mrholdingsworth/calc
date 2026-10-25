@@ -946,33 +946,81 @@ const jsq = s => esc(String(s==null?"":s).replace(/\\/g,"\\\\").replace(/'/g,"\\
 function rUnitNow(){ return rUnitOf(acctInView()); }
 
 // Replay the event log into a position. Everything downstream reads from here.
+/* ---- the stop model ----
+   A position carries a LIST of stops, each covering a share count, so a split-stop strategy is
+   expressible. `qty:null` means "whatever the position is", which is what every stop written before
+   this change becomes: a migrated trade is fully covered however its size later moves, so no
+   existing book suddenly reads as uncovered.
+
+   d.stop survives as a scalar -- the furthest rung, or null -- because twenty call sites ask for
+   "the stop" to show or to measure a worst case against, and a single full-coverage stop has to
+   produce exactly the figures it did before. */
+const stopsFrom = e => Array.isArray(e.stops)
+  ? e.stops.filter(s=>s && s.price!=null && !isNaN(s.price))
+           .map(s=>({qty:(s.qty==null || s.qty==="") ? null : Math.abs(+s.qty), price:+s.price}))
+  : (e.stop!=null ? [{qty:null, price:e.stop}] : []);
+// The worst case is the rung price furthest from you: lowest on a long, highest on a short.
+const furthestStop = (side, stops) => stops.length
+  ? stops.reduce((w,s)=> (w==null || side*(s.price-w) < 0) ? s.price : w, null) : null;
+
 function derive(t){
-  let Q=0, avg=0, realized=0, stop=null, mult=t.mult;
+  let Q=0, avg=0, realized=0, stops=[], mult=t.mult;
   const series=[];
   for(const e of t.events){
     if(e.type==="budget") mult = e.mult;
     else if(e.type==="entry" || e.type==="add"){
       avg = (Q+e.qty)>0 ? (avg*Q + e.price*e.qty)/(Q+e.qty) : e.price;
       Q += e.qty;
-      if(e.stop!=null) stop = e.stop;
+      if(e.stop!=null || e.stops) stops = stopsFrom(e);
     } else if(e.type==="trim" || e.type==="close"){
       const q = Math.min(e.qty, Q);
       realized += t.side*(e.price-avg)*q;
       Q -= q;
-    } else if(e.type==="stop") stop = e.stop;
+    } else if(e.type==="stop") stops = stopsFrom(e);
     else if(e.type==="adjust"){
       if(e.qty!=null) Q = e.qty;
       if(e.price!=null) avg = e.price;
-      if(e.stop!=null) stop = e.stop;
+      if(e.stop!=null || e.stops) stops = stopsFrom(e);
     }
     const mark = e.price!=null ? e.price : (series.length ? series[series.length-1].mark : avg);
     series.push({ label:e.type, mark, val:(realized + t.side*(mark-avg)*Q)/t.rUnit });
   }
-  return {Q, avg, realized, stop, series, mult};
+  return {Q, avg, realized, stops, stop:furthestStop(t.side, stops), series, mult};
 }
 
-// What a stop-out costs from here, on the open shares.
-function riskAtStop(t,d){ return (d.stop==null || d.Q<=0) ? 0 : t.side*(d.avg-d.stop)*d.Q; }
+// How much of the position the stops actually cover. Fewer shares leaves open risk; more would
+// open an unintended position in the other direction once they fill.
+function coverage(d){
+  let n = 0, all = false;
+  d.stops.forEach(s=>{ if(s.qty==null) all = true; else n += (s.qty||0); });
+  const covered = all ? d.Q : n;
+  return { covered, under: Math.max(0, d.Q - covered), over: Math.max(0, covered - d.Q) };
+}
+
+// What a stop-out costs from here, on the shares the stops actually cover. Uncovered shares have no
+// defined worst case, so they contribute nothing rather than being quietly counted at zero risk --
+// the uncovered count is reported separately and is what lights the Stop button.
+// One renderer for a stop event, so the gear, the closed-trade log and the ledger cannot describe
+// the same rungs three different ways.
+const stopDesc = e => {
+  const st = stopsFrom(e);
+  if(!st.length) return "&mdash;";
+  if(st.length===1 && st[0].qty==null) return "&rarr; "+fmtP(st[0].price);
+  return st.map(s=>(s.qty==null?"all":fmtQ(s.qty))+" @ "+fmtP(s.price)).join(" + ");
+};
+
+function riskAtStop(t,d){
+  if(d.Q<=0 || !d.stops.length) return 0;
+  let risk = 0, left = d.Q;
+  for(const s of d.stops){
+    if(left<=0) break;
+    const q = s.qty==null ? left : Math.min(s.qty, left);
+    if(q<=0) continue;
+    risk += t.side*(d.avg - s.price)*q;
+    left -= q;
+  }
+  return risk;
+}
 
 // Realised P/L reaches equity as it is realised, not only at the close. Each trade remembers how
 // much of its own realised total has already been folded in, so a trim, a close, an undo and an
@@ -2027,8 +2075,9 @@ function posFacts(t){
     // An unguarded position is NOT at house money. riskAtStop returns 0 when there is no stop, so
     // seq collapses to -realized and the old test read "house money -- sequence can't lose" over a
     // position whose loss is unbounded. The reassurance was the exact inverse of the truth.
-    unguarded: d.stop == null && d.Q > 0,
-    house: seq <= 1e-4 && d.Q>0 && d.stop != null,
+    cover: coverage(d),
+    unguarded: coverage(d).under > 0 && d.Q > 0,
+    house: seq <= 1e-4 && d.Q>0 && coverage(d).under === 0 && d.stops.length>0,
     be: beStop(t, d),
     value: t.last*d.Q,
     totR: (d.realized + openPL)/t.rUnit
@@ -2041,7 +2090,8 @@ function positionRow(t, acct, showAcct){
   const cols = showAcct ? 11 : 10;
   // No stop at all is the degenerate uncovered position: nothing caps the loss. Split stops arrive
   // with phase 4, and this is the same warning for the same reason.
-  const noStop = d.stop == null;
+  const cov = f.cover;
+  const stopWarn = cov.under > 0 || cov.over > 0;
 
   const row =
     '<tr class="prow">' +
@@ -2059,8 +2109,11 @@ function positionRow(t, acct, showAcct){
       '<td class="num">'+fmtQ(d.Q)+'</td>' +
       '<td class="num">'+fmtP(d.avg)+'</td>' +
       '<td class="num">'+fmtP(t.last)+'<div class="sub">'+fmt$(f.value)+markAgeHtml(t)+'</div></td>' +
-      '<td class="num">'+(d.stop!=null?fmtP(d.stop):'<span style="color:var(--amber)">none</span>')+
-        '<div class="sub">'+(f.be!=null?"b/e "+fmtP(f.be):"&mdash;")+'</div></td>' +
+      '<td class="num">'+(d.stops.length===0
+          ? '<span style="color:var(--amber)">none</span>'
+          : d.stops.length===1 ? fmtP(d.stop) : d.stops.length+' stops')+
+        '<div class="sub">'+(d.stops.length>1 ? "worst "+fmtP(d.stop)+VBAR : "")+
+        (f.be!=null?"b/e "+fmtP(f.be):"&mdash;")+'</div></td>' +
       '<td class="num">'+(S.initialRisk!=null?(S.initialRisk/t.rUnit).toFixed(2)+"R":"&mdash;")+
         '<div class="sub">'+(S.riskPS>0?fmtP(S.riskPS)+" / sh":"no stop at entry")+'</div></td>' +
       '<td class="num">'+(f.unguarded ? '<span style="color:var(--amber)">unbounded</span>'
@@ -2072,7 +2125,10 @@ function positionRow(t, acct, showAcct){
       '<td class="acts">' +
         '<button class="small" onclick="buyUI(\''+t.id+'\')" title="Add shares">Buy</button>' +
         '<button class="small" onclick="sellUI(\''+t.id+'\')" title="Reduce or close">Sell</button>' +
-        '<button class="small'+(noStop?" stopwarn":"")+'" onclick="stopUI(\''+t.id+'\')" title="Move the stop">Stop</button>' +
+        '<button class="small'+(stopWarn?" stopwarn":"")+'" onclick="stopUI(\''+t.id+'\')" title="'+
+          (cov.under>0 ? fmtQ(cov.under)+" of "+fmtQ(d.Q)+" shares uncovered"
+           : cov.over>0 ? "stops cover "+fmtQ(cov.over)+" shares more than are held"
+           : "Stops")+'">Stop</button>' +
         '<button class="small" onclick="gearUI(\''+t.id+'\')" title="History and corrections">&#9881;</button>' +
       '</td>' +
     '</tr>';
@@ -2248,32 +2304,87 @@ window.sellUI = id => {
     });
 };
 
+/* ---- the stop dialog ----
+   Rows of shares-at-a-price. A blank share count means the whole position, which is what a single
+   stop has always meant and what every migrated trade carries. Rows live in the DOM rather than in
+   a draft object, so adding and removing one is a repaint of what is already on screen. */
+function readStopRows(){
+  return [...document.querySelectorAll("#stopRows .srow")].map(row=>({
+    q: row.querySelector(".sq").value.trim(),
+    p: row.querySelector(".sp").value.trim()
+  }));
+}
+function paintStopRows(rows){
+  const box = $("stopRows");
+  if(!box) return;
+  box.innerHTML = rows.map((r,i)=>
+    '<div class="ctlrow srow" style="margin-bottom:6px">' +
+      '<input class="sq" type="number" step="any" min="0" placeholder="all" value="'+esc(r.q)+'" style="width:88px">' +
+      '<span class="suffix">sh&nbsp;@</span>' +
+      '<input class="sp" type="number" step="any" placeholder="price" value="'+esc(r.p)+'" style="width:auto;flex:1">' +
+      '<button class="small danger" tabindex="-1" title="Remove"'+(rows.length>1?'':' disabled style="opacity:.35"')+
+        ' onclick="delStopRow('+i+')">&#10005;</button>' +
+    '</div>').join("");
+}
+window.addStopRow = () => { const r = readStopRows(); r.push({q:"",p:""}); paintStopRows(r); stopNote(); };
+window.delStopRow = i => { const r = readStopRows(); if(r.length<2) return; r.splice(i,1); paintStopRows(r); stopNote(); };
+
+let stopCtx = null;                                   // {t, d} for the open dialog
+function stopNote(){
+  const el = $("m_note");
+  if(!el || !stopCtx) return;
+  const {t, d} = stopCtx;
+  const stops = readStopRows()
+    .filter(r=>r.p!=="" && !isNaN(+r.p))
+    .map(r=>({qty: r.q==="" ? null : Math.abs(+r.q), price:+r.p}));
+  if(!stops.length || !(d.Q>0)){ el.innerHTML = ""; return; }
+  const probe = {Q:d.Q, avg:d.avg, stops};
+  const cov = coverage(probe), risk = riskAtStop(t, probe), seq = risk - d.realized;
+  const bits = [];
+  bits.push(cov.under>0
+      ? '<span style="color:var(--amber)">'+fmtQ(cov.under)+" of "+fmtQ(d.Q)+" shares uncovered</span>"
+      : cov.over>0
+        ? '<span style="color:var(--amber)">covers '+fmtQ(cov.covered)+" against "+fmtQ(d.Q)+" held &mdash; the excess would open a position the other way</span>"
+        : "covers all "+fmtQ(d.Q)+" shares");
+  bits.push(seq <= 0
+    ? "sequence <b>locks "+fmtR(-seq/t.rUnit)+"</b>"
+    : "sequence risks <b>"+fmt$(seq)+"</b> ("+fmtR(seq/t.rUnit).replace("+","")+")");
+  // A rung the price has already passed fills the moment it is placed. Said, not refused.
+  const hit = stops.filter(s=>t.side*(t.last-s.price) <= 0).length;
+  if(hit) bits.push('<span style="color:var(--amber)">'+hit+" rung"+(hit>1?"s are":" is")+" already through the last price</span>");
+  el.innerHTML = bits.join(" &middot; ");
+}
+
 window.stopUI = id => {
   const t = getTrade(id);
   if(!t) return;
   const d = derive(t);
-  openModal("Stop &mdash; " + esc(t.ticker),
-    '<div><label for="m_stop">Stop price</label><input id="m_stop" type="number" step="any" value="'+
-      (d.stop!=null?d.stop:"")+'"></div>' +
-    '<div class="muted" style="margin-top:6px">Covers all '+fmtQ(d.Q)+' shares. Split stops arrive with phase 4.</div>',
-    "Move",
+  stopCtx = {t, d};
+  const start = d.stops.length
+    ? d.stops.map(s=>({q: s.qty==null ? "" : String(s.qty), p:String(s.price)}))
+    : Array.from({length: Math.max(1, ui().stopCount||1)}, ()=>({q:"",p:""}));
+  openModal("Stops &mdash; " + esc(t.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">'+fmtQ(d.Q)+' shares</span>',
+    '<div class="lbl">Shares at price &mdash; blank covers the whole position</div>' +
+    '<div id="stopRows"></div>' +
+    '<button class="small" onclick="addStopRow()">Add a stop</button>',
+    "Save stops",
     () => {
-      const v = parseFloat(mv("m_stop"));
-      if(isNaN(v)) return "Enter a stop price.";
-      if(t.side>0 && v >= t.last) return "A long's stop sits below the last price.";
-      if(t.side<0 && v <= t.last) return "A short's stop sits above the last price.";
-      t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()});
+      const rows = readStopRows().filter(r=>r.p!=="" && !isNaN(+r.p));
+      if(!rows.length) return "Enter at least one stop price.";
+      const stops = rows.map(r=>({qty: r.q==="" ? null : Math.abs(+r.q), price:+r.p}));
+      // One rung covering everything keeps the shape v1.3 wrote, so a book that never splits a
+      // stop stays readable by anything that understands the old events.
+      const single = stops.length===1 && stops[0].qty==null;
+      t.events.push(single
+        ? {type:"stop", stop:stops[0].price, price:t.last, ts:Date.now()}
+        : {type:"stop", stops, price:t.last, ts:Date.now()});
+      stopCtx = null;
       return null;
     },
-    () => {
-      const v = parseFloat(mv("m_stop")), el = $("m_note");
-      if(!el) return;
-      if(isNaN(v) || !(d.Q>0)){ el.innerHTML = ""; return; }
-      const ras = t.side*(d.avg-v)*d.Q, seq = ras - d.realized;
-      el.innerHTML = seq <= 0
-        ? "At that stop the sequence <b>locks "+fmtR(-seq/t.rUnit)+"</b> &mdash; worst case is a win."
-        : "At that stop the sequence risks <b>"+fmt$(seq)+"</b> ("+fmtR(seq/t.rUnit).replace("+","")+")";
-    });
+    stopNote);
+  paintStopRows(start);
+  stopNote();
 };
 
 window.gearUI = id => {
@@ -2284,7 +2395,7 @@ window.gearUI = id => {
     let det = "";
     if(e.type==="entry"||e.type==="add") det = fmtQ(e.qty)+" @ "+fmtP(e.price)+(e.stop!=null?" &middot; stop "+fmtP(e.stop):"");
     else if(e.type==="trim"||e.type==="close") det = fmtQ(e.qty)+" @ "+fmtP(e.price);
-    else if(e.type==="stop") det = "&rarr; "+fmtP(e.stop);
+    else if(e.type==="stop") det = stopDesc(e);
     else if(e.type==="budget") det = "risk &rarr; "+e.mult+"R";
     else if(e.type==="adjust") det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
                                       e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
@@ -2627,7 +2738,7 @@ function renderClosed(){
       } else if(e.type==="trim"||e.type==="close"){
         const q = Math.min(e.qty,Q2); real2 += t.side*(e.price-avg2)*q; Q2 -= q;
         det = fmtQ(e.qty)+" @ "+fmtP(e.price);
-      } else if(e.type==="stop") det = "&rarr; "+fmtP(e.stop);
+      } else if(e.type==="stop") det = stopDesc(e);
       else if(e.type==="budget") det = "risk &rarr; "+e.mult+"R";
       else if(e.type==="adjust"){
         if(e.qty!=null) Q2 = e.qty; if(e.price!=null) avg2 = e.price;
@@ -3396,7 +3507,7 @@ function renderLedger(){
         '<td>'+e.type+'</td>' +
         '<td class="num">'+(e.qty!=null?fmtQ(e.qty):"&mdash;")+'</td>' +
         '<td class="num">'+(e.price!=null?fmtP(e.price):"&mdash;")+'</td>' +
-        '<td class="num">'+(e.stop!=null?fmtP(e.stop):"&mdash;")+'</td>' +
+        '<td class="num">'+(e.type==="stop" ? stopDesc(e) : (e.stop!=null?fmtP(e.stop):"&mdash;"))+'</td>' +
         '<td>'+(e.adj?'<span class="pill tier">Adj.</span>':'')+'</td></tr>';
     }).join("") + '</table>';
 }
