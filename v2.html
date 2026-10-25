@@ -289,10 +289,13 @@ details[open] summary::before{content:"\25BE  "}
    by size: a card, a metric, a modal, a banner and a chip of data are all surfaces, while buttons,
    inputs and the status pills (long/short/tier/house) are controls and labels. Declared in one
    place and last in the sheet, so a radius cannot drift back in from an earlier rule. */
-.card,.metric,.calbox,.action,.fastcalc,.modalcard,.banner,.rung,.gbox,.four div,
+.card,.metric,.calbox,.action,.fastcalc,.modalcard,.banner,.rung,.four div,
 .tradehead,.scroll{border-radius:0}
-.pill,button,input,select,textarea,.devbadge{border-radius:var(--r,8px)}
+.pill,button,input,select,textarea,.devbadge,.gbox{border-radius:var(--r,8px)}
 .pill,.devbadge{--r:999px}
+/* The group box wraps buttons rather than content -- it is a control grouping, not a surface, so
+   it follows the buttons inside it. */
+.gbox{--r:13px}
 button.small{--r:7px}
 </style>
 </head>
