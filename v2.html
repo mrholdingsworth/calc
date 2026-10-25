@@ -2127,18 +2127,14 @@ window.expandAll = v => {
 /* ---- tabs ----
    Sections are mutually exclusive views, so there is nothing to collapse and no index to scroll.
    The active tab lives on root, not on an account: it is a preference about the page. */
-const ICON_GEAR = '&#9881;';
-const ICON_SAVE = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" ' +
-  'stroke-width="1.3" stroke-linejoin="round" style="vertical-align:-2px">' +
-  '<path d="M2.2 2.2h8.3l3.3 3.3v8.3H2.2z"/><path d="M5 2.2v3.6h5V2.2"/><path d="M4.4 13.8V9.2h7.2v4.6"/></svg>';
 // The third field pushes a tab to the right end of the strip. Settings and Data are destinations
 // like any other pane -- they were overlays, which meant two dismissal mechanisms and a dialog you
 // could not leave open beside the book -- but they are not part of the daily left-to-right run, so
-// they sit apart.
+// they sit apart. Text labels like every other tab: an icon in a strip of words is a thing to
+// decode, and the right-hand position already says these two are different.
 const TABS = [["portfolio","Portfolio"],["new","New Trade"],["tally","Closed Trades"],
               ["charts","Statistics"],["audit","Audit"],
-              ["settings",ICON_GEAR,"right"],["data",ICON_SAVE,"right"]];
-const TAB_TITLE = {settings:"Settings", data:"Data Management"};
+              ["settings","Settings","right"],["data","Data","right"]];
 const tabOf = () => TABS.some(t=>t[0]===root.tab) ? root.tab : "portfolio";
 window.setTab = key => { root.tab = key; save(); render(); };
 function renderTabStrip(){
@@ -2149,7 +2145,6 @@ function renderTabStrip(){
             : k==="tally" ? scopeTrades("closed").length : null;
     const push = side==="right" && first ? (first = false, ' style="margin-left:auto"') : "";
     return '<button class="'+(k===cur?"on":"")+'"'+push+
-      (TAB_TITLE[k] ? ' title="'+TAB_TITLE[k]+'"' : "")+
       ' onclick="setTab(\''+k+'\')">'+label+
       (n ? '<span class="n">'+n+'</span>' : "")+'</button>';
   }).join("");
