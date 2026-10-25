@@ -259,12 +259,25 @@ details[open] summary::before{content:"\25BE  "}
 .chk{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--sub);margin-bottom:5px;cursor:pointer}
 .chk input{width:auto;margin:3px 0 0;accent-color:var(--blue);cursor:pointer}
 .chk b{color:var(--gold);font-weight:700}
+/* ---- squared corners ----
+   Panels are square; the things you press or read a state off stay round. The split is by role, not
+   by size: a card, a metric, a modal, a banner and a chip of data are all surfaces, while buttons,
+   inputs and the status pills (long/short/tier/house) are controls and labels. Declared in one
+   place and last in the sheet, so a radius cannot drift back in from an earlier rule. */
+.card,.metric,.calbox,.action,.fastcalc,.modalcard,.banner,.rung,.gbox,.four div,
+.tradehead,.scroll{border-radius:0}
+.pill,button,input,select,textarea,.devbadge{border-radius:var(--r,8px)}
+.pill,.devbadge{--r:999px}
+button.small{--r:7px}
 </style>
 </head>
 <body>
 <div class="modal" id="modal">
   <div class="modalcard">
-    <div class="head" id="modalTitle" style="margin-bottom:12px"></div>
+    <div class="row" style="align-items:flex-start;margin-bottom:12px;flex-wrap:nowrap">
+      <div class="head" id="modalTitle" style="margin-bottom:0"></div>
+      <button class="small" style="margin-left:auto" title="Close" onclick="closeModal()">&#10005;</button>
+    </div>
     <div id="modalBody"></div>
   </div>
 </div>
@@ -276,7 +289,7 @@ details[open] summary::before{content:"\25BE  "}
   <div class="modalcard wide">
     <div class="row" style="align-items:center;margin-bottom:4px">
       <div class="head" style="margin-bottom:0">Settings</div>
-      <button class="small" style="margin-left:auto" onclick="closeSettings()">Close</button>
+      <button class="small" style="margin-left:auto" title="Close" onclick="closeSettings()">&#10005;</button>
     </div>
 
     <div class="setgrp">
@@ -326,7 +339,7 @@ details[open] summary::before{content:"\25BE  "}
   <div class="modalcard wide">
     <div class="row" style="align-items:center;margin-bottom:4px">
       <div class="head" style="margin-bottom:0">Data Management</div>
-      <button class="small" style="margin-left:auto" onclick="closeData()">Close</button>
+      <button class="small" style="margin-left:auto" title="Close" onclick="closeData()">&#10005;</button>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="small" id="exportBtn">Export to box</button>
@@ -351,15 +364,16 @@ details[open] summary::before{content:"\25BE  "}
 <header class="topbar" id="topbar">
   <!-- One row, not two. The masthead and the account strip were 47px and 28px of separate chrome
        above a block that is pinned on every tab, and measuring it is what made that obvious. -->
-  <div class="mast" style="align-items:center;gap:12px">
+  <div class="mast" style="align-items:flex-start;gap:12px">
     <div class="logo"><span class="gold">R</span><span class="devbadge">2.0-dev</span></div>
-    <div class="tabs" id="tabs" style="margin-bottom:0"></div>
-    <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
-      <span class="muted" id="deskSummary"></span>
-      <button class="icon" title="Settings" onclick="openSettings()">&#9881;</button>
-      <button class="icon" title="Data Management" onclick="openData()">&#9638;</button>
-    </span>
-    <div class="clock" id="clock" aria-live="off"></div>
+    <div class="tabs" id="tabs" style="margin-bottom:0;align-self:center"></div>
+    <div style="margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+      <div class="clock" id="clock" aria-live="off"></div>
+      <div style="display:flex;gap:6px">
+        <button class="icon" title="Settings" onclick="openSettings()">&#9881;</button>
+        <button class="icon" title="Data Management" onclick="openData()"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M2.2 2.2h8.3l3.3 3.3v8.3H2.2z"/><path d="M5 2.2v3.6h5V2.2"/><path d="M4.4 13.8V9.2h7.2v4.6"/></svg></button>
+      </div>
+    </div>
   </div>
 
   <div class="fastcalc">
@@ -1781,7 +1795,7 @@ function posFacts(t){
 function positionRow(t, acct, showAcct){
   const f = posFacts(t), d = f.d, S = f.S;
   const open = !!rowOpen[t.id];
-  const cols = showAcct ? 10 : 9;
+  const cols = showAcct ? 11 : 10;
   // No stop at all is the degenerate uncovered position: nothing caps the loss. Split stops arrive
   // with phase 4, and this is the same warning for the same reason.
   const noStop = d.stop == null;
@@ -1793,10 +1807,14 @@ function positionRow(t, acct, showAcct){
           (open?"&#9662;":"&#9656;")+'</button> ' +
         '<span class="tk">'+esc(t.ticker)+'</span> ' +
         '<span class="pill '+(t.side>0?"long":"short")+'">'+(t.side>0?"LONG":"SHORT")+'</span>' +
-        '<div class="sub">'+TIERS[t.tier]+' &middot; 1R '+fmt$(t.rUnit)+(t.concept?' &middot; '+esc(t.concept):"")+'</div>' +
+        // Tier, R unit and concept only while the row is open: collapsed, the list is one line per
+        // position and a second line under every ticker halves how many fit on screen.
+        (open ? '<div class="sub">'+TIERS[t.tier]+' &middot; 1R '+fmt$(t.rUnit)+
+          (t.concept?' &middot; '+esc(t.concept):"")+'</div>' : "") +
       '</td>' +
       (showAcct ? '<td>'+esc(acct)+'</td>' : "") +
-      '<td class="num">'+fmtQ(d.Q)+'<div class="sub">avg '+fmtP(d.avg)+'</div></td>' +
+      '<td class="num">'+fmtQ(d.Q)+'</td>' +
+      '<td class="num">'+fmtP(d.avg)+'</td>' +
       '<td class="num">'+fmtP(t.last)+'<div class="sub">'+fmt$(f.value)+markAgeHtml(t)+'</div></td>' +
       '<td class="num">'+(d.stop!=null?fmtP(d.stop):'<span style="color:var(--amber)">none</span>')+
         '<div class="sub">'+(f.be!=null?"b/e "+fmtP(f.be):"&mdash;")+'</div></td>' +
@@ -1898,7 +1916,7 @@ function renderPortfolio(){
 
   box.innerHTML = '<table class="poslist"><thead><tr>' +
     '<th>Position</th>' + (showAcct ? '<th>Account</th>' : "") +
-    '<th class="num">Shares</th><th class="num">Last</th><th class="num">Stop</th>' +
+    '<th class="num">Shares</th><th class="num">Avg</th><th class="num">Last</th><th class="num">Stop</th>' +
     '<th class="num">Initial R</th><th class="num">Cash at risk</th><th class="num">Open heat</th>' +
     '<th class="num">P/L</th><th></th>' +
     '</tr></thead>' + body.join("") + '</table>';
@@ -1917,7 +1935,8 @@ function groupHeaderRow(gid, run, showAcct){
         '<span class="pill '+(first.side>0?"long":"short")+'">'+(first.side>0?"LONG":"SHORT")+'</span>' +
         '<div class="sub">'+run.length+' accounts</div></td>' +
       (showAcct ? '<td class="muted">all</td>' : "") +
-      '<td class="num">'+fmtQ(totQ)+'<div class="sub">avg '+(totQ>0?fmtP(cost/totQ):"&mdash;")+'</div></td>' +
+      '<td class="num">'+fmtQ(totQ)+'</td>' +
+      '<td class="num">'+(totQ>0?fmtP(cost/totQ):"&mdash;")+'</td>' +
       '<td class="num">'+fmtP(first.last)+'</td>' +
       '<td class="num">'+(f[0].d.stop!=null?fmtP(f[0].d.stop):"&mdash;")+'</td>' +
       '<td class="num">&mdash;</td>' +
@@ -2967,9 +2986,13 @@ window.gCloseUI = gid => {
 // with every other section's card edge.
 // The summary tiles sit above the list in their own card. The pane header owns the title and the
 // open count now, so this carries only the figures and the refresh control.
+// The review and backup queue sits with the book rather than in the masthead: it is work
+// outstanding on the trades, so it belongs beside them. renderBackupBadge fills #deskSummary, and
+// because this markup is rebuilt on every render it has to run AFTER renderBook, not before.
 function openHead(extra){
   return '<div class="sechead" style="margin-bottom:10px">' +
     '<div class="head" style="margin-bottom:0">Book</div>' +
+    '<span class="muted" style="margin-left:auto;text-align:right" id="deskSummary"></span>' +
     (extra||"") + '</div>';
 }
 
@@ -3069,7 +3092,6 @@ function render(){
   renderTabs();
   renderTabStrip();
   renderSettings();
-  renderBackupBadge();
   renderSaveAlert();
   renderFastCalc();
 
@@ -3077,6 +3099,7 @@ function render(){
   // measured whichever tab is open. The wash check spans every account and goes stale on a switch.
   const open = scopeTrades("open").map(x=>x.t);
   renderBook(open);
+  renderBackupBadge();        // renderBook rebuilds the header this writes into, so it follows it
   renderHeatNotice();
   updateWash();
 
@@ -3366,6 +3389,23 @@ function tickClock(){
 // Position-based rather than IntersectionObserver: sections here change height constantly as
 // trades open and close, and "nearest the top" stays correct through all of it.
 /* ========================= boot ========================= */
+// Click the backdrop to dismiss. The test is that the click landed on the overlay itself rather
+// than inside the card, so a drag that ends outside a text selection cannot close the dialog.
+["modal","smodal","dmodal"].forEach(id=>{
+  const el = $(id);
+  if(!el) return;
+  el.addEventListener("mousedown", e=>{
+    if(e.target !== el) return;
+    if(id==="modal") closeModal(); else if(id==="smodal") closeSettings(); else closeData();
+  });
+});
+document.addEventListener("keydown", e=>{
+  if(e.key !== "Escape") return;
+  if($("modal").style.display === "flex") closeModal();
+  else if($("smodal").style.display === "flex") closeSettings();
+  else if($("dmodal").style.display === "flex") closeData();
+});
+
 load(); bindSettings(); render();
 tickClock(); setInterval(tickClock, 1000);
 if(root.finnhub && allOpenTrades().length) refreshMarks();
