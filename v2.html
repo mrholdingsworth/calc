@@ -345,7 +345,9 @@ button.small{--r:7px}
   <div class="fields oneline">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
     <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
-    <div><label for="nt_concept">Concept <span class="vbar">|</span> setup</label><input id="nt_concept" type="text" placeholder="mean reversion"></div>
+    <div><label for="nt_concept">Setup</label>
+      <input id="nt_concept" type="text" list="setupList" placeholder="mean reversion">
+      <datalist id="setupList"></datalist></div>
     <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
     <div><label for="nt_adr">ADR %</label><input id="nt_adr" type="number" step="0.1" placeholder="8.5"></div>
@@ -490,20 +492,51 @@ button.small{--r:7px}
         <div><label for="t2">Tier B (R)</label><input id="t2" type="number" step="0.25" min="0.05"></div>
         <div><label for="compound">Compound realized into AUM</label>
           <select id="compound"><option value="1">Yes</option><option value="0">No</option></select></div>
-        <div><label for="heatcap">Max open heat (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
-        <div><label for="coldr">Cold-streak brake (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
+        <div><label for="s_heatOn">Max open heat</label>
+          <select id="s_heatOn"><option value="1">On</option><option value="0">Off</option></select></div>
+        <div><label for="heatcap">&mdash; cap (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
+        <div><label for="s_coldOn">Cold-streak brake</label>
+          <select id="s_coldOn"><option value="1">On</option><option value="0">Off</option></select></div>
+        <div><label for="coldr">&mdash; threshold (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
       </div>
-      <div class="muted" style="margin-top:8px" id="set_sizing_todo"></div>
+      <div class="fields deskrow" style="margin-top:10px">
+        <div><label for="s_targetsOn">Targets</label>
+          <select id="s_targetsOn"><option value="1">Show</option><option value="0">Hide</option></select></div>
+        <div><label for="s_target0">Target 1 (R)</label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
+        <div><label for="s_target1">Target 2 (R)</label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
+        <div style="grid-column:span 3"><label for="s_setups">Setups &mdash; one per line</label>
+          <textarea id="s_setups" style="min-height:62px"></textarea></div>
+      </div>
+      <div class="muted" style="margin-top:8px">Fuzziness, max and min allocation and max stop width arrive with the sizing pipeline.</div>
     </div>
 
     <div class="setgrp">
       <div class="head">Statistics and definitions</div>
-      <div class="muted" id="set_stats_todo"></div>
+      <div class="fields deskrow">
+        <div><label for="s_scratchLo">Scratch from (R)</label><input id="s_scratchLo" type="number" step="0.01"></div>
+        <div><label for="s_scratchHi">Scratch to (R)</label><input id="s_scratchHi" type="number" step="0.01"></div>
+        <div><label for="s_winR">Decisive win (R)</label><input id="s_winR" type="number" step="0.25" min="0.25"></div>
+        <div><label for="s_lossDisc">Loss discipline (R)</label><input id="s_lossDisc" type="number" step="0.1" min="0.1"></div>
+        <div><label for="s_breachR">Stop breach (R)</label><input id="s_breachR" type="number" step="0.05"></div>
+        <div><label for="s_reviewDays">Review due (days)</label><input id="s_reviewDays" type="number" step="1" min="1"></div>
+        <div><label for="s_aptrTight">APTR &mdash; tight</label><input id="s_aptrTight" type="number" step="0.1" min="0.1"></div>
+        <div><label for="s_aptrFloor">APTR &mdash; noise floor</label><input id="s_aptrFloor" type="number" step="0.1" min="0.1"></div>
+      </div>
+      <div style="margin-top:10px"><label for="s_lossTags">Loss tags &mdash; one per line</label>
+        <textarea id="s_lossTags" style="min-height:62px"></textarea></div>
+      <div class="muted" style="margin-top:6px">Changing a definition re-measures every closed trade. A tag you remove stays on the trades that carry it, marked retired.</div>
     </div>
 
     <div class="setgrp">
       <div class="head">General and display</div>
-      <div class="muted" id="set_display_todo"></div>
+      <div class="fields deskrow">
+        <div><label for="s_hideValues">Hide values and gains</label>
+          <select id="s_hideValues"><option value="0">Show</option><option value="1">Hide</option></select></div>
+        <div><label for="s_colourGrade">Gain/loss colour</label>
+          <select id="s_colourGrade"><option value="1">On</option><option value="0">Off</option></select></div>
+        <div><label for="s_stopCount">Stops loaded per trade</label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
+        <div><label for="s_lotRound">Lot rounding (shares)</label><input id="s_lotRound" type="number" step="1" min="1"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -560,15 +593,38 @@ const TIERS = ["A+","A","B"];
 // The scratch band is deliberately wider on the positive side: it discards slightly more marginal
 // wins than marginal losses, so dropping scratches can never flatter the number. It also absorbs a
 // bad fill on a breakeven stop, which is a scratch in every sense but the sign.
-const SCRATCH_LO = -0.05, SCRATCH_HI = 0.10, WIN_R = 1;
 const VBAR = '<span class="vbar">|</span>';
-const isScratch = rm => rm >= SCRATCH_LO && rm <= SCRATCH_HI;
 
-const LOSS_TAGS = [
-  { v:"invalidation", t:"Thesis broken — the stop did its job" },
-  { v:"noise",        t:"Stopped by noise — it worked after I was out" },
-  { v:"violation",    t:"Rule violation — I broke my own process" }
-];
+/* ---- definitions ----
+   What counts as a scratch, a win, a breach, a disciplined loss, a tight stop. These were ten
+   literals scattered through the file, three of them the same number at three line numbers. They
+   are method, not arithmetic, and the app has no business asserting them, so they live on root and
+   are editable.
+
+   Editing one moves history: widen the scratch band and all three win rates shift across trades
+   already closed. That is deliberate -- a definition should apply uniformly, or the figure it
+   produces is not a rate of anything. */
+const DEFS_DEFAULT = {
+  scratchLo:-0.05, scratchHi:0.10, winR:1,
+  reviewDays:30, breachR:-1.25, lossDisc:1.2,
+  aptrTight:1, aptrFloor:1.5,
+  lossTags:[
+    { v:"invalidation", t:"Thesis broken — the stop did its job" },
+    { v:"noise",        t:"Stopped by noise — it worked after I was out" },
+    { v:"violation",    t:"Rule violation — I broke my own process" }
+  ]
+};
+// Defensive: normalize() fills root.defs, but these are read from functions that can run before it.
+const defs = () => (root && root.defs) || DEFS_DEFAULT;
+const isScratch = rm => rm >= defs().scratchLo && rm <= defs().scratchHi;
+const lossTags = () => defs().lossTags || DEFS_DEFAULT.lossTags;
+
+/* ---- page preferences ----
+   About the person and the screen, never about a book. On root for the reason register #1 records:
+   the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
+   first. Seven more preferences on that object would have been that bug seven times over. */
+const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1 };
+const ui = () => (root && root.ui) || UI_DEFAULT;
 // SCHEMA is stamped onto every saved book. Until now migrations were inferred from absent fields,
 // which works exactly until two of them need ordering. LEGACY_KEYS are read once if the current key
 // is empty and are then left untouched, so a bad migration can never be the thing that loses a book.
@@ -586,12 +642,15 @@ let root = null, state = null;
 
 function defaults(){
   return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
-                      marginX:1,
-                      heatCap:5, coldR:3 }, trades:[] };
+                      marginX:1, lotRound:1,
+                      heatCap:5, coldR:3, heatOn:true, coldOn:true,
+                      targetsOn:true, targets:[1,2], setups:[] }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
-// each account; only these are shared.
-const GROUP_KEYS = ["rPct","tiers","compound","heatCap","coldR"];
+// each account; only these are shared. lotRound is NOT here: it follows the broker and the
+// instrument, not the method.
+const GROUP_KEYS = ["rPct","tiers","compound","heatCap","coldR","heatOn","coldOn",
+                    "targetsOn","targets","setups"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
   GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
@@ -709,6 +768,8 @@ function normalize(){
     if(!pf.settings) pf.settings = defaults().settings;
     Object.keys(d).forEach(k=>{ if(pf.settings[k]==null) pf.settings[k] = d[k]; });
     if(!Array.isArray(pf.settings.tiers) || pf.settings.tiers.length!==3) pf.settings.tiers = [1,0.5,0.25];
+    if(!Array.isArray(pf.settings.targets)) pf.settings.targets = [1,2];
+    if(!Array.isArray(pf.settings.setups)) pf.settings.setups = [];
     // Sections are tabs now, one visible at a time, so there is nothing to collapse. Any `collapsed`
     // or `closedCollapsed` map in an imported v1 book is left in place and simply never read.
     if(!Array.isArray(pf.trades)) pf.trades = [];
@@ -734,6 +795,15 @@ function normalize(){
     const withKey = Object.values(root.portfolios).find(p=>p.settings && p.settings.finnhub);
     root.finnhub = withKey ? withKey.settings.finnhub : "";
   }
+  // Additive, with defaults, so no SCHEMA bump — same rule cashFlows followed in v1.1. Which also
+  // means the v1.3 equivalence harness keeps working across this whole change.
+  if(!root.defs || typeof root.defs !== "object") root.defs = {};
+  Object.keys(DEFS_DEFAULT).forEach(k=>{ if(root.defs[k]==null) root.defs[k] = DEFS_DEFAULT[k]; });
+  if(!Array.isArray(root.defs.lossTags) || !root.defs.lossTags.length)
+    root.defs.lossTags = DEFS_DEFAULT.lossTags.map(o=>({v:o.v, t:o.t}));
+  if(!root.ui || typeof root.ui !== "object") root.ui = {};
+  Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
+
   if(!root.groups || typeof root.groups !== "object") root.groups = {};
   const gd = groupDefaults().settings;
   Object.keys(root.groups).forEach(g=>{
@@ -812,12 +882,17 @@ window.rescueBook = () => {
 //
 // maximumFractionDigits absorbs float noise on its own: 9.350000000000001 prints as 9.35.
 const MONEY = {minimumFractionDigits:2, maximumFractionDigits:4};
-const fmtE = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
-const fmt$ = v => (v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtE = v => mask((v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0}));
+const fmt$ = v => mask((v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}));
 const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
 const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
 const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefined, MONEY);
-const cls  = v => v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : "");
+// Colour grading is a preference, so the class is decided in one place rather than at the thirty
+// sites that ask for it.
+const cls  = v => !ui().colourGrade ? "" : (v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : ""));
+// Hiding values blanks money, never R. The whole system is denominated in R, so a book you cannot
+// read in R is a book you cannot work from -- the dollars are what you might not want on screen.
+const mask = s => ui().hideValues ? "&middot;&middot;&middot;" : s;
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
 // A name going into an inline handler is JS source inside an HTML attribute, so it needs escaping
@@ -910,7 +985,14 @@ function stats(t){
 }
 
 // Informational only: the app never acts on these, and nothing is pre-placed.
-const TARGETS = [1,2];
+// Which multiples the internal ladder prices, and whether it shows at all. Per-account (via the
+// ruleset, so a group owns it), because a target is a statement about the method.
+const targetsOf = acct => {
+  const S = settingsFor(acct || acctInView());
+  if(S.targetsOn === false) return [];
+  const t = (S.targets||[]).map(Number).filter(x=>x>0);
+  return t.length ? t : [1,2];
+};
 // Targets are INTERNAL to the trade: multiples of the risk per share accepted at entry. A $10 entry
 // stopped at $9.75 targets $10.25 and $10.50 whatever the size, and those prices never move -- not
 // when the position is trimmed, not when the stop is raised. The price at which an idea has paid
@@ -934,7 +1016,7 @@ function adrAudit(price, adrPct, stopDist){
   const adrD = price*adrPct/100;
   const adrs = stopDist/adrD;
   return { adrD, adrs, pctOfGap: adrD/stopDist*100,
-           color: adrs<1 ? "var(--red)" : (adrs<1.5 ? "var(--amber)" : "var(--green)") };
+           color: adrs<defs().aptrTight ? "var(--red)" : (adrs<defs().aptrFloor ? "var(--amber)" : "var(--green)") };
 }
 
 /* ========================= tiny SVG charts ========================= */
@@ -1269,8 +1351,104 @@ window.addPortfolio = () => {
   normalize(); save(); render();
 };
 
-/* ========================= settings ========================= */
+/* ========================= settings =========================
+   The eight original controls keep their hand-written bindings; everything added since is
+   declarative, because nineteen more by hand is nineteen more chances to bind one to the wrong
+   object. Each row is [element id, where it lives, key, kind].
+
+   The scope is the whole point. `rule` writes to the group when one owns the account, so one edit
+   reaches every member -- that is what makes these method rather than account settings. `defs` and
+   `page` are root-level: a definition that varied per account would make the win rates compare
+   trades measured different ways, and a page preference on pf.settings is register #1. */
+const SET_FIELDS = [
+  ["s_heatOn",    "rule", "heatOn",     "bool"],
+  ["s_coldOn",    "rule", "coldOn",     "bool"],
+  ["s_targetsOn", "rule", "targetsOn",  "bool"],
+  ["s_target0",   "rule", "targets.0",  "num"],
+  ["s_target1",   "rule", "targets.1",  "num"],
+  ["s_setups",    "rule", "setups",     "lines"],
+  ["s_scratchLo", "defs", "scratchLo",  "num"],
+  ["s_scratchHi", "defs", "scratchHi",  "num"],
+  ["s_winR",      "defs", "winR",       "num"],
+  ["s_lossDisc",  "defs", "lossDisc",   "num"],
+  ["s_breachR",   "defs", "breachR",    "num"],
+  ["s_reviewDays","defs", "reviewDays", "num"],
+  ["s_aptrTight", "defs", "aptrTight",  "num"],
+  ["s_aptrFloor", "defs", "aptrFloor",  "num"],
+  ["s_lossTags",  "defs", "lossTags",   "tags"],
+  ["s_hideValues","page", "hideValues", "boolInv"],
+  ["s_colourGrade","page","colourGrade","bool"],
+  ["s_stopCount", "page", "stopCount",  "num"],
+  ["s_lotRound",  "acct", "lotRound",   "num"]
+];
+function setTarget(scope){
+  if(scope==="defs") return root.defs;
+  if(scope==="page") return root.ui;
+  if(scope==="acct") return (root.portfolios[acctInView()]||{settings:{}}).settings;
+  if(inGroup()) return root.groups[root.active].settings;
+  const g = groupOf(acctInView());
+  return g ? root.groups[g].settings : state.settings;
+}
+// A tag's key is slugged from its text and is what trades store, so renaming a tag retires the old
+// key rather than rewriting history. The retired tag still shows on the trades that carry it.
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"") || "tag";
+function setGet(scope, key){
+  const o = setTarget(scope);
+  if(key.indexOf(".")<0) return o[key];
+  const [k,i] = key.split(".");
+  return (o[k]||[])[+i];
+}
+function setPut(scope, key, v){
+  const o = setTarget(scope);
+  if(key.indexOf(".")<0){ o[key] = v; return; }
+  const [k,i] = key.split(".");
+  if(!Array.isArray(o[k])) o[k] = [];
+  o[k][+i] = v;
+}
+function renderSetFields(){
+  SET_FIELDS.forEach(([id,scope,key,kind])=>{
+    const el = $(id);
+    if(!el) return;
+    const v = setGet(scope, key);
+    if(kind==="bool")      el.value = v ? "1" : "0";
+    else if(kind==="boolInv") el.value = v ? "1" : "0";
+    else if(kind==="lines")   el.value = (v||[]).join("\n");
+    else if(kind==="tags")    el.value = (v||[]).map(o=>o.t).join("\n");
+    else el.value = (v==null ? "" : v);
+  });
+}
+function bindSetFields(){
+  SET_FIELDS.forEach(([id,scope,key,kind])=>{
+    const el = $(id);
+    if(!el) return;
+    el.addEventListener("change", ()=>{
+      if(kind==="bool" || kind==="boolInv") setPut(scope, key, el.value==="1");
+      else if(kind==="lines")
+        setPut(scope, key, el.value.split("\n").map(s=>s.trim()).filter(Boolean));
+      else if(kind==="tags"){
+        const prev = setGet(scope, key) || [];
+        setPut(scope, key, el.value.split("\n").map(s=>s.trim()).filter(Boolean).map(t=>{
+          const hit = prev.find(o=>o.t===t);            // unchanged text keeps its key
+          return hit ? {v:hit.v, t} : {v:slug(t), t};
+        }));
+      } else {
+        const n = parseFloat(el.value);
+        if(isNaN(n)) return;
+        setPut(scope, key, n);
+      }
+      save(); render();
+    });
+  });
+}
+
 function renderSettings(){
+  renderSetFields();
+  // The setups list feeds entry as a datalist rather than a hard dropdown: it suggests without
+  // refusing, so a setup you have not named yet never blocks recording the trade. The field stays
+  // t.concept, so the by-setup statistics keep working on everything already closed.
+  const dl = $("setupList");
+  if(dl) dl.innerHTML = (settingsFor(acctInView()).setups||[])
+    .map(s=>'<option value="'+esc(s)+'"></option>').join("");
   const g = inGroup() ? root.active : null;
   const s = g ? Object.assign({}, defaults().settings, root.groups[g].settings)
               : settingsFor(acctInView());
@@ -1594,15 +1772,15 @@ function newTradeCal(){
     '</div>';
 
   $("nt_targets").innerHTML = q>0
-    ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,TARGETS))
+    ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,targetsOf()))
     : "";
 
   const adr = parseFloat($("nt_adr").value);
   const a = adrAudit(P, adr, den);
   if(a){
     let html = '<span style="color:'+a.color+';font-weight:600">'+a.adrs.toFixed(1)+' ADRs to stop</span>';
-    if(a.adrs<1.5) html += ' &mdash; inside daily noise. For 1.5: stop <b>'+fmtP(P - side*1.5*a.adrD)+
-      '</b>, <b>'+fmtQ(Math.floor(b/(1.5*a.adrD)))+'</b> shares.';
+    if(a.adrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.adrD)+
+      '</b>, <b>'+fmtQ(Math.floor(b/(defs().aptrFloor*a.adrD)))+'</b> shares.';
     $("nt_vol").innerHTML = html;
   } else {
     $("nt_vol").innerHTML = '<span class="muted">ADR % not set.</span>';
@@ -1852,7 +2030,7 @@ function positionRow(t, acct, showAcct){
     '</div>' +
     (d.Q>0 && S.riskPS>0
       ? '<div class="ladder"><span class="muted" style="align-self:center">internal targets:</span>' +
-        ladderHtml(ladder(t.side, S.entryPx, S.riskPS, t.last, TARGETS))+'</div>' : "") +
+        ladderHtml(ladder(t.side, S.entryPx, S.riskPS, t.last, targetsOf(acct)))+'</div>' : "") +
     (function(){
       const bits = [
         t.plan && t.plan.cutIf  ? "<b>cut if</b> "+esc(t.plan.cutIf)   : null,
@@ -2193,11 +2371,11 @@ window.setLossTag = (id,v) => { const t = getTrade(id); if(t){ t.lossTag = v||nu
 
 // A month after a close, the market has answered a question the exit could not: did it keep going
 // without you, or did the exit hold up? Due once 30 days have passed and nothing has been written.
-const REVIEW_DAYS = 30;
+const REVIEW_DAYS = () => defs().reviewDays;
 const reviewDue = t => t.status==="closed" &&
   !(t.review30 && t.review30.trim()) &&
-  daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS;
-const reviewDueIn = t => REVIEW_DAYS - daysBetween(t.closedAt || t.createdAt, Date.now());
+  daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS();
+const reviewDueIn = t => REVIEW_DAYS() - daysBetween(t.closedAt || t.createdAt, Date.now());
 const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
 /* ---- backup nudge ---- */
 // The whole book lives in one browser. Clearing site data takes it, and there is no copy anywhere
@@ -2394,7 +2572,7 @@ function renderClosed(){
       "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
       "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt)+
-        (S.rmInt<-1.25?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Lost well beyond the stop it was opened with'>breach</span>":""))+"</td>" +
+        (S.rmInt<defs().breachR?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Lost well beyond the stop it was opened with'>breach</span>":""))+"</td>" +
       "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
       "<td class='num "+cls(d.realized)+"'>"+fmt$(d.realized)+"</td>" +
       "<td class='num'>"+S.days+"</td>" +
@@ -2439,10 +2617,15 @@ function bookStats(list){
     const rm = stats(t).rm;
     A.tot += rm; A.rms.push(rm);
     if(isScratch(rm)) A.scratch++;
-    if(rm > SCRATCH_HI) A.exWin++;
-    if(rm >= WIN_R) A.decisive++;
+    if(rm > defs().scratchHi) A.exWin++;
+    if(rm >= defs().winR) A.decisive++;
     if(rm>0){ A.wins++; A.wr += rm; A.wn++; }
-    else { A.lr += rm; A.ln++; if(rm<A.worst) A.worst = rm; if(rm>=-1.2) A.discOK++;
+    // Loss discipline asks whether the stop held, which is an INTERNAL-R question: on the account
+    // multiple a half-size trade that blew through its stop by 2x reads -1.0R and passes. Same
+    // blind spot the breach pill lost in v1.3. Register #4.
+    else { A.lr += rm; A.ln++; if(rm<A.worst) A.worst = rm;
+           const held = stats(t).rmInt;
+           if((held==null ? rm : held) >= -defs().lossDisc) A.discOK++;
            if(t.lossTag){ A.tagged++; if(t.lossTag==="noise") A.noise++; if(t.lossTag==="violation") A.violations++; } }
     if(Array.isArray(t.checks) && t.checks.every(Boolean)) A.planned++;
   });
@@ -2466,17 +2649,17 @@ function statsHtml(A){
   return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
     // Two columns: this tile carries three rates where its neighbours carry one number, and at a
     // single column both the definitions and the values ran past the edge.
-    '<div class="metric" style="grid-column:span 2" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+SCRATCH_HI+'R. '+WIN_R+'R+: paid for a full loss.">' +
+    '<div class="metric" style="grid-column:span 2" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+defs().scratchHi+'R. '+defs().winR+'R+: paid for a full loss.">' +
       // Name on one line, the three definitions on the next, so the break never lands mid-word.
       '<div class="k">Win rate</div>' +
-      '<div class="k" style="white-space:nowrap">raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+WIN_R+'R</div>' +
+      '<div class="k" style="white-space:nowrap">raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+defs().winR+'R</div>' +
       '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div>' +
-      '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+WIN_R+'R</span>'
+      '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+defs().winR+'R</span>'
                      : "each stricter than the last") + '</div></div>' +
     '<div class="metric"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
     '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade &mdash; the number that matters</div></div>' +
     '<div class="metric"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under 1.2R &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(A.tagged?A.noise+" of "+A.tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(A.violations?"var(--red)":"var(--green)")+'">'+(A.tagged?A.violations:"&mdash;")+'</div><div class="r">'+(A.tagged?(A.violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">full pre-trade check on open</div></div>';
@@ -2552,10 +2735,10 @@ function renderGroupClosed(){
 // Shared by the account view and the group expansion, so a tag looks and behaves the same in both.
 function lossTagSelect(t){
   if(derive(t).realized >= 0) return '<span class="muted">&mdash;</span>';
-  const legacy = t.lossTag && !LOSS_TAGS.some(o=>o.v===t.lossTag);
+  const legacy = t.lossTag && !lossTags().some(o=>o.v===t.lossTag);
   return '<select onchange="setLossTag(\x27'+t.id+'\x27,this.value)" style="max-width:230px">' +
     '<option value="">tag this loss…</option>' +
-    LOSS_TAGS.map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
+    lossTags().map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
     (legacy ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired tag)</option>' : "") +
     '</select>';
 }
@@ -2830,7 +3013,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
   $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">internal targets'+
     (overridden ? " at "+fmtP(P) : "")+':</span>' +
-    ladderHtml(TARGETS.map(k=>({k, price:P + side*k*den0, hit:false})));
+    ladderHtml(targetsOf().map(k=>({k, price:P + side*k*den0, hit:false})));
 
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
   const skipped = rows.filter(r=>r.on && r.skipped);
@@ -2839,7 +3022,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   const a = adrAudit(P, adr, den0);
   let vol = a
     ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.adrs.toFixed(1)+" ADRs away.</span> " +
-      (a.adrs<1.5 ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
+      (a.adrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
     : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
   // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
   if(badRows.length) vol += '<br><span style="color:var(--amber)">Fill is already past the stop for: '+
@@ -3011,15 +3194,16 @@ function renderBook(open){
   const houseN = heat.filter(h=>h.seq<=1e-4 && h.d.Q>0).length;
   const totPL = heat.reduce((s,h)=>s+h.d.realized+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
   const stale = heat.filter(h=>isStale(h.t)).length;
-  const cap = settingsFor(acctInView()).heatCap;
-  const overCap = heatR > cap;
+  const S0 = settingsFor(acctInView());
+  const cap = S0.heatCap;
+  const overCap = S0.heatOn !== false && heatR > cap;
   overHeat = overCap ? {heatR, cap} : null;      // read by New Trade, which is where it matters
 
   // Across whatever is in view, so a group reads its own last five rather than the first member's.
   const recent = scopeTrades("closed").map(x=>x.t)
     .sort((a,b)=>(b.closedAt||0)-(a.closedAt||0)).slice(0,5);
   const streakR = recent.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
-  const coldHit = recent.length>=3 && streakR <= -settingsFor(acctInView()).coldR;
+  const coldHit = S0.coldOn !== false && recent.length>=3 && streakR <= -S0.coldR;
 
   hb.innerHTML =
     // Both of these state your rule and flag the breach. Neither blocks the Open button — that is
@@ -3154,6 +3338,7 @@ function chartTrades(){
 
 /* ========================= bindings ========================= */
 function bindSettings(){
+  bindSetFields();
   $("aum").addEventListener("change", e=>{
     const v = parseFloat(e.target.value.replace(/[^0-9.]/g,""));
     if(!isNaN(v) && v>0) state.settings.aum = v;

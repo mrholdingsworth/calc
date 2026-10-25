@@ -20,9 +20,14 @@
        import io
        h=io.open('_dev/compare.js',encoding='utf-8').read()
        for src,dst in [('index.html','_dev/_probe_v1.html'),('v2.html','_dev/_probe_v2.html')]:
-           s=io.open(src,encoding='utf-8').read(); i=s.rindex('</script>')
+           s=io.open(src,encoding='utf-8').read(); i=s.rindex('<\/script>')   # see note below
            io.open(dst,'w',encoding='utf-8',newline='\n').write(s[:i]+h+s[i:])
        "
+
+   The backslash in that closing tag is load-bearing. An HTML parser ends a <script> element at the
+   first literal closing tag in its text, comment or no comment -- so writing it unescaped anywhere
+   in this file truncates the probe's script and every definition after it vanishes. Cost an hour
+   once; the symptom is the whole app silently not booting.
 
    Open each probe and run `snapshot(FIXTURE)`, then compare. The probes are gitignored; delete
    them when you are done. Always confirm the harness can still FAIL before trusting a match --
