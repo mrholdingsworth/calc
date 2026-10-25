@@ -470,6 +470,7 @@ button.small{--r:7px}
 
     <div class="setgrp">
       <div class="head">Accounts</div>
+      <div id="acctAdmin" style="margin-bottom:14px"></div>
       <div class="fields deskrow">
         <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
         <div id="marginCell"><label for="marginX">Margin</label>
@@ -608,11 +609,9 @@ const DEFS_DEFAULT = {
   scratchLo:-0.05, scratchHi:0.10, winR:1,
   reviewDays:30, breachR:-1.25, lossDisc:1.2,
   aptrTight:1, aptrFloor:1.5,
-  lossTags:[
-    { v:"invalidation", t:"Thesis broken — the stop did its job" },
-    { v:"noise",        t:"Stopped by noise — it worked after I was out" },
-    { v:"violation",    t:"Rule violation — I broke my own process" }
-  ]
+  // One tag, because the other two were a taxonomy the app had no business asserting. Add your own
+  // in Settings; a tag you later remove stays on the trades carrying it, marked retired.
+  lossTags:[ { v:"violation", t:"Rule Violation" } ]
 };
 // Defensive: normalize() fills root.defs, but these are read from functions that can run before it.
 const defs = () => (root && root.defs) || DEFS_DEFAULT;
@@ -800,6 +799,12 @@ function normalize(){
   if(!root.defs || typeof root.defs !== "object") root.defs = {};
   Object.keys(DEFS_DEFAULT).forEach(k=>{ if(root.defs[k]==null) root.defs[k] = DEFS_DEFAULT[k]; });
   if(!Array.isArray(root.defs.lossTags) || !root.defs.lossTags.length)
+    root.defs.lossTags = DEFS_DEFAULT.lossTags.map(o=>({v:o.v, t:o.t}));
+  // A book carrying the old three untouched never chose them, so it takes the new default. A list
+  // that was edited is a decision and is left exactly alone. Trades tagged with a dropped key keep
+  // showing it, marked retired, so nothing is lost either way.
+  else if(root.defs.lossTags.length===3 &&
+          ["invalidation","noise","violation"].every((v,i)=>root.defs.lossTags[i].v===v))
     root.defs.lossTags = DEFS_DEFAULT.lossTags.map(o=>({v:o.v, t:o.t}));
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
@@ -1172,14 +1177,40 @@ function renderTabs(){
       '</span>';
   }).join("");
 
-  $("tabs").innerHTML = html +
-    '<span class="tabsep" aria-hidden="true"></span>' +
-    '<button class="small" title="New account" onclick="addPortfolio()">+</button>' +
-    '<button class="small" title="New group" onclick="addGroup()">+ group</button>' +
-    (isGroup(root.active) ? '<button class="small" title="Choose which accounts belong to this group" onclick="editGroupMembers()">Members</button>' : '') +
-    (root.order.length>1 ? '<button class="small danger" title="Delete whatever tab is selected" onclick="removeTab()">&#10005;</button>' : '') +
-    '<span class="muted" style="margin-left:auto">'+
-      (inGroup() ? "one ruleset, each account on its own equity" : "separate books, separate R units")+'</span>';
+  // Selector only. Creating, deleting and group membership moved to Settings > Accounts, where the
+  // document put them -- the strip is the thing you touch constantly and the management controls
+  // are the things you touch twice a year, and a delete button does not belong beside them.
+  $("tabs").innerHTML = html;
+}
+
+/* ---- account and group management, in Settings > Accounts ---- */
+function renderAccountAdmin(){
+  const box = $("acctAdmin");
+  if(!box) return;
+  const q = n => JSON.stringify(n).replace(/"/g,"&quot;");
+  const rows = root.order.map(n=>{
+    const g = isGroup(n);
+    const owner = g ? null : groupOf(n);
+    const trades = g ? null : (root.portfolios[n].trades||[]).length;
+    return "<tr><td><b>"+esc(n)+"</b></td>" +
+      "<td>"+(g ? '<span class="pill tier">group</span>' : "account")+"</td>" +
+      "<td>"+(g ? groupMembers(n).length+" member"+(groupMembers(n).length===1?"":"s")
+                : (owner ? "in "+esc(owner) : '<span class="muted">standalone</span>'))+"</td>" +
+      "<td class='num'>"+(g ? "&mdash;" : trades+" trade"+(trades===1?"":"s"))+"</td>" +
+      "<td class='num' style='white-space:nowrap'>" +
+        '<button class="small" onclick="switchTab('+q(n)+')">Open</button> ' +
+        (g ? '<button class="small" onclick="editGroupMembers('+q(n)+')">Members</button> ' : "") +
+        (root.order.length>1
+          ? '<button class="small danger" onclick="removeEntry('+q(n)+')">&#10005;</button>' : "") +
+      "</td></tr>";
+  }).join("");
+  box.innerHTML =
+    '<div class="row" style="margin-bottom:10px">' +
+      '<button class="small" onclick="addPortfolio()">New account</button>' +
+      '<button class="small" onclick="addGroup()">New group</button>' +
+    '</div>' +
+    '<div class="scroll"><table><tr><th>Name</th><th>Type</th><th>Membership</th>' +
+      '<th class="num">Trades</th><th></th></tr>' + rows + '</table></div>';
 }
 
 window.switchTab = n => {
@@ -1317,9 +1348,11 @@ window.saveGroupMembers = () => {
   closeModal(); normalize(); save(); render();
 };
 
-window.removeTab = () => {
+// Takes the name rather than reading root.active: the management table deletes a row, which is not
+// necessarily the thing currently open.
+window.removeEntry = (n) => {
   if(root.order.length<2) return;
-  const n = root.active;
+  if(!isAccount(n) && !isGroup(n)) return;
   if(isGroup(n)){
     const members = groupMembers(n);
     if(!confirm("Delete the group \""+n+"\"?\n\nIts "+members.length+" account(s) and every trade in them are kept — they each take a copy of the group's ruleset and go back to standing alone.")) return;
@@ -1335,7 +1368,7 @@ window.removeTab = () => {
     Object.keys(root.groups).forEach(g=>{ root.groups[g].members = root.groups[g].members.filter(m=>m!==n); });
   }
   root.order = root.order.filter(x=>x!==n);
-  root.active = root.order[0]; root.focus = null;
+  if(root.active===n){ root.active = root.order[0]; root.focus = null; }
   normalize(); save(); render();
 };
 
@@ -1443,6 +1476,7 @@ function bindSetFields(){
 
 function renderSettings(){
   renderSetFields();
+  renderAccountAdmin();
   // The setups list feeds entry as a datalist rather than a hard dropdown: it suggests without
   // refusing, so a setup you have not named yet never blocks recording the trade. The field stays
   // t.concept, so the by-setup statistics keep working on everything already closed.
