@@ -75,6 +75,31 @@ button.icon{padding:5px 9px;font-size:15px;line-height:1.1}
    unintended short. Both are wrong, so both light. */
 button.stopwarn{color:var(--amber);border-color:var(--amber);background:var(--amberbg)}
 .modalcard.wide{max-width:980px}
+
+/* A checkbox beside a number field says nothing on its own, so the checkbox carries its own word
+   and the number carries its unit. */
+.ctlrow{display:flex;flex-wrap:nowrap;gap:7px;align-items:center}
+.ctlrow input[type=number]{width:72px;flex:none;min-width:0}
+.inchk{display:inline-flex;align-items:center;gap:5px;margin:0;font-size:12px;font-weight:600;
+       color:var(--sub);text-transform:none;letter-spacing:0;cursor:pointer;white-space:nowrap}
+.inchk input{width:auto;margin:0;accent-color:var(--blue);cursor:pointer}
+.suffix{color:var(--mut);font-family:var(--mono);font-size:12px}
+
+/* Hover explainers: what a field is, never what to do with it. The bubble opens below the icon and
+   to the right; a field in the right-hand columns gets .lt so it opens the other way and stays on
+   the card. Anything inside a .scroll wrapper uses a plain title instead, since a bubble cannot
+   escape a scrolling box. */
+.info{display:inline-block;position:relative;width:13px;height:13px;line-height:12px;text-align:center;
+      border:1px solid var(--line2);border-radius:999px;color:var(--mut);font-size:9px;font-weight:700;
+      font-family:var(--sans);text-transform:none;letter-spacing:0;cursor:help;margin-left:5px;
+      vertical-align:middle}
+.info:hover{border-color:var(--blue);color:var(--blue)}
+.info::after{content:attr(data-tip);position:absolute;left:-2px;top:19px;z-index:40;display:none;
+             width:250px;padding:8px 10px;background:var(--panel2);border:1px solid var(--line2);
+             color:var(--sub);font-size:11.5px;font-weight:400;line-height:1.45;text-align:left;
+             white-space:normal;box-shadow:0 8px 22px rgba(0,0,0,.5)}
+.info.lt::after{left:auto;right:-2px}
+.info:hover::after{display:block}
 .setgrp{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
 .setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0}
 html{scroll-behavior:smooth}
@@ -472,11 +497,12 @@ button.small{--r:7px}
       <div class="head">Accounts</div>
       <div id="acctAdmin" style="margin-bottom:14px"></div>
       <div class="fields deskrow">
-        <div id="aumCell"><label for="aum">Portfolio value (AUM)</label><input id="aum" type="text" inputmode="decimal"></div>
-        <div id="marginCell"><label for="marginOn">Margin</label>
-          <div class="row" style="flex-wrap:nowrap;gap:8px;align-items:center">
-            <input type="checkbox" id="marginOn" style="width:auto;margin:0;accent-color:var(--blue)" title="Trade this account on margin">
-            <input id="marginX" type="number" step="0.1" min="1" placeholder="2" style="min-width:0" title="Buying power as a multiple of equity">
+        <div id="aumCell"><label for="aum">Portfolio value (AUM)<span class="info" data-tip="Equity this account sizes from. It moves on its own as trades realise, so use Deposit and Withdraw for money actually arriving or leaving.">i</span></label><input id="aum" type="text" inputmode="decimal"></div>
+        <div id="marginCell"><label for="marginOn">Margin<span class="info" data-tip="Buying power as a multiple of equity. Off means cash: you can hold only what you can pay for. On, enter any rate your broker gives you.">i</span></label>
+          <div class="ctlrow">
+            <label class="inchk" for="marginOn"><input type="checkbox" id="marginOn">on</label>
+            <input id="marginX" type="number" step="0.1" min="1" placeholder="2">
+            <span class="suffix">&times;</span>
           </div></div>
       </div>
       <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
@@ -485,25 +511,25 @@ button.small{--r:7px}
     <div class="setgrp">
       <div class="head">Sizing and risk</div>
       <div class="fields deskrow">
-        <div><label for="rpct">R as % of portfolio</label><input id="rpct" type="number" step="0.05" min="0.01"></div>
-        <div><label for="t0">Tier A+ (R)</label><input id="t0" type="number" step="0.25" min="0.05"></div>
-        <div><label for="t1">Tier A (R)</label><input id="t1" type="number" step="0.25" min="0.05"></div>
-        <div><label for="t2">Tier B (R)</label><input id="t2" type="number" step="0.25" min="0.05"></div>
-        <div><label for="compound">Compound realized into AUM</label>
+        <div><label for="rpct">R as % of portfolio<span class="info" data-tip="One R, as a percentage of equity. Every trade is sized and measured in multiples of it.">i</span></label><input id="rpct" type="number" step="0.05" min="0.01"></div>
+        <div><label for="t0">Tier A+ (R)<span class="info" data-tip="Risk multiple for tier A+. At 1R a trade in this tier risks one full R.">i</span></label><input id="t0" type="number" step="0.25" min="0.05"></div>
+        <div><label for="t1">Tier A (R)<span class="info" data-tip="Risk multiple for tier A.">i</span></label><input id="t1" type="number" step="0.25" min="0.05"></div>
+        <div><label for="t2">Tier B (R)<span class="info" data-tip="Risk multiple for tier B. At 0.25R a trade in this tier risks a quarter of one R.">i</span></label><input id="t2" type="number" step="0.25" min="0.05"></div>
+        <div><label for="compound">Compound realized into AUM<span class="info lt" data-tip="Fold realised profit and loss into equity as it is banked, rather than leaving equity fixed.">i</span></label>
           <select id="compound"><option value="1">Yes</option><option value="0">No</option></select></div>
-        <div><label for="s_heatOn">Max open heat</label>
+        <div><label for="s_heatOn">Max open heat<span class="info lt" data-tip="Whether to watch the total at risk across all open positions. It flags and never blocks.">i</span></label>
           <select id="s_heatOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="heatcap">&mdash; cap (R)</label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
-        <div><label for="s_coldOn">Cold-streak brake</label>
+        <div><label for="heatcap">&mdash; cap (R)<span class="info lt" data-tip="Flag once open heat passes this many R.">i</span></label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
+        <div><label for="s_coldOn">Cold-streak brake<span class="info lt" data-tip="Whether to watch the running total of your last five closed trades.">i</span></label>
           <select id="s_coldOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="coldr">&mdash; threshold (R / last 5)</label><input id="coldr" type="number" step="0.5" min="0.5"></div>
+        <div><label for="coldr">&mdash; threshold (R / last 5)<span class="info lt" data-tip="Flag once those five sum to worse than minus this many R.">i</span></label><input id="coldr" type="number" step="0.5" min="0.5"></div>
       </div>
       <div class="fields deskrow" style="margin-top:10px">
-        <div><label for="s_targetsOn">Targets</label>
+        <div><label for="s_targetsOn">Targets<span class="info" data-tip="Whether the internal target ladder appears on positions and on New Trade.">i</span></label>
           <select id="s_targetsOn"><option value="1">Show</option><option value="0">Hide</option></select></div>
-        <div><label for="s_target0">Target 1 (R)</label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
-        <div><label for="s_target1">Target 2 (R)</label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
-        <div style="grid-column:span 3"><label for="s_setups">Setups &mdash; one per line</label>
+        <div><label for="s_target0">Target 1 (R)<span class="info" data-tip="First target, as a multiple of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
+        <div><label for="s_target1">Target 2 (R)<span class="info" data-tip="Second target, measured the same way.">i</span></label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
+        <div style="grid-column:span 3"><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Names offered when recording a trade. Suggestions only: anything can be typed, and a trade opens without one.">i</span></label>
           <textarea id="s_setups" style="min-height:62px"></textarea></div>
       </div>
       <div class="muted" style="margin-top:8px">Fuzziness, max and min allocation and max stop width arrive with the sizing pipeline.</div>
@@ -512,16 +538,16 @@ button.small{--r:7px}
     <div class="setgrp">
       <div class="head">Statistics and definitions</div>
       <div class="fields deskrow">
-        <div><label for="s_scratchLo">Scratch from (R)</label><input id="s_scratchLo" type="number" step="0.01"></div>
-        <div><label for="s_scratchHi">Scratch to (R)</label><input id="s_scratchHi" type="number" step="0.01"></div>
-        <div><label for="s_winR">Decisive win (R)</label><input id="s_winR" type="number" step="0.25" min="0.25"></div>
-        <div><label for="s_lossDisc">Loss discipline (R)</label><input id="s_lossDisc" type="number" step="0.1" min="0.1"></div>
-        <div><label for="s_breachR">Stop breach (R)</label><input id="s_breachR" type="number" step="0.05"></div>
-        <div><label for="s_reviewDays">Review due (days)</label><input id="s_reviewDays" type="number" step="1" min="1"></div>
-        <div><label for="s_aptrTight">APTR &mdash; tight</label><input id="s_aptrTight" type="number" step="0.1" min="0.1"></div>
-        <div><label for="s_aptrFloor">APTR &mdash; noise floor</label><input id="s_aptrFloor" type="number" step="0.1" min="0.1"></div>
+        <div><label for="s_scratchLo">Scratch from (R)<span class="info" data-tip="Lower edge of the scratch band. A result between the two edges counts as neither a win nor a loss.">i</span></label><input id="s_scratchLo" type="number" step="0.01"></div>
+        <div><label for="s_scratchHi">Scratch to (R)<span class="info" data-tip="Upper edge of the scratch band.">i</span></label><input id="s_scratchHi" type="number" step="0.01"></div>
+        <div><label for="s_winR">Decisive win (R)<span class="info" data-tip="A closed trade at or above this many R counts as decisive.">i</span></label><input id="s_winR" type="number" step="0.25" min="0.25"></div>
+        <div><label for="s_lossDisc">Loss discipline (R)<span class="info" data-tip="A loss held at or inside this many R of the risk it was opened with counts as disciplined. Measured in internal R, so size does not flatter it.">i</span></label><input id="s_lossDisc" type="number" step="0.1" min="0.1"></div>
+        <div><label for="s_breachR">Stop breach (R)<span class="info lt" data-tip="Internal R below which a stop-out is marked as a breach on the closed-trades table.">i</span></label><input id="s_breachR" type="number" step="0.05"></div>
+        <div><label for="s_reviewDays">Review due (days)<span class="info lt" data-tip="Days after a trade closes before its review is flagged as due.">i</span></label><input id="s_reviewDays" type="number" step="1" min="1"></div>
+        <div><label for="s_aptrTight">APTR &mdash; tight<span class="info lt" data-tip="Stop distance, in average true ranges, below which the volatility check shows red.">i</span></label><input id="s_aptrTight" type="number" step="0.1" min="0.1"></div>
+        <div><label for="s_aptrFloor">APTR &mdash; noise floor<span class="info lt" data-tip="And below which it shows amber. Above it, green.">i</span></label><input id="s_aptrFloor" type="number" step="0.1" min="0.1"></div>
       </div>
-      <div style="margin-top:10px"><label for="s_lossTags">Loss tags &mdash; one per line</label>
+      <div style="margin-top:10px"><label for="s_lossTags">Loss tags &mdash; one per line<span class="info" data-tip="Reasons offered when tagging a loss, one per line. A tag you remove stays on the trades already carrying it, marked retired.">i</span></label>
         <textarea id="s_lossTags" style="min-height:62px"></textarea></div>
       <div class="muted" style="margin-top:6px">Changing a definition re-measures every closed trade. A tag you remove stays on the trades that carry it, marked retired.</div>
     </div>
@@ -529,12 +555,12 @@ button.small{--r:7px}
     <div class="setgrp">
       <div class="head">General and display</div>
       <div class="fields deskrow">
-        <div><label for="s_hideValues">Hide values and gains</label>
+        <div><label for="s_hideValues">Hide values and gains<span class="info" data-tip="Blank every money figure on screen. R multiples, prices and share counts stay visible.">i</span></label>
           <select id="s_hideValues"><option value="0">Show</option><option value="1">Hide</option></select></div>
-        <div><label for="s_colourGrade">Gain/loss colour</label>
+        <div><label for="s_colourGrade">Gain/loss colour<span class="info" data-tip="Colour positive and negative figures green and red.">i</span></label>
           <select id="s_colourGrade"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_stopCount">Stops loaded per trade</label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
-        <div><label for="s_lotRound">Lot rounding (shares)</label><input id="s_lotRound" type="number" step="1" min="1"></div>
+        <div><label for="s_stopCount">Stops loaded per trade<span class="info" data-tip="How many stop rows a newly opened position starts with.">i</span></label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
+        <div><label for="s_lotRound">Lot rounding (shares)<span class="info lt" data-tip="Round share counts down to a multiple of this.">i</span></label><input id="s_lotRound" type="number" step="1" min="1"></div>
       </div>
     </div>
   </div>
@@ -1505,7 +1531,14 @@ function renderSettings(){
     const members = groupMembers(g);
     eq.style.display = "";
     eq.innerHTML = members.length
-      ? "<table><tr><th>Account</th><th class='num'>Equity (AUM)</th><th>Cash</th><th>Margin</th><th class='num'>Buying power</th><th class='num'>1R</th>" +
+      // Plain title attributes here rather than the .info bubble: this table sits in a .scroll
+      // wrapper, and an absolutely positioned bubble cannot escape a scrolling box.
+      ? "<table><tr><th>Account</th>" +
+        "<th class='num' title='Equity this account sizes from'>Equity (AUM)</th>" +
+        "<th title='Record money arriving or leaving this account'>Cash</th>" +
+        "<th title='Buying power as a multiple of equity. Off means cash.'>Margin</th>" +
+        "<th class='num' title='Equity times the margin rate'>Buying power</th>" +
+        "<th class='num' title='One R in dollars for this account'>1R</th>" +
         "<th class='num'>"+TIERS[0]+"</th><th class='num'>"+TIERS[1]+"</th><th class='num'>"+TIERS[2]+"</th><th></th></tr>" +
         members.map(m=>{
           const R = rUnitOf(m);
@@ -1517,15 +1550,16 @@ function renderSettings(){
               '" onclick="openCash(\''+jsq(m)+'\',\'deposit\')">+</button> ' +
               '<button class="small" title="Withdraw from '+esc(m)+
               '" onclick="openCash(\''+jsq(m)+'\',\'withdraw\')">&minus;</button></td>' +
-            "<td style='white-space:nowrap'>" +
-              "<input type='checkbox' style='width:auto;margin:0 6px 0 0;accent-color:var(--blue)'" +
-                (root.portfolios[m].settings.marginOn?" checked":"") +
-                " onchange=\"setMemberMarginOn('"+jsq(m)+"',this.checked)\" title='Trade on margin'>" +
-              "<input type='number' step='0.1' min='1' style='width:62px;display:inline-block'" +
+            "<td><div class='ctlrow'>" +
+              "<label class='inchk' title='Trade this account on margin'>" +
+                "<input type='checkbox'" + (root.portfolios[m].settings.marginOn?" checked":"") +
+                " onchange=\"setMemberMarginOn('"+jsq(m)+"',this.checked)\">on</label>" +
+              "<input type='number' step='0.1' min='1' style='width:58px'" +
                 " value='"+root.portfolios[m].settings.marginX+"'" +
                 (root.portfolios[m].settings.marginOn?"":" disabled") +
                 " onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\" title='Buying power multiple'>" +
-            "</td>" +
+              "<span class='suffix'>&times;</span>" +
+            "</div></td>" +
             "<td class='num'>"+fmtE(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmtE(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
