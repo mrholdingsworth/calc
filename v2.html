@@ -525,8 +525,6 @@ button.small{--r:7px}
         <div><label for="t0">Tier A+ (R)<span class="info" data-tip="Risk multiple for tier A+. At 1R a trade in this tier risks one full R.">i</span></label><input id="t0" type="number" step="0.25" min="0.05"></div>
         <div><label for="t1">Tier A (R)<span class="info" data-tip="Risk multiple for tier A.">i</span></label><input id="t1" type="number" step="0.25" min="0.05"></div>
         <div><label for="t2">Tier B (R)<span class="info" data-tip="Risk multiple for tier B. At 0.25R a trade in this tier risks a quarter of one R.">i</span></label><input id="t2" type="number" step="0.25" min="0.05"></div>
-        <div><label for="compound">Compound realized into AUM<span class="info lt" data-tip="Fold realised profit and loss into equity as it is banked, rather than leaving equity fixed.">i</span></label>
-          <select id="compound"><option value="1">Yes</option><option value="0">No</option></select></div>
         <div><label for="s_heatOn">Max open heat<span class="info lt" data-tip="Whether to watch the total at risk across all open positions. It flags and never blocks.">i</span></label>
           <select id="s_heatOn"><option value="1">On</option><option value="0">Off</option></select></div>
         <div><label for="heatcap">&mdash; cap (R)<span class="info lt" data-tip="Flag once open heat passes this many R.">i</span></label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
@@ -670,11 +668,11 @@ let overHeat = null;
 // where it is as a permanent fallback and v1.3 keeps working untouched.
 const KEY = "rcalc.v2";
 const LEGACY_KEYS = ["rcalc.v1", "cal.v1"];
-const SCHEMA = 2;
+const SCHEMA = 3;
 let root = null, state = null;
 
 function defaults(){
-  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], compound:true, finnhub:"",
+  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], finnhub:"",
                       marginX:1, lotRound:1,
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
                       targetsOn:true, targets:[1,2], setups:[] }, trades:[] };
@@ -682,7 +680,7 @@ function defaults(){
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
 // each account; only these are shared. lotRound is NOT here: it follows the broker and the
 // instrument, not the method.
-const GROUP_KEYS = ["rPct","tiers","compound","heatCap","coldR","heatOn","coldOn",
+const GROUP_KEYS = ["rPct","tiers","heatCap","coldR","heatOn","coldOn",
                     "targetsOn","targets","setups"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
@@ -816,6 +814,23 @@ function migrate2(){
   root.v = 2;
 }
 
+/* ---- SCHEMA 3: compounding is assumed ----
+   Realised P/L now always folds into equity, so the toggle is gone. A book that had it OFF is the
+   dangerous case: every trade's `compounded` sits at zero while real realised P/L exists, so the
+   first realising event after the switch would dump the entire backlog into equity at once and
+   call it today's gain. Marking each trade as already compounded makes the change a true no-op --
+   equity stays exactly where the user left it, and compounding starts from here. */
+function migrate3(){
+  if(root.v >= 3) return;
+  Object.values(root.portfolios || {}).forEach(pf=>{
+    const wasOff = pf.settings && pf.settings.compound === false;
+    if(wasOff) (pf.trades || []).forEach(t=>{ t.compounded = derive(t).realized; });
+    if(pf.settings) delete pf.settings.compound;
+  });
+  Object.values(root.groups || {}).forEach(g=>{ if(g.settings) delete g.settings.compound; });
+  root.v = 3;
+}
+
 function normalize(){
   // A book with no stamp predates versioning, which makes it schema 1 -- NOT whatever SCHEMA
   // happens to be now. Stamping it as current was harmless while there was nothing to migrate;
@@ -823,6 +838,7 @@ function normalize(){
   // the guard. The symptom was silent: fields simply absent, no error anywhere.
   if(root.v == null) root.v = 1;
   migrate2();
+  migrate3();
   if(!root.portfolios || !Object.keys(root.portfolios).length) root.portfolios = newRoot().portfolios;
   if(!Array.isArray(root.order)) root.order = Object.keys(root.portfolios);
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
@@ -945,18 +961,18 @@ window.rescueBook = () => {
 };
 
 /* ========================= format ========================= */
-// Three scales, because one rule cannot serve all three.
+// Two scales. There were three: equity and buying power used to round to whole dollars, on the
+// grounds that cents on a six-figure balance are noise and cost a column of width. Cents everywhere
+// is the v2 decision, so that scale folded into fmt$ and the name went with it rather than becoming
+// a synonym that reads like a distinction.
 //
-//   fmtE  equity and buying power — whole dollars. Cents on a six-figure balance are noise, and
-//         they cost a column's worth of width on every row that carries one.
-//   fmt$  every other aggregate: risk, cost, value, P/L, an R in dollars. Always cents, never more.
+//   fmt$  every aggregate: equity, buying power, risk, cost, value, P/L, an R in dollars. Cents.
 //   fmtP  anything priced per share — a quote, a stop, risk per share, a daily range. Up to four
 //         decimals, because a name quoting 1.1155 against a 1.1125 stop keeps its entire edge in
 //         the third and fourth, and 2dp would round risk-per-share to $0.00.
 //
 // maximumFractionDigits absorbs float noise on its own: 9.350000000000001 prints as 9.35.
 const MONEY = {minimumFractionDigits:2, maximumFractionDigits:4};
-const fmtE = v => mask((v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0}));
 const fmt$ = v => mask((v<0?"-":"") + "$" + Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}));
 const fmtR = v => (v>0?"+":"") + v.toFixed(2) + "R";
 const fmtQ = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0});
@@ -1062,7 +1078,7 @@ function riskAtStop(t,d){
 function syncCompound(t, acct){
   acct = acct || acctOf(t.id);
   const pf = root.portfolios[acct];
-  if(!pf || !settingsFor(acct).compound) return 0;
+  if(!pf) return 0;
   const now = derive(t).realized;
   const delta = now - (t.compounded || 0);
   if(!delta) return 0;
@@ -1325,7 +1341,7 @@ function renderAccountAdmin(){
               '</select>'
             : '<span class="muted">standalone</span>'))+"</td>" +
       "<td class='num'>"+(g ? "&mdash;" : trades+" ("+open+" open)")+"</td>" +
-      "<td class='num'>"+(g ? "&mdash;" : fmtE(root.portfolios[n].settings.aum))+"</td>" +
+      "<td class='num'>"+(g ? "&mdash;" : fmt$(root.portfolios[n].settings.aum))+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         '<button class="small" onclick="switchTab('+q(n)+')">Open</button> ' +
         '<button class="small" onclick="renameEntry('+q(n)+')">Rename</button> ' +
@@ -1600,14 +1616,13 @@ function renderSettings(){
   $("marginCell").style.display = g ? "none" : "";
   if(!g){
     const pf = root.portfolios[acctInView()];
-    $("aum").value = fmtE(state.settings.aum);
+    $("aum").value = fmt$(state.settings.aum);
     $("marginOn").checked = !!(pf && pf.settings.marginOn);
     $("marginX").value = pf ? pf.settings.marginX : 2;
     $("marginX").disabled = !(pf && pf.settings.marginOn);
   }
   $("rpct").value = s.rPct;
   $("t0").value = s.tiers[0]; $("t1").value = s.tiers[1]; $("t2").value = s.tiers[2];
-  $("compound").value = s.compound ? "1" : "0";
   $("heatcap").value = s.heatCap; $("coldr").value = s.coldR;
   $("fhkey").value = root.finnhub || "";
 
@@ -1629,7 +1644,7 @@ function renderSettings(){
           const R = rUnitOf(m);
           return "<tr><td>"+esc(m)+"</td>" +
             "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
-              fmtE(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
+              fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
             // Each account moves its own cash: one group order does not imply one transfer.
             '<td style="white-space:nowrap"><button class="small" title="Deposit into '+esc(m)+
               '" onclick="openCash(\''+jsq(m)+'\',\'deposit\')">+</button> ' +
@@ -1645,7 +1660,7 @@ function renderSettings(){
                 " onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\" title='Buying power multiple'>" +
               "<span class='suffix'>&times;</span>" +
             "</div></td>" +
-            "<td class='num'>"+fmtE(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmtE(bpFree(m))+" free</div></td>" +
+            "<td class='num'>"+fmt$(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmt$(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
             "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(m)+"')\">Open</button></td></tr>";
@@ -1656,7 +1671,7 @@ function renderSettings(){
   $("runitBox").innerHTML = g
     ? "One ruleset &middot; " + groupMembers(g).length + " account" + (groupMembers(g).length===1?"":"s") +
       ' <span class="muted">&mdash; each sizes off its own equity above</span>'
-    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmtE(state.settings.aum) + ")</span>";
+    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(state.settings.aum) + ")</span>";
 
   const sel = $("nt_tier").value !== "" ? $("nt_tier").value : "1";
   $("nt_tier").innerHTML = TIERS.map((n,i)=>
@@ -1740,7 +1755,7 @@ function renderFastCalc(){
         "<td class='num'>"+fmt$(r.R*r.mult)+"</td><td class='num'>"+fmt$(r.cost)+"</td>" +
         "<td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>").join("") + "</table></div>"
       : '<div class="fcsub" style="margin-top:8px">1R '+fmt$(rows[0].R)+' &middot; budget '+
-        fmt$(rows[0].R*rows[0].mult)+' &middot; buying power '+fmtE(bpFree(rows[0].m))+' free</div>') +
+        fmt$(rows[0].R*rows[0].mult)+' &middot; buying power '+fmt$(bpFree(rows[0].m))+' free</div>') +
     (anyCapped ? '<div class="fcsub" style="color:var(--amber)">R wants '+fmtQ(rows[0].qR)+
       ' share'+(rows[0].qR===1?"":"s")+(g?" in at least one account":"")+'.</div>' : "");
   more.style.display = "";
@@ -1793,19 +1808,19 @@ window.previewCash = (acct, kind) => {
   }
   const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
   if(next <= 0){
-    el.innerHTML = '<span style="color:var(--red)">That would leave '+esc(acct)+' at '+fmtE(next)+
+    el.innerHTML = '<span style="color:var(--red)">That would leave '+esc(acct)+' at '+fmt$(next)+
       '. Withdraw less than the equity.</span>';
     btn.disabled = true; return;
   }
   const rNext = next * settingsFor(acct).rPct/100;
   const used = bpUsed(acct), bpNext = next * marginXOf(acct);
-  el.innerHTML = "Equity " + fmtE(pf.settings.aum) + " &rarr; <b>" + fmtE(next) + "</b>" +
+  el.innerHTML = "Equity " + fmt$(pf.settings.aum) + " &rarr; <b>" + fmt$(next) + "</b>" +
     " &middot; 1R " + fmt$(rUnitOf(acct)) + " &rarr; <b>" + fmt$(rNext) + "</b>" +
     '<div class="muted" style="margin-top:4px">Open trades keep the R unit they locked at entry. ' +
     'This only changes what you size from here.</div>' +
     (bpNext < used
-      ? '<div style="color:var(--amber);margin-top:6px">Open positions are standing on '+fmtE(used)+
-        ', more than the '+fmtE(bpNext)+' of buying power this leaves. Nothing is blocked &mdash; ' +
+      ? '<div style="color:var(--amber);margin-top:6px">Open positions are standing on '+fmt$(used)+
+        ', more than the '+fmt$(bpNext)+' of buying power this leaves. Nothing is blocked &mdash; ' +
         'you would simply be over-extended until something closes.</div>'
       : "");
   btn.disabled = false;
@@ -1829,8 +1844,8 @@ window.undoCash = (acct, i) => {
   const f = pf && pf.cashFlows[i];
   if(!f) return;
   const next = Math.round((pf.settings.aum + (f.type==="deposit" ? -f.amount : f.amount))*100)/100;
-  if(!confirm("Remove this "+f.type+" of "+fmtE(f.amount)+" from "+acct+"?\n\nEquity goes from "+
-              fmtE(pf.settings.aum)+" to "+fmtE(next)+". The record of it is deleted, not offset.")) return;
+  if(!confirm("Remove this "+f.type+" of "+fmt$(f.amount)+" from "+acct+"?\n\nEquity goes from "+
+              fmt$(pf.settings.aum)+" to "+fmt$(next)+". The record of it is deleted, not offset.")) return;
   pf.settings.aum = next;
   pf.cashFlows.splice(i,1);
   save(); render();
@@ -1855,7 +1870,7 @@ function renderCash(){
 
   box.innerHTML = '<details style="margin-top:10px"><summary>Cash in and out &mdash; ' +
     rows.length + " movement" + (rows.length===1?"":"s") + ", net " +
-    (net>=0 ? "+" : "&minus;") + fmtE(Math.abs(net)) + "</summary>" +
+    (net>=0 ? "+" : "&minus;") + fmt$(Math.abs(net)) + "</summary>" +
     '<div class="scroll" style="margin-top:8px"><table>' +
     "<tr><th>Date</th>" + (inGroup() ? "<th>Account</th>" : "") +
     "<th>Movement</th><th class='num'>Amount</th><th class='num'>Equity after</th><th>Note</th><th></th></tr>" +
@@ -1864,8 +1879,8 @@ function renderCash(){
       return "<tr><td>"+new Date(r.f.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td>" +
         (inGroup() ? "<td>"+esc(r.acct)+"</td>" : "") +
         '<td class="'+(dep?"pos":"neg")+'">'+(dep?"Deposit":"Withdrawal")+"</td>" +
-        '<td class="num '+(dep?"pos":"neg")+'">'+(dep?"+":"&minus;")+fmtE(r.f.amount)+"</td>" +
-        "<td class='num'>"+fmtE(r.f.aumAfter)+"</td>" +
+        '<td class="num '+(dep?"pos":"neg")+'">'+(dep?"+":"&minus;")+fmt$(r.f.amount)+"</td>" +
+        "<td class='num'>"+fmt$(r.f.aumAfter)+"</td>" +
         "<td>"+esc(r.f.note||"")+"</td>" +
         "<td class='num'><button class='small danger' title='Remove this movement and put the equity back' " +
           'onclick="undoCash(\''+jsq(r.acct)+"',"+r.i+')">&#10005;</button></td></tr>';
@@ -1928,8 +1943,8 @@ function newTradeCal(){
       '<div class="metric"><div class="k">Cost</div><div class="v">'+fmt$(q*P)+'</div>' +
         '<div class="r">'+(state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(1)+'% of equity' : "")+'</div></div>' +
       '<div class="metric"><div class="k">BP free</div>' +
-        '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmtE(free)+'</div>' +
-        '<div class="r">of '+fmtE(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
+        '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmt$(free)+'</div>' +
+        '<div class="r">of '+fmt$(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
       '<div class="metric"><div class="k">Risk taken</div><div class="v">'+(q*den/R).toFixed(2)+'R</div>' +
         '<div class="r">'+(capped ? '<span style="color:var(--amber)">R wants '+fmtQ(qR)+' sh</span>' : "as intended")+'</div></div>' +
     '</div>';
@@ -3335,7 +3350,7 @@ function renderGroupNewTrade(){
         // Shares first and in gold: it is the number you act on, everything else is why.
         "<td class='num' id='gq_"+i+"' style='font-size:15px'></td>" +
         "<td>"+esc(r.m)+"</td>" +
-        "<td class='num'>"+fmtE(r.aum)+"</td>" +
+        "<td class='num'>"+fmt$(r.aum)+"</td>" +
         // Each account gets the price it was actually filled at; blank means the shared entry above.
         // Cent steps: fills on a liquid name differ by pennies, so that is what the arrows should nudge.
         "<td class='num'><input id='gfill_"+i+"' type='number' step='0.01' value='"+
@@ -3390,7 +3405,7 @@ function paintGroupCalc(rows, P, S, side, ti){
     $("gcost_"+i).textContent = fmt$(r.cost);
     $("galloc_"+i).textContent = r.alloc.toFixed(1)+"%";
     const bp = $("gbp_"+i);
-    bp.textContent = fmtE(r.free);
+    bp.textContent = fmt$(r.free);
     bp.style.color = r.capped ? "var(--amber)" : "";
     bp.title = r.capped ? ("R alone wants "+fmtQ(r.qR)+" shares here") : "";
   });
@@ -3652,7 +3667,7 @@ function renderBook(open){
           });
           const pct = eq>0 ? dollars/eq*100 : 0;
           return '<div class="metric"><div class="k">Weighted APTR</div>' +
-            '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmtE(dollars)+
+            '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmt$(dollars)+
             ' of ordinary daily movement' +
             (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without APTR</span>" : "") +
             '</div></div>';
@@ -3664,8 +3679,8 @@ function renderBook(open){
           const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
           const unreal = open.reduce((a,t)=>{ const d = derive(t); return a + t.side*(t.last-d.avg)*d.Q; }, 0);
           return '<div class="metric"><div class="k">Net liq</div>' +
-            '<div class="v">'+fmtE(eq+unreal)+'</div>' +
-            '<div class="r">equity '+fmtE(eq)+VBAR+'<span class="'+cls(unreal)+'">'+fmt$(unreal)+' unrealized</span></div></div>';
+            '<div class="v">'+fmt$(eq+unreal)+'</div>' +
+            '<div class="r">equity '+fmt$(eq)+VBAR+'<span class="'+cls(unreal)+'">'+fmt$(unreal)+' unrealized</span></div></div>';
         })() +
         (function(){
           // Allocation and buying-power-used were two tiles reading the same number: with margin
@@ -3682,7 +3697,7 @@ function renderBook(open){
           const col = bpPct>=100 ? "var(--red)" : (bpPct>=80 ? "var(--amber)" : "");
           return '<div class="metric"><div class="k">Allocation</div>' +
             '<div class="v"'+(col?' style="color:'+col+'"':'')+'>'+pct.toFixed(1)+'%</div>' +
-            '<div class="r">'+fmtE(val)+' deployed'+VBAR+fmtE(Math.max(0,bp-val))+' buying power free'+
+            '<div class="r">'+fmt$(val)+' deployed'+VBAR+fmt$(Math.max(0,bp-val))+' buying power free'+
             (bp>eq ? ' at '+(bp/eq).toFixed(1)+'&times;' : '')+'</div></div>';
         })() +
         (function(){
@@ -3805,7 +3820,6 @@ function bindSettings(){
     const v = parseFloat(e.target.value);
     if(!isNaN(v) && v>0){ ruleset().tiers[i] = v; save(); render(); }
   }));
-  $("compound").addEventListener("change", e=>{ ruleset().compound = e.target.value==="1"; save(); });
   // Margin belongs to the account, not the ruleset — it is a broker arrangement, not a method.
   ["fc_price","fc_stop"].forEach(id=>$(id).addEventListener("input", renderFastCalc));
   $("fc_clear").addEventListener("click", clearFc);
