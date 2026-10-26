@@ -259,12 +259,17 @@ details[open] summary::before{content:"\25BE  "}
 /* The whole range, side by side. Equal cells so a tier label changing length cannot shuffle the
    thing you were about to click. */
 .fcrange{display:flex;gap:6px}
-.fccell{display:flex;flex-direction:column;align-items:flex-end;gap:0;min-width:84px;
+.fccell{display:flex;flex-direction:column;align-items:flex-end;gap:0;min-width:116px;
         padding:4px 10px;background:none;border:1px solid transparent;border-radius:8px;text-align:right}
 .fccell:hover{border-color:var(--line2);color:inherit}
 .fccell.on{border-color:rgba(176,141,63,.45);background:rgba(176,141,63,.08)}
 .fccell .n{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1.15}
 .fccell .t{font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+/* Two percentages that answer different questions: how much of the book this commits, and what it
+   actually costs if the stop hits. Both labelled, because unlabelled percentages side by side are
+   a guess. */
+.fccell .a{font-size:10px;color:var(--sub);font-family:var(--mono);white-space:nowrap}
+.fccell-line{font-size:11.5px;color:var(--sub);font-family:var(--mono);margin-top:2px}
 .fccell .w{font-size:10px;color:var(--amber)}
 /* Sits on the input row inside the pinned block, so it is sized to that row's height rather than
    setting a taller one. */
@@ -1788,14 +1793,20 @@ function renderFastCalc(){
   if(!accts.length){ plain('<div class="err">No account selected.</div>'); return; }
 
   // One column per tier; in a group each column is the sum of what every member can take.
+  // Smallest first: the range reads the way you decide, from the size you would always be happy
+  // with up to the one you have to justify. Sorted on the multiple rather than the share count,
+  // so two tiers clamped to the same number by a wall keep their order.
+  const eqTot = accts.reduce((a,m)=>a+root.portfolios[m].settings.aum, 0);
   const cols = TIERS.map((name,i)=>{
     const per = accts.map(m=>tierSize(m, P, den, (g ? tiers : settingsFor(m).tiers)[i]));
     const q = per.reduce((a,x)=>a+x.q, 0);
     const walls = [...new Set(per.flatMap(x=>x.walls))];
     return { i, name, mult:tiers[i], q, per, walls,
              under: per.some(x=>x.under),
+             alloc: eqTot>0 ? q*P/eqTot*100 : 0,       // capital committed
+             risk:  eqTot>0 ? q*den/eqTot*100 : 0,     // what it actually costs if the stop hits
              r: per.reduce((a,x)=>a+x.r, 0)/Math.max(1,per.length) };
-  });
+  }).sort((a,b)=>a.mult-b.mult);
 
   const cell = c => {
     const on = c.i===std;
@@ -1805,6 +1816,7 @@ function renderFastCalc(){
       (c.under ? " · under the minimum allocation" : "")+'">' +
       '<span class="n" style="color:'+col+'">'+fmtQ(c.q)+'</span>' +
       '<span class="t">'+c.name+' &middot; '+c.mult+'R</span>' +
+      '<span class="a">'+c.alloc.toFixed(1)+'% alloc'+VBAR+c.risk.toFixed(2)+'% risk</span>' +
       (c.walls.length ? '<span class="w">'+c.walls[0]+'</span>'
         : c.under ? '<span class="w">under min</span>' : '') +
       '</button>';
@@ -2025,11 +2037,14 @@ function newTradeCal(){
   const q = (!isNaN(typed) && typed>0) ? typed : Math.min(qR, qBP);
   const capped = q*P > free;
 
+  const eq = state.settings.aum;
   $("nt_calbox").style.display = "block";
   $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
     ' <span style="color:var(--sub);font-size:13px">risking <b style="color:var(--gold)">' +
       (q*den/R).toFixed(2) + 'R</b></span>' +
-    (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— beyond free buying power</span>' : "");
+    (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— beyond free buying power</span>' : "") +
+    (eq>0 ? '<div class="fccell-line">'+(q*P/eq*100).toFixed(1)+'% alloc'+VBAR+
+            (q*den/eq*100).toFixed(2)+'% risk</div>' : "");
   // Four labelled numbers rather than a sentence to parse. The capped case is the one thing that
   // genuinely needs a line of prose, because the remedy is not obvious from the figures.
   $("nt_calsub").innerHTML =
