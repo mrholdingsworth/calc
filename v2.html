@@ -347,19 +347,26 @@ button.small{--r:7px}
 
 <div id="saveAlert"></div>
 
+<!-- One panel: the book's figures and the positions they describe belong together, and a second
+     card around the summary was a frame drawn for no reason. Banners sit outside it, because an
+     alert is not part of the panel it is about. -->
 <section class="tabpane" id="pane-portfolio">
-  <div id="bookBar"></div>
+  <div id="bookBanners"></div>
   <div class="card">
     <div class="panehead">
       <h2>Portfolio</h2>
       <span class="muted" id="openSummary"></span>
-      <span style="margin-left:auto;display:flex;gap:6px">
+      <span class="muted" id="deskSummary"></span>
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <span id="cashBtns"></span>
+        <span id="refreshBtn"></span>
         <button class="small" onclick="expandAll(true)">Expand all</button>
         <button class="small" onclick="expandAll(false)">Collapse all</button>
       </span>
     </div>
-    <div class="scroll" id="openTrades"></div>
+    <div id="bookBar"></div>
+    <div class="hint" id="refreshStatus"></div>
+    <div class="scroll" id="openTrades" style="margin-top:12px"></div>
     <div id="cashBox"></div>
   </div>
 </section>
@@ -2127,10 +2134,6 @@ function positionRow(t, acct, showAcct){
           (open?"&#9662;":"&#9656;")+'</button> ' +
         '<span class="tk">'+esc(t.ticker)+'</span> ' +
         '<span class="pill '+(t.side>0?"long":"short")+'">'+(t.side>0?"LONG":"SHORT")+'</span>' +
-        // Tier, R unit and concept only while the row is open: collapsed, the list is one line per
-        // position and a second line under every ticker halves how many fit on screen.
-        (open ? '<div class="sub">'+TIERS[t.tier]+' &middot; 1R '+fmt$(t.rUnit)+
-          (t.concept?' &middot; '+esc(t.concept):"")+'</div>' : "") +
       '</td>' +
       (showAcct ? '<td>'+esc(acct)+'</td>' : "") +
       '<td class="num">'+fmtQ(d.Q)+'</td>' +
@@ -2176,8 +2179,15 @@ function positionRow(t, acct, showAcct){
              : tile("Daily vol","stop breached","","var(--red)");
   }
 
+  // Tier, R unit and setup live here rather than under the ticker. A second line inside the row's
+  // own cell changed the row's height on expand, which shunted every figure beside it -- the open
+  // region has to grow downward and leave the line above it exactly where it was.
   const detail =
-    '<div class="statrow" style="margin-top:4px">' +
+    '<div class="calsub" style="margin:2px 0 8px">' +
+      '<b>'+TIERS[t.tier]+'</b> &middot; 1R '+fmt$(t.rUnit) +
+      (t.concept ? ' &middot; '+esc(t.concept) : "") +
+      (t.aptr>0 ? ' &middot; APTR '+t.aptr+'%' : "") + '</div>' +
+    '<div class="statrow">' +
       tile("Entry", fmtP(S.entryPx), (e0?fmtQ(e0.qty)+" sh":"") +
         (aum0>0 && e0 ? VBAR+(e0.qty*S.entryPx/aum0*100).toFixed(1)+"% at open" : "")) +
       tile("Initial stop", e0 && e0.stop!=null ? fmtP(e0.stop) : "&mdash;",
@@ -3577,13 +3587,6 @@ window.gCloseUI = gid => {
 // The review and backup queue sits with the book rather than in the masthead: it is work
 // outstanding on the trades, so it belongs beside them. renderBackupBadge fills #deskSummary, and
 // because this markup is rebuilt on every render it has to run AFTER renderBook, not before.
-function openHead(extra){
-  return '<div class="sechead" style="margin-bottom:10px">' +
-    '<div class="head" style="margin-bottom:0">Book</div>' +
-    '<span class="muted" style="margin-left:auto;text-align:right" id="deskSummary"></span>' +
-    (extra||"") + '</div>';
-}
-
 // The refresh control sits with the positions it updates, and wears the staleness so you can see
 // the book needs marking without reading a number.
 function refreshBtnHtml(staleN, hasKey){
@@ -3598,8 +3601,9 @@ function renderBook(open){
   const hb = $("bookBar");
   overHeat = null;
   if(!open.length){
-    hb.innerHTML = '<div class="card">' + openHead() +
-'</div>';   // the empty-state line lives in #openTrades, inside the collapsible body
+    hb.innerHTML = "";
+    $("bookBanners").innerHTML = "";
+    $("refreshBtn").innerHTML = "";
     return;
   }
   const heat = open.map(t=>{ const d = derive(t); const seq = riskAtStop(t,d)-d.realized; return {t,d,seq,seqR:seq/t.rUnit}; });
@@ -3619,20 +3623,18 @@ function renderBook(open){
   const streakR = recent.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
   const coldHit = S0.coldOn !== false && recent.length>=3 && streakR <= -S0.coldR;
 
-  hb.innerHTML =
-    // Both of these state your rule and flag the breach. Neither blocks the Open button — that is
-    // deliberate, and saying so is the honest version. The old wording claimed an enforcement the
-    // code never had, which is worse than no warning: it invites you to trust it.
-    // The figure and the threshold it crossed, and nothing else. These used to tell Steve what his
-    // own rule was and what lever to reach for; a generic app states the number and stops.
+  $("refreshBtn").innerHTML = refreshBtnHtml(stale, !!root.finnhub);
+
+  // The figure and the threshold it crossed, and nothing else. Neither blocks the Open button, and
+  // both say so: a warning that claims an enforcement the code lacks is worse than no warning.
+  $("bookBanners").innerHTML =
     (overCap ? '<div class="banner red">Open heat '+heatR.toFixed(2)+"R against a "+cap+
       "R cap. Flagged here and on the New Trade button; not blocked.</div>" : "") +
     (coldHit ? '<div class="banner amber">Last '+recent.length+" closed trades total "+streakR.toFixed(1)+
-      "R, against a -"+S0.coldR+"R threshold. Flagged, not blocked.</div>" : "") +
-'<div class="card">' + openHead(refreshBtnHtml(stale, !!root.finnhub)) +
-    '<div class="hint" id="refreshStatus"></div>' +
-    '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
-      '<div class="statrow" style="flex:1;min-width:280px">' +
+      "R, against a -"+S0.coldR+"R threshold. Flagged, not blocked.</div>" : "");
+
+  hb.innerHTML =
+      '<div class="statrow">' +
         // Gold as the resting colour, matching the R it is denominated in — but a breached cap is a
         // survival lever, so that one state still shouts in red.
         '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
@@ -3695,8 +3697,7 @@ function renderBook(open){
         '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
         '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
 '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
-      '</div>' +
-    '</div></div>';
+      '</div>';
   return heat;
 }
 
