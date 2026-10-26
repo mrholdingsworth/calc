@@ -157,7 +157,7 @@ button.small{padding:4px 10px;font-size:12px}
    New Trade: Tier carries "A — 0.5R ($500.00)" and needs the room; Concept gives it up, being the
    one field with nothing to truncate. */
 @media(min-width:1120px){
-  .fields.oneline{grid-template-columns:120px 120px 140px 140px minmax(0,1fr)}
+  .fields.oneline{grid-template-columns:120px 140px 140px 120px minmax(0,1fr)}
   /* Desk: the tier boxes hold "0.25" and need almost nothing, which is what buys the row. Compound
      is sized to keep its label on two lines like its neighbours — at three it alone set the row
      height and cost 14px across the whole panel. */
@@ -385,23 +385,29 @@ button.small{--r:7px}
   <!-- No Side field: the stop already says which way you are trading, exactly as it does in Fast
        calc, and a direction you can set independently of your stop is a direction you can set
        wrong. The inferred side is shown on the sizing answer below. -->
-  <!-- Four fields, all of them read straight off the ticket. Tier, APTR, setup, plan and notes
-       are not here: they classify or annotate a trade and none of them has to be true at the
-       moment the order fills, so they live in the position's gear. The tier the fast calculator
-       was standing on comes across with the hand-off. -->
+  <!-- The required four, read straight off the ticket, with shares last because it is the one the
+       hand-off usually fills. Tier, plan and notes stay in the gear; APTR and setup sit below the
+       answer instead, where they are plainly optional but still reachable without leaving the
+       panel. Both are editable afterwards from the position's gear. -->
   <div class="fields oneline">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
-    <div><label for="nt_qty">Shares</label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
     <div><label for="nt_entry">Fill price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop</label><input id="nt_stop" type="number" step="any" placeholder="152"></div>
+    <div><label for="nt_qty">Shares</label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
   </div>
 
   <div class="calbox" id="nt_calbox" style="display:none">
     <div class="calans" id="nt_calans"></div>
     <div class="calsub" id="nt_calsub"></div>
     <div class="ladder" id="nt_ladder"></div>
-    <div class="ladder" id="nt_targets"></div>
     <div class="calsub calrule" id="nt_vol"></div>
+  </div>
+
+  <div class="fields" style="margin-top:12px;grid-template-columns:minmax(160px,260px) 120px">
+    <div><label for="nt_setup">Setup <span class="muted" style="text-transform:none;letter-spacing:0">optional</span></label>
+      <select id="nt_setup"></select></div>
+    <div><label for="nt_aptr">APTR % <span class="muted" style="text-transform:none;letter-spacing:0">optional</span></label>
+      <input id="nt_aptr" type="number" step="0.1" placeholder="8.5"></div>
   </div>
 
   <div class="row" style="margin-top:13px;align-items:center">
@@ -1605,6 +1611,7 @@ function bindSetFields(){
 function renderSettings(){
   renderSetFields();
   renderAccountAdmin();
+  renderSetupOptions();
   const g = inGroup() ? root.active : null;
   const s = g ? Object.assign({}, defaults().settings, root.groups[g].settings)
               : settingsFor(acctInView());
@@ -1673,6 +1680,18 @@ function renderSettings(){
     : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(state.settings.aum) + ")</span>";
 
 }
+// The setups a trade can be filed under, offered as a list rather than typed. Blank is a real
+// choice: the field is optional and the gear can fill it in later, so nothing here delays a fill.
+function renderSetupOptions(){
+  const sel = $("nt_setup");
+  if(!sel) return;
+  const cur = sel.value;
+  const list = settingsFor(acctInView()).setups || [];
+  sel.innerHTML = '<option value="">&mdash;</option>' +
+    list.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
+  if(list.indexOf(cur) >= 0) sel.value = cur;
+}
+
 /* ========================= fast calc ========================= */
 // The question the calculator exists to answer, with nothing in front of it: price, stop, tier,
 // share count. Side is inferred from which way the stop sits, so it is one less field to touch.
@@ -2026,12 +2045,9 @@ function newTradeCal(){
         '<div class="r">tier '+TIERS[ti]+' is '+mult+'R &middot; '+fmtQ(qR)+' sh</div></div>' +
     '</div>';
 
-  $("nt_targets").innerHTML = q>0
-    ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,targetsOf()))
-    : "";
 
-  // No APTR at entry any more, so the volatility check waits for the gear to supply one.
-  const a = null;
+  const aptr = parseFloat($("nt_aptr").value);
+  const a = aptrAudit(P, aptr, den);
   if(a){
     let html = '<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+' APTRs to stop</span>';
     if(a.aptrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
@@ -2099,15 +2115,18 @@ function openTrade(){
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   const calQ = newTradeCal();
+  const aptr = parseFloat($("nt_aptr").value);
   const q = $("nt_qty").value ? parseFloat($("nt_qty").value) : calQ;
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
   if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
-    ticker: tk, side, concept: "", tier: ti,
+    ticker: tk, side, concept: mv("nt_setup").trim(), tier: ti,
     mult: state.settings.tiers[ti],
-    aptr: null, aptrAtOpen: null,     // entered later, from the gear
+    aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
+    // aptr is live and editable; aptrAtOpen is the volatility actually signed up for.
+    aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
     rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
     plan: {},                        // filled in later, from the position's gear
     checks: [],
@@ -2122,7 +2141,8 @@ function openTrade(){
 // Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
 // One function so the Clear button and both open paths can never leave different things behind.
 window.clearNewTrade = (focus) => {
-  ["nt_tk","nt_entry","nt_stop","nt_qty"].forEach(id=>{ $(id).value = ""; });
+  ["nt_tk","nt_entry","nt_stop","nt_qty","nt_aptr"].forEach(id=>{ $(id).value = ""; });
+  if($("nt_setup")) $("nt_setup").value = "";
   clearFills();
   $("nt_err").textContent = "";
   $("nt_calbox").style.display = "none";
@@ -3530,14 +3550,12 @@ function paintGroupCalc(rows, P, S, side, ti){
   // k*risk-per-share/mult — but it does depend on the fill, so it is quoted off the shared entry.
   const den0 = side*(P-S);
   const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
-  $("nt_targets").innerHTML = '<span class="muted" style="align-self:center">internal targets'+
-    (overridden ? " at "+fmtP(P) : "")+':</span>' +
-    ladderHtml(targetsOf().map(k=>({k, price:P + side*k*den0, hit:false})));
 
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
   const skipped = rows.filter(r=>r.on && r.skipped);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
-  const a = null;
+  const aptr = parseFloat($("nt_aptr").value);
+  const a = aptrAudit(P, aptr, den0);
   let vol = a
     ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.aptrs.toFixed(1)+" APTRs away.</span> " +
       (a.aptrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
@@ -3564,13 +3582,15 @@ function openGroupTrade(){
   if(!taking.length){ $("nt_err").textContent = "No account can take this trade — every member is unticked or sized to zero."; return; }
 
   const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
+  const gaptr = parseFloat($("nt_aptr").value);
   const now = Date.now();
   taking.forEach(r=>{
     root.portfolios[r.m].trades.unshift({
       id: now+""+Math.floor(Math.random()*1e6),
       gid, gname: root.active,
-      ticker: tk, side, concept: "", tier: ti, mult: r.mult,
-      aptr: null, aptrAtOpen: null,   // entered later, from each leg's gear
+      ticker: tk, side, concept: mv("nt_setup").trim(), tier: ti, mult: r.mult,
+      aptr: (!isNaN(gaptr)&&gaptr>0) ? gaptr : null,
+      aptrAtOpen: (!isNaN(gaptr)&&gaptr>0) ? gaptr : null,
       rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
       plan: {}, checks: [],          // added later from each leg's gear
       events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
@@ -3953,7 +3973,7 @@ function bindSettings(){
   });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
-  ["nt_entry","nt_stop","nt_qty"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  ["nt_entry","nt_stop","nt_qty","nt_aptr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
   $("nt_tk").addEventListener("input", updateWash);
   updateWash();
