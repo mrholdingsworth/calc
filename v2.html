@@ -378,7 +378,7 @@ button.small{--r:7px}
       <datalist id="setupList"></datalist></div>
     <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
-    <div><label for="nt_adr">ADR %</label><input id="nt_adr" type="number" step="0.1" placeholder="8.5"></div>
+    <div><label for="nt_aptr">APTR %</label><input id="nt_aptr" type="number" step="0.1" placeholder="8.5"></div>
     <div><label for="nt_qty">Shares (override)</label><input id="nt_qty" type="number" step="any" placeholder="auto"></div>
   </div>
 
@@ -663,7 +663,7 @@ let overHeat = null;
 // where it is as a permanent fallback and v1.3 keeps working untouched.
 const KEY = "rcalc.v2";
 const LEGACY_KEYS = ["rcalc.v1", "cal.v1"];
-const SCHEMA = 1;
+const SCHEMA = 2;
 let root = null, state = null;
 
 function defaults(){
@@ -787,8 +787,35 @@ function migrateNames(){
     if(root.active==="trading") root.active = "Trading";
   }
 }
+/* ---- SCHEMA 2: ADR becomes APTR ----
+   A rename, not a recalculation. The two are different measures of the same thing -- how far this
+   name travels on an ordinary day -- and they occupy the same slot in every formula, so values
+   carry across untouched rather than being nulled. Nulling them would blank the weighted figure on
+   every open position and the volatility check on every one of them, to mark a distinction that
+   only matters when the number is next re-entered.
+
+   The first additive-only migration this file has needed a version stamp for: everything before it
+   backfilled a missing field with a default, where this moves data from one name to another and so
+   has to run exactly once per book. */
+function migrate2(){
+  if(root.v >= 2) return;
+  Object.values(root.portfolios || {}).forEach(pf=>{
+    (pf.trades || []).forEach(t=>{
+      if(t.aptr == null && t.adr != null) t.aptr = t.adr;
+      if(t.aptrAtOpen == null && t.adrAtOpen != null) t.aptrAtOpen = t.adrAtOpen;
+      delete t.adr; delete t.adrAtOpen;
+    });
+  });
+  root.v = 2;
+}
+
 function normalize(){
-  if(root.v == null) root.v = SCHEMA;                 // stamp anything that predates versioning
+  // A book with no stamp predates versioning, which makes it schema 1 -- NOT whatever SCHEMA
+  // happens to be now. Stamping it as current was harmless while there was nothing to migrate;
+  // the moment there was, it marked every old book as already converted and migrate2 bailed on
+  // the guard. The symptom was silent: fields simply absent, no error anywhere.
+  if(root.v == null) root.v = 1;
+  migrate2();
   if(!root.portfolios || !Object.keys(root.portfolios).length) root.portfolios = newRoot().portfolios;
   if(!Array.isArray(root.order)) root.order = Object.keys(root.portfolios);
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
@@ -813,9 +840,9 @@ function normalize(){
       if(!Array.isArray(t.checks)) t.checks = [false,false,false,false];
       // Backfill for trades opened before these were recorded.
       if(t.aumAtOpen==null && t.rUnit>0 && pf.settings.rPct>0) t.aumAtOpen = t.rUnit*100/pf.settings.rPct;
-      // Only the live ADR was ever stored, so that is the best available stand-in. Exact for any
-      // trade whose ADR was never edited, which is most of them.
-      if(t.adrAtOpen==null && t.adr>0) t.adrAtOpen = t.adr;
+      // Only the live APTR was ever stored, so that is the best available stand-in. Exact for any
+      // trade whose APTR was never edited, which is most of them.
+      if(t.aptrAtOpen==null && t.aptr>0) t.aptrAtOpen = t.aptr;
       // A closed trade had its whole realised total folded in by the old close-only rule. An open
       // one had nothing folded in, so it starts at zero and the next realising event catches up
       // any trims taken before this version — which is the correction, not a side effect of it.
@@ -1099,12 +1126,12 @@ function ladderHtml(rungs){
 }
 
 // The pre-trade volatility audit: how many normal days sit between entry and the stop.
-function adrAudit(price, adrPct, stopDist){
-  if(!(adrPct>0) || !(stopDist>0)) return null;
-  const adrD = price*adrPct/100;
-  const adrs = stopDist/adrD;
-  return { adrD, adrs, pctOfGap: adrD/stopDist*100,
-           color: adrs<defs().aptrTight ? "var(--red)" : (adrs<defs().aptrFloor ? "var(--amber)" : "var(--green)") };
+function aptrAudit(price, aptrPct, stopDist){
+  if(!(aptrPct>0) || !(stopDist>0)) return null;
+  const aptrD = price*aptrPct/100;
+  const aptrs = stopDist/aptrD;
+  return { aptrD, aptrs, pctOfGap: aptrD/stopDist*100,
+           color: aptrs<defs().aptrTight ? "var(--red)" : (aptrs<defs().aptrFloor ? "var(--amber)" : "var(--green)") };
 }
 
 /* ========================= tiny SVG charts ========================= */
@@ -1904,15 +1931,15 @@ function newTradeCal(){
     ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,targetsOf()))
     : "";
 
-  const adr = parseFloat($("nt_adr").value);
-  const a = adrAudit(P, adr, den);
+  const aptr = parseFloat($("nt_aptr").value);
+  const a = aptrAudit(P, aptr, den);
   if(a){
-    let html = '<span style="color:'+a.color+';font-weight:600">'+a.adrs.toFixed(1)+' ADRs to stop</span>';
-    if(a.adrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.adrD)+
-      '</b>, <b>'+fmtQ(Math.floor(b/(defs().aptrFloor*a.adrD)))+'</b> shares.';
+    let html = '<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+' APTRs to stop</span>';
+    if(a.aptrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
+      '</b>, <b>'+fmtQ(Math.floor(b/(defs().aptrFloor*a.aptrD)))+'</b> shares.';
     $("nt_vol").innerHTML = html;
   } else {
-    $("nt_vol").innerHTML = '<span class="muted">ADR % not set.</span>';
+    $("nt_vol").innerHTML = '<span class="muted">APTR % not set.</span>';
   }
   return q;
 }
@@ -1989,15 +2016,15 @@ function openTrade(){
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
   if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
-  const adr = parseFloat($("nt_adr").value);
+  const aptr = parseFloat($("nt_aptr").value);
 
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
     ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
     mult: state.settings.tiers[ti],
-    adr: (!isNaN(adr)&&adr>0) ? adr : null,
-    // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
-    adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
+    aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
+    // aptr is live and editable; aptrAtOpen is the volatility you actually signed up for.
+    aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
     rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
     plan: { cutIf:$("nt_cut_if").value.trim(),
             waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
@@ -2013,7 +2040,7 @@ function openTrade(){
 // Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
 // One function so the Clear button and both open paths can never leave different things behind.
 window.clearNewTrade = (focus) => {
-  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_adr","nt_qty",
+  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_aptr","nt_qty",
    "nt_cut_if","nt_wait_if","nt_exit"].forEach(id=>{ $(id).value = ""; });
   [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
   clearFills();
@@ -2039,7 +2066,7 @@ function acctOf(id){
 }
 
 // A mark is the last price you told the app about. It goes stale after a day of wall-clock time,
-// because every number on an open card — heat, open P/L, the ADR check — is only as current as it.
+// because every number on an open card — heat, open P/L, the APTR check — is only as current as it.
 const STALE_HOURS = 24;
 const markAgeH = t => t.lastMarkTs ? (Date.now()-t.lastMarkTs)/36e5 : null;
 const isStale = t => { const h = markAgeH(t); return h!=null && h > STALE_HOURS; };
@@ -2143,9 +2170,9 @@ function positionRow(t, acct, showAcct){
     (colour?' style="color:'+colour+'"':'')+'>'+v+'</div>'+(sub?'<div class="r">'+sub+'</div>':'')+'</div>';
 
   let aptr = tile("Daily vol","&mdash;","no APTR set","var(--mut)");
-  if(t.adr && d.stop!=null && d.Q>0){
-    const a = adrAudit(t.last, t.adr, t.side*(t.last-d.stop));
-    aptr = a ? tile("Daily vol", a.adrs.toFixed(1)+" APTRs", "to stop &middot; "+t.adr+"% now", a.color)
+  if(t.aptr && d.stop!=null && d.Q>0){
+    const a = aptrAudit(t.last, t.aptr, t.side*(t.last-d.stop));
+    aptr = a ? tile("Daily vol", a.aptrs.toFixed(1)+" APTRs", "to stop &middot; "+t.aptr+"% now", a.color)
              : tile("Daily vol","stop breached","","var(--red)");
   }
 
@@ -3369,12 +3396,12 @@ function paintGroupCalc(rows, P, S, side, ti){
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
   const skipped = rows.filter(r=>r.on && r.skipped);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
-  const adr = parseFloat($("nt_adr").value);
-  const a = adrAudit(P, adr, den0);
+  const aptr = parseFloat($("nt_aptr").value);
+  const a = aptrAudit(P, aptr, den0);
   let vol = a
-    ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.adrs.toFixed(1)+" ADRs away.</span> " +
-      (a.adrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
-    : '<span class="muted">Enter ADR % to audit this stop against daily volatility.</span>';
+    ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.aptrs.toFixed(1)+" APTRs away.</span> " +
+      (a.aptrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
+    : '<span class="muted">Enter APTR % to audit this stop against daily volatility.</span>';
   // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
   if(badRows.length) vol += '<br><span style="color:var(--amber)">Fill is already past the stop for: '+
     badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+" &mdash; check the entry. These still open.</span>";
@@ -3397,7 +3424,7 @@ function openGroupTrade(){
   if(!taking.length){ $("nt_err").textContent = "No account can take this trade — every member is unticked or sized to zero."; return; }
 
   const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
-  const adr = parseFloat($("nt_adr").value);
+  const aptr = parseFloat($("nt_aptr").value);
   const plan = { cutIf:$("nt_cut_if").value.trim(),
                  waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() };
   const checks = [0,1,2,3].map(i=>$("nt_c"+i).checked);
@@ -3407,9 +3434,9 @@ function openGroupTrade(){
       id: now+""+Math.floor(Math.random()*1e6),
       gid, gname: root.active,
       ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti, mult: r.mult,
-      adr: (!isNaN(adr)&&adr>0) ? adr : null,
-      // adr is live and editable; adrAtOpen is the volatility you actually signed up for.
-      adrAtOpen: (!isNaN(adr)&&adr>0) ? adr : null,
+      aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
+      // aptr is live and editable; aptrAtOpen is the volatility you actually signed up for.
+      aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
       rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
       plan: Object.assign({}, plan), checks: checks.slice(),
       events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
@@ -3612,14 +3639,14 @@ function renderBook(open){
         (function(){
           // The other side of open heat. Heat is what an ordinary day costs if every stop hits;
           // this is what an ordinary day moves when nothing goes wrong: each position's share of
-          // equity times its own ADR, summed. A position with no ADR set contributes nothing, so
+          // equity times its own APTR, summed. A position with no APTR set contributes nothing, so
           // the count of those is stated rather than letting the figure quietly read low.
           const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
           let dollars = 0, missing = 0;
           open.forEach(t=>{
             const val = Math.abs(t.last*derive(t).Q);        // shorts move the book too
             if(!(val>0)) return;
-            if(t.adr>0) dollars += val*t.adr/100; else missing++;
+            if(t.aptr>0) dollars += val*t.aptr/100; else missing++;
           });
           const pct = eq>0 ? dollars/eq*100 : 0;
           return '<div class="metric"><div class="k">Weighted APTR</div>' +
@@ -3794,7 +3821,7 @@ function bindSettings(){
   });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
-  ["nt_entry","nt_stop","nt_tier","nt_adr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  ["nt_entry","nt_stop","nt_tier","nt_aptr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
   [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
   updateGate();
