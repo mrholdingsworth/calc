@@ -34,8 +34,16 @@
    monkey-patch riskAtStop to add a thousandth of a dollar and check the output moves. An
    equivalence test that cannot fail is not evidence of anything.
 
-   Baseline, 2026-10-25: v1.3 and v2 shell agree exactly on this fixture. 12 trades, 22 figures
-   each, plus 5 per account across 6 accounts.
+   The hash is stable across days. It did not used to be: `days` and `rPerDay` on an open trade are
+   measured against Date.now(), so the hashed snapshot changed every midnight and the stored
+   baseline silently expired. On 2026-10-26 that looked exactly like a regression in the morning's
+   work, and the two versions turned out to agree perfectly. Those two figures are read through
+   `clockFigures()` now -- compared between versions, never hashed.
+
+   Whatever the constant says, the real check is v1 against v2 in the same sitting. A frozen number
+   is a convenience and can only ever go stale.
+
+   Stable hash on 2026-10-26, both versions: 547611141, 5243 chars.
 
    To compare YOUR OWN book instead of the fixture, call `snapshot()` with no argument on each
    page. That is the version worth running before shipping a phase; the fixture is the version
@@ -173,18 +181,39 @@ function snapshot(book){
           rm:n6(S.rm), rmInt:n6(S.rmInt), initialRisk:n6(S.initialRisk),
           riskPS:n6(S.riskPS), entryPx:n6(S.entryPx),
           deployed:n6(S.deployed), posPct:n6(S.posPct), roe:n6(S.roe),
-          aum0:n6(S.aum0), days:S.days, rPerDay:n6(S.rPerDay),
+          aum0:n6(S.aum0),
           compounded:n6(t.compounded)
         };
       });
     });
-    return JSON.stringify(out, Object.keys(out.trades).length ? null : null, 1);
+    return JSON.stringify(out, null, 1);
   } finally {
     root = keep;
     normalize();
   }
 }
 
+// `days` and `rPerDay` measure an OPEN trade against Date.now(), so they grow by one every
+// midnight. They were inside the hashed snapshot, which quietly gave the baseline constant a shelf
+// life of one day -- and when it expired it looked exactly like a regression in whatever had been
+// changed that morning. They are read separately now: still compared, never hashed.
+function clockFigures(book){
+  const keep = root;
+  try{
+    if(book) root = JSON.parse(JSON.stringify(book));
+    normalize();
+    const out = {};
+    Object.keys(root.portfolios).sort().forEach(a=>{
+      root.portfolios[a].trades.forEach(t=>{
+        const S = stats(t);
+        out[a+"/"+t.id] = S.days + "d " + (Math.round(S.rPerDay*1e6)/1e6) + "R/d";
+      });
+    });
+    return out;
+  } finally { root = keep; normalize(); }
+}
+
+window.clockFigures = clockFigures;
 window.snapshot = snapshot;
 window.FIXTURE = FIXTURE;
 return snapshot(FIXTURE);

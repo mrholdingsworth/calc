@@ -377,16 +377,16 @@ button.small{--r:7px}
   <!-- No Side field: the stop already says which way you are trading, exactly as it does in Fast
        calc, and a direction you can set independently of your stop is a direction you can set
        wrong. The inferred side is shown on the sizing answer below. -->
+  <!-- Six fields, all of them a number you read off the ticket. Setup, plan and notes are not here:
+       they are added later from the position's gear, because typing them is time spent off the
+       market and nothing about them has to be true at the moment the order fills. -->
   <div class="fields oneline">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
-    <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
-    <div><label for="nt_concept">Setup</label>
-      <input id="nt_concept" type="text" list="setupList" placeholder="mean reversion">
-      <datalist id="setupList"></datalist></div>
-    <div><label for="nt_entry">Entry price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
-    <div><label for="nt_stop">Stop (invalidation)</label><input id="nt_stop" type="number" step="any" placeholder="184"></div>
+    <div><label for="nt_qty">Shares</label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
+    <div><label for="nt_entry">Fill price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
+    <div><label for="nt_stop">Stop</label><input id="nt_stop" type="number" step="any" placeholder="152"></div>
     <div><label for="nt_aptr">APTR %</label><input id="nt_aptr" type="number" step="0.1" placeholder="8.5"></div>
-    <div><label for="nt_qty">Shares (override)</label><input id="nt_qty" type="number" step="any" placeholder="auto"></div>
+    <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
   </div>
 
   <div class="calbox" id="nt_calbox" style="display:none">
@@ -405,22 +405,6 @@ button.small{--r:7px}
   <div class="err" id="nt_err"></div>
   <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
   <div id="nt_heat" style="display:none;color:var(--red);font-size:12.5px;margin-top:5px"></div>
-
-  <details id="nt_plan">
-    <summary>Plan &amp; hinges</summary>
-    <div class="split split3" style="margin-top:10px">
-      <div><label for="nt_cut_if">If Y happens &rarr; cut</label><input id="nt_cut_if" type="text"></div>
-      <div><label for="nt_wait_if">If Z happens &rarr; wait</label><input id="nt_wait_if" type="text"></div>
-      <div><label for="nt_exit">Exit plan</label><input id="nt_exit" type="text"></div>
-    </div>
-    <div style="margin-top:11px">
-      <div class="lbl">Pre-trade check</div>
-      <label class="chk"><input type="checkbox" id="nt_c0"><span>The stop sits where the idea is plainly <b>wrong</b>.</span></label>
-      <label class="chk"><input type="checkbox" id="nt_c1"><span>Not <b>Day One</b> on a parabolic mover.</span></label>
-      <label class="chk"><input type="checkbox" id="nt_c2"><span>The concept is <b>named</b>.</span></label>
-      <label class="chk"><input type="checkbox" id="nt_c3"><span>Exits and hinges are <b>defined before entry</b>.</span></label>
-    </div>
-  </details>
   </div>
 </section>
 
@@ -1600,12 +1584,6 @@ function bindSetFields(){
 function renderSettings(){
   renderSetFields();
   renderAccountAdmin();
-  // The setups list feeds entry as a datalist rather than a hard dropdown: it suggests without
-  // refusing, so a setup you have not named yet never blocks recording the trade. The field stays
-  // t.concept, so the by-setup statistics keep working on everything already closed.
-  const dl = $("setupList");
-  if(dl) dl.innerHTML = (settingsFor(acctInView()).setups||[])
-    .map(s=>'<option value="'+esc(s)+'"></option>').join("");
   const g = inGroup() ? root.active : null;
   const s = g ? Object.assign({}, defaults().settings, root.groups[g].settings)
               : settingsFor(acctInView());
@@ -1691,6 +1669,10 @@ window.fcToNewTrade = () => {
   $("nt_entry").value = $("fc_price").value;
   $("nt_stop").value = $("fc_stop").value;
   $("nt_tier").value = String(root.fcTier==null ? 1 : root.fcTier);
+  // Carry the size as well as the prices: the calculator just worked it out, and retyping it is
+  // exactly the friction this hand-off exists to remove.
+  const fcq = $("fc_ans").querySelector(".fcbig");
+  if(fcq) $("nt_qty").value = fcq.textContent.replace(/[^0-9.]/g, "");
   // The calculator is pinned above every tab now, so this is a tab switch rather than a scroll --
   // and sizing stays on screen while the fill is recorded.
   setTab("new");
@@ -1925,15 +1907,23 @@ function newTradeCal(){
 
   // R answers how much you may lose. Buying power answers how much you may hold. A tight stop makes
   // the first number large and says nothing about the second, so the smaller of the two wins.
+  // The direction reverses here. v1.3 asked "how many shares may I hold", and the answer was R
+  // divided by the stop distance. The ticket already says how many shares filled, so the question
+  // is now "what did that cost me in R" -- the size is an input and the risk is the readout.
+  // A blank share count still falls back to the R-derived number, because the fast calculator's
+  // hand-off fills it and there is no reason to make that path longer.
   const qR = Math.floor(b/den);
   const free = bpFree(acct);
   const qBP = P>0 ? Math.floor(free/P) : 0;
-  const capped = qBP < qR;
-  const q = Math.min(qR, qBP);
+  const typed = parseFloat($("nt_qty").value);
+  const q = (!isNaN(typed) && typed>0) ? typed : Math.min(qR, qBP);
+  const capped = q*P > free;
 
   $("nt_calbox").style.display = "block";
   $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
-    (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— capped by buying power</span>' : "");
+    ' <span style="color:var(--sub);font-size:13px">risking <b style="color:var(--gold)">' +
+      (q*den/R).toFixed(2) + 'R</b></span>' +
+    (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— beyond free buying power</span>' : "");
   // Four labelled numbers rather than a sentence to parse. The capped case is the one thing that
   // genuinely needs a line of prose, because the remedy is not obvious from the figures.
   $("nt_calsub").innerHTML =
@@ -1946,7 +1936,7 @@ function newTradeCal(){
         '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmt$(free)+'</div>' +
         '<div class="r">of '+fmt$(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
       '<div class="metric"><div class="k">Risk taken</div><div class="v">'+(q*den/R).toFixed(2)+'R</div>' +
-        '<div class="r">'+(capped ? '<span style="color:var(--amber)">R wants '+fmtQ(qR)+' sh</span>' : "as intended")+'</div></div>' +
+        '<div class="r">tier '+TIERS[ti]+' is '+mult+'R &middot; '+fmtQ(qR)+' sh</div></div>' +
     '</div>';
 
   $("nt_targets").innerHTML = q>0
@@ -1966,9 +1956,10 @@ function newTradeCal(){
   return q;
 }
 
-// The four pre-trade checks are the gate, not a suggestion. The button reports what is still
-// missing — a disabled control with no stated reason is a dead end.
-function checksDone(){ return [0,1,2,3].filter(i=>$("nt_c"+i).checked).length; }
+// The four pre-trade checks are gone. They were someone else's checklist, hard-coded, enforced on
+// the one workflow that happens while the market is moving -- the single largest piece of friction
+// in the app and the last place it asserted a method. t.checks stays READABLE for trades that
+// carry it; nothing writes one any more.
 
 // Re-entering a name you took a loss in inside the last 30 days is a wash sale: the loss is
 // disallowed and rolls into the new basis. It is also, more often than not, a revenge re-entry.
@@ -2014,21 +2005,8 @@ function updateWash(){
   el.innerHTML = msg || "";
   el.style.display = msg ? "" : "none";
 }
-function updateGate(){
-  const done = checksDone(), btn = $("nt_open"), note = $("nt_gate");
-  const ok = done===4;
-  btn.disabled = !ok;
-  btn.style.opacity = ok ? "" : ".45";
-  btn.style.cursor = ok ? "" : "not-allowed";
-  note.textContent = ok ? "" : (4-done) + " of 4 pre-trade checks left, below";
-}
 
 function openTrade(){
-  if(checksDone()<4){
-    $("nt_err").textContent = "All four pre-trade checks have to be ticked before this opens.";
-    const p = $("nt_plan"); if(p) p.open = true;
-    return;
-  }
   if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
@@ -2042,15 +2020,14 @@ function openTrade(){
 
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
-    ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti,
+    ticker: tk, side, concept: "", tier: ti,
     mult: state.settings.tiers[ti],
     aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
     // aptr is live and editable; aptrAtOpen is the volatility you actually signed up for.
     aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
     rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
-    plan: { cutIf:$("nt_cut_if").value.trim(),
-            waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() },
-    checks: [0,1,2,3].map(i=>$("nt_c"+i).checked),
+    plan: {},                        // filled in later, from the position's gear
+    checks: [],
     events: [{type:"entry", qty:q, price:P, stop:S, ts:Date.now()}],
     createdAt: Date.now(), lastMarkTs: Date.now()
   });
@@ -2062,13 +2039,11 @@ function openTrade(){
 // Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
 // One function so the Clear button and both open paths can never leave different things behind.
 window.clearNewTrade = (focus) => {
-  ["nt_tk","nt_concept","nt_entry","nt_stop","nt_aptr","nt_qty",
-   "nt_cut_if","nt_wait_if","nt_exit"].forEach(id=>{ $(id).value = ""; });
-  [0,1,2,3].forEach(i=>{ $("nt_c"+i).checked = false; });
+  ["nt_tk","nt_entry","nt_stop","nt_aptr","nt_qty"].forEach(id=>{ $(id).value = ""; });
   clearFills();
   $("nt_err").textContent = "";
   $("nt_calbox").style.display = "none";
-  updateGate(); updateWash();
+  updateWash();
   if(focus) $("nt_tk").focus();
 };
 
@@ -2522,9 +2497,55 @@ window.gearUI = id => {
         '<button class="small danger" title="Remove this transaction" onclick="deleteEvent(\''+t.id+'\','+i+')">&#10005;</button>') +
     "</td></tr>").join("");
 
-  openModal(esc(t.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">history and corrections</span>',
+  // Everything the entry form no longer asks for lives here. This is the other half of stripping
+  // New Trade: you can only take setup, plan and APTR out of the moment the order fills if there
+  // is somewhere to put them afterwards, and this is it.
+  const setups = (settingsFor(acctOf(id)).setups || []);
+  const plan = t.plan || {};
+  openModal(esc(t.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">details, history and corrections</span>',
+    '<div class="row">' +
+      '<div style="flex:1"><label for="g_setup">Setup</label>' +
+        '<input id="g_setup" type="text" list="gearSetups" value="'+esc(t.concept||"")+'">' +
+        '<datalist id="gearSetups">'+setups.map(x=>'<option value="'+esc(x)+'"></option>').join("")+'</datalist></div>' +
+      '<div style="flex:1"><label for="g_aptr">APTR % now</label>' +
+        '<input id="g_aptr" type="number" step="0.1" value="'+(t.aptr==null?"":t.aptr)+'"></div>' +
+      '<div style="flex:1"><label for="g_aptr0">APTR % at entry</label>' +
+        '<input id="g_aptr0" type="number" step="0.1" value="'+(t.aptrAtOpen==null?"":t.aptrAtOpen)+'"></div>' +
+    '</div>' +
+    '<div class="split split3" style="margin-top:10px">' +
+      '<div><label for="g_cut">If Y &rarr; cut</label><input id="g_cut" type="text" value="'+esc(plan.cutIf||"")+'"></div>' +
+      '<div><label for="g_wait">If Z &rarr; wait</label><input id="g_wait" type="text" value="'+esc(plan.waitIf||"")+'"></div>' +
+      '<div><label for="g_exit">Exit plan</label><input id="g_exit" type="text" value="'+esc(plan.exit||"")+'"></div>' +
+    '</div>' +
+    '<div style="margin-top:10px"><label for="g_notes">Notes</label>' +
+      '<textarea id="g_notes" style="min-height:58px">'+esc(t.notes||"")+'</textarea></div>' +
+
+    '<div class="lbl" style="margin-top:16px">Transactions</div>' +
     '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th><th></th></tr>'+rows+'</table></div>' +
-    '<div class="lbl" style="margin-top:14px">Override</div>' +
+    '<div class="row" style="margin-top:8px">' +
+      '<button class="small" onclick="overrideUI(\''+t.id+'\')">Override position</button>' +
+    '</div>',
+    "Save details",
+    () => {
+      t.concept = mv("g_setup").trim();
+      const a1 = parseFloat(mv("g_aptr")), a0 = parseFloat(mv("g_aptr0"));
+      t.aptr = (!isNaN(a1) && a1>0) ? a1 : null;
+      // aptrAtOpen is a locked-at-open field, and correcting a typo is not the same as recomputing
+      // it. Register #3 asked for exactly this: a mistyped volatility used to be permanent.
+      t.aptrAtOpen = (!isNaN(a0) && a0>0) ? a0 : null;
+      t.plan = { cutIf:mv("g_cut").trim(), waitIf:mv("g_wait").trim(), exit:mv("g_exit").trim() };
+      t.notes = mv("g_notes").trim();
+      return null;
+    });
+};
+
+// Out of the main gear body: this rewrites the position without touching the log, which is a
+// different and rarer thing from correcting the transaction that was wrong.
+window.overrideUI = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  const d = derive(t);
+  openModal("Override " + esc(t.ticker),
     '<div class="row">' +
       '<div style="flex:1"><label for="m_aq">Position</label>' +
         '<input id="m_aq" type="number" step="any" placeholder="'+fmtQ(d.Q)+' sh"></div>' +
@@ -2541,6 +2562,7 @@ window.gearUI = id => {
       if(!isNaN(q) && q<0) return "Position size can't be negative.";
       t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
       syncCompound(t, acctOf(id));
+      reopenGear(id);
       return null;
     });
 };
@@ -3015,7 +3037,7 @@ function renderClosed(){
 // tally and the statistics panel show the same numbers from the same code.
 function bookStats(list){
   const A = { n:list.length, tot:0, wins:0, exWin:0, decisive:0, scratch:0,
-              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, noise:0, violations:0, tagged:0, planned:0, rms:[] };
+              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, noise:0, violations:0, tagged:0, planned:0, checked:0, rms:[] };
   list.forEach(t=>{
     const rm = stats(t).rm;
     A.tot += rm; A.rms.push(rm);
@@ -3030,7 +3052,7 @@ function bookStats(list){
            const held = stats(t).rmInt;
            if((held==null ? rm : held) >= -defs().lossDisc) A.discOK++;
            if(t.lossTag){ A.tagged++; if(t.lossTag==="noise") A.noise++; if(t.lossTag==="violation") A.violations++; } }
-    if(Array.isArray(t.checks) && t.checks.every(Boolean)) A.planned++;
+    if(Array.isArray(t.checks) && t.checks.length){ A.checked++; if(t.checks.every(Boolean)) A.planned++; }
   });
   return A;
 }
@@ -3041,7 +3063,7 @@ function statsHtml(A){
   const payoff = (A.wn && A.ln) ? (A.wr/A.wn)/Math.abs(A.lr/A.ln) : null;
   const disc = A.ln ? Math.round(100*A.discOK/A.ln) : null;
   const noisePct = A.tagged ? Math.round(100*A.noise/A.tagged) : null;
-  const planPct = Math.round(100*A.planned/A.n);
+  const planPct = A.checked ? Math.round(100*A.planned/A.checked) : 0;
   const discCol = disc==null ? "var(--mut)" : (disc>=80?"var(--green)":(disc>=60?"var(--amber)":"var(--red)"));
   const noiseCol = noisePct==null ? "var(--mut)" : (noisePct<=20?"var(--green)":(noisePct<=40?"var(--amber)":"var(--red)"));
   // All three rates share one denominator — every closed trade — so they read as one idea tightened
@@ -3065,7 +3087,10 @@ function statsHtml(A){
     '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(A.tagged?A.noise+" of "+A.tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
     '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(A.violations?"var(--red)":"var(--green)")+'">'+(A.tagged?A.violations:"&mdash;")+'</div><div class="r">'+(A.tagged?(A.violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
-    '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">full pre-trade check on open</div></div>';
+    // "Planned at entry" measured compliance with a checklist that no longer exists. Kept while any
+    // trade in the set still carries one, so historical books keep the figure; gone once they are
+    // all trades opened without it, rather than reporting a number that falls for no reason.
+    (A.checked ? '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">of '+A.checked+' trades opened under the checklist</div></div>' : "");
 }
 
 // Closed group trades: the visible line is the whole group, the expansion is one row per account.
@@ -3450,20 +3475,17 @@ function openGroupTrade(){
 
   const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
   const aptr = parseFloat($("nt_aptr").value);
-  const plan = { cutIf:$("nt_cut_if").value.trim(),
-                 waitIf:$("nt_wait_if").value.trim(), exit:$("nt_exit").value.trim() };
-  const checks = [0,1,2,3].map(i=>$("nt_c"+i).checked);
   const now = Date.now();
   taking.forEach(r=>{
     root.portfolios[r.m].trades.unshift({
       id: now+""+Math.floor(Math.random()*1e6),
       gid, gname: root.active,
-      ticker: tk, side, concept: $("nt_concept").value.trim(), tier: ti, mult: r.mult,
+      ticker: tk, side, concept: "", tier: ti, mult: r.mult,
       aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
       // aptr is live and editable; aptrAtOpen is the volatility you actually signed up for.
       aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
       rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
-      plan: Object.assign({}, plan), checks: checks.slice(),
+      plan: {}, checks: [],          // added later from each leg's gear
       events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
       createdAt: now, lastMarkTs: now
     });
@@ -3844,10 +3866,8 @@ function bindSettings(){
   });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
-  ["nt_entry","nt_stop","nt_tier","nt_aptr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  ["nt_entry","nt_stop","nt_tier","nt_aptr","nt_qty"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
-  [0,1,2,3].forEach(i=>$("nt_c"+i).addEventListener("change", updateGate));
-  updateGate();
   $("nt_tk").addEventListener("input", updateWash);
   updateWash();
   $("fhkey").addEventListener("change", e=>{ root.finnhub = e.target.value.trim(); save(); render(); });
