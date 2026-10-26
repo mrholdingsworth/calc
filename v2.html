@@ -3673,14 +3673,22 @@ function renderBook(open){
             '</div></div>';
         })() +
         (function(){
-          // Net liq is the only figure here that follows the tape: equity plus what the open
-          // positions are currently worth. It is shown and never sized from -- every R in the app
-          // still comes off cost-based equity, which is the whole point of that rule.
+          // Equity, and nothing marked. Net liq stood here briefly and was reverted: a live
+          // net-liq readout is the number that makes a trader protect unrealised gains, which is
+          // the exact reason value at risk was cut from the spec. Showing it would have undone
+          // that decision from a different direction.
+          //
+          // So this is AUM: cash plus what the open positions are protected at. It moves on a
+          // close, a trim, a stop move or cash in and out, and never on the tape. It also puts the
+          // equity and 1R readout back somewhere permanently visible -- it had ended up inside the
+          // fast calculator's disclosure, which is shut most of the time.
           const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
-          const unreal = open.reduce((a,t)=>{ const d = derive(t); return a + t.side*(t.last-d.avg)*d.Q; }, 0);
-          return '<div class="metric"><div class="k">Net liq</div>' +
-            '<div class="v">'+fmt$(eq+unreal)+'</div>' +
-            '<div class="r">equity '+fmt$(eq)+VBAR+'<span class="'+cls(unreal)+'">'+fmt$(unreal)+' unrealized</span></div></div>';
+          const R  = scope().length===1 ? rUnitOf(scope()[0]) : null;
+          return '<div class="metric"><div class="k">Equity</div>' +
+            '<div class="v">'+fmt$(eq)+'</div>' +
+            '<div class="r">'+(R!=null
+              ? '1R = '+fmt$(R)+VBAR+settingsFor(acctInView()).rPct+'% of equity'
+              : scope().length+' accounts')+'</div></div>';
         })() +
         (function(){
           // Allocation and buying-power-used were two tiles reading the same number: with margin

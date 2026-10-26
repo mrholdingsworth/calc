@@ -195,6 +195,30 @@ it. To stop a real trade being typed into the wrong tab:
     multiples**, with min and max allocation as *soft* walls. A single recommended share count is
     the thing being moved away from.
 
+### Reversed 2026-10-26 — net liq comes out
+
+**The document asks for net liq in the Portfolio summary (I.C.2.ii). It is removed, and I.C.2
+should be read without it.** It was built, shipped, and taken out the same week.
+
+The reason is the document's own. Value at risk was cut with the clearest statement of principle in
+the whole brief — showing unrealised gains at risk "can cause psychological issues revolving around
+the fear of losing unrealized gains which can make users break their systems." A live net-liq
+readout is that same number wearing a different label: it is the figure that makes a trader protect
+a gain the system has not told them to protect. Keeping it would have undone the value-at-risk
+decision from the other direction.
+
+So the Portfolio shows **equity** and nothing marked: AUM, which is cash plus what the open
+positions are protected at. It moves on a close, a trim, a stop move, or cash in and out — never on
+the tape. *Equity responds to decisions, never to the tape* now holds without the exception this
+plan previously recorded against it.
+
+Deposits and withdrawals stay in the Portfolio as the document asks (I.E.2); it is only the net-liq
+figure that goes.
+
+Note for whoever reads the .docx next: I.C.2.i's "unrealized gains" survives only inside **Book P/L
+(mark)**, which was already in v1.3 and is realised plus open. If that framing is wrong too, it is
+one tile to remove.
+
 ### Still open
 
 - **The sizing pipeline**, to be designed together before any building starts. See phase 6 for the
@@ -517,11 +541,10 @@ The handoff asserts these; v2 retires two, and they should not be left asserted.
   row (phase 3). This is the invariant most worth deleting.
 - **Sections are collapsible panels on one scrolling page** → tabs, one visible at a time. Takes the
   collapse machinery and register #1 with it.
-- **Equity responds to decisions, never to the tape** → **survives, and gets stronger.** Protected
-  equity is mark-independent: only a stop move, a size change, a close or cash in and out moves it.
-  Net liq is displayed in the Portfolio panel but never sizes anything. The rule now has to cover
-  one more case, though — the Portfolio panel shows a mark-dependent figure for the first time, so
-  the line is "equity *for sizing* responds to decisions", and net liq is labelled as what it is.
+- **Equity responds to decisions, never to the tape** → **survives intact, with no exception.**
+  Protected equity is mark-independent: only a stop move, a size change, a close or cash in and out
+  moves it. Net liq was the one figure that would have broken the rule, and it was reverted on
+  2026-10-26 for the reason value at risk was cut. The rule needs no qualifier.
 
 - **Flag, don't block** → **survives, with the strictest setting merely shipping on.** The unguarded
   short refusal is a default, not a rule (decision 10), so nothing in v2 blocks something the user
