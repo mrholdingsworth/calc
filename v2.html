@@ -157,7 +157,7 @@ button.small{padding:4px 10px;font-size:12px}
    New Trade: Tier carries "A — 0.5R ($500.00)" and needs the room; Concept gives it up, being the
    one field with nothing to truncate. */
 @media(min-width:1120px){
-  .fields.oneline{grid-template-columns:92px 168px minmax(120px,1fr) 112px 112px 88px 112px}
+  .fields.oneline{grid-template-columns:120px 120px 140px 140px minmax(0,1fr)}
   /* Desk: the tier boxes hold "0.25" and need almost nothing, which is what buys the row. Compound
      is sized to keep its label on two lines like its neighbours — at three it alone set the row
      height and cost 14px across the whole panel. */
@@ -256,7 +256,16 @@ details[open] summary::before{content:"\25BE  "}
 /* Equal columns, not content-width buttons. The labels differ in length — "2R" against "0.5R" —
    so a flex row re-widths itself the moment a tier value is edited, and the thing you were about to
    click moves. Three equal cells with a floor keep the group still. */
-#fc_tiers{display:grid;grid-template-columns:repeat(3,minmax(84px,1fr));gap:6px;align-items:center}
+/* The whole range, side by side. Equal cells so a tier label changing length cannot shuffle the
+   thing you were about to click. */
+.fcrange{display:flex;gap:6px}
+.fccell{display:flex;flex-direction:column;align-items:flex-end;gap:0;min-width:84px;
+        padding:4px 10px;background:none;border:1px solid transparent;border-radius:8px;text-align:right}
+.fccell:hover{border-color:var(--line2);color:inherit}
+.fccell.on{border-color:rgba(176,141,63,.45);background:rgba(176,141,63,.08)}
+.fccell .n{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1.15}
+.fccell .t{font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.fccell .w{font-size:10px;color:var(--amber)}
 /* Sits on the input row inside the pinned block, so it is sized to that row's height rather than
    setting a taller one. */
 .fcbig{font-family:var(--mono);font-size:25px;font-weight:700;color:var(--gold);line-height:1.1}
@@ -330,7 +339,6 @@ button.small{--r:7px}
         <input id="fc_price" type="number" step="any" placeholder="entry"></div>
       <div style="max-width:112px"><label for="fc_stop">Stop</label>
         <input id="fc_stop" type="number" step="any" placeholder="invalidation"></div>
-      <div><label>Tier</label><div id="fc_tiers"></div></div>
       <button class="small" id="fc_clear" title="Clear">&#10005;</button>
       <div id="fc_ans" style="margin-left:auto"></div>
     </div>
@@ -377,16 +385,15 @@ button.small{--r:7px}
   <!-- No Side field: the stop already says which way you are trading, exactly as it does in Fast
        calc, and a direction you can set independently of your stop is a direction you can set
        wrong. The inferred side is shown on the sizing answer below. -->
-  <!-- Six fields, all of them a number you read off the ticket. Setup, plan and notes are not here:
-       they are added later from the position's gear, because typing them is time spent off the
-       market and nothing about them has to be true at the moment the order fills. -->
+  <!-- Four fields, all of them read straight off the ticket. Tier, APTR, setup, plan and notes
+       are not here: they classify or annotate a trade and none of them has to be true at the
+       moment the order fills, so they live in the position's gear. The tier the fast calculator
+       was standing on comes across with the hand-off. -->
   <div class="fields oneline">
     <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
     <div><label for="nt_qty">Shares</label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
     <div><label for="nt_entry">Fill price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
     <div><label for="nt_stop">Stop</label><input id="nt_stop" type="number" step="any" placeholder="152"></div>
-    <div><label for="nt_aptr">APTR %</label><input id="nt_aptr" type="number" step="0.1" placeholder="8.5"></div>
-    <div><label for="nt_tier">Tier</label><select id="nt_tier"></select></div>
   </div>
 
   <div class="calbox" id="nt_calbox" style="display:none">
@@ -521,10 +528,17 @@ button.small{--r:7px}
           <select id="s_targetsOn"><option value="1">Show</option><option value="0">Hide</option></select></div>
         <div><label for="s_target0">Target 1 (R)<span class="info" data-tip="First target, as a multiple of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
         <div><label for="s_target1">Target 2 (R)<span class="info" data-tip="Second target, measured the same way.">i</span></label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
+        <div><label for="s_fuzz">Fuzziness %</label><input id="s_fuzz" type="number" step="1" min="0"></div>
+        <div><label for="s_maxAllocOn">Max allocation</label>
+          <select id="s_maxAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
+        <div><label for="s_maxAlloc">&mdash; cap (% of equity)</label><input id="s_maxAlloc" type="number" step="1" min="1"></div>
+        <div><label for="s_minAllocOn">Min allocation</label>
+          <select id="s_minAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
+        <div><label for="s_minAlloc">&mdash; floor (% of equity)</label><input id="s_minAlloc" type="number" step="0.5" min="0.1"></div>
         <div style="grid-column:span 3"><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Names offered when recording a trade. Suggestions only: anything can be typed, and a trade opens without one.">i</span></label>
           <textarea id="s_setups" style="min-height:62px"></textarea></div>
       </div>
-      <div class="muted" style="margin-top:8px">Fuzziness, max and min allocation and max stop width arrive with the sizing pipeline.</div>
+      <div class="muted" style="margin-top:8px">Max stop width still to come.</div>
     </div>
 
     <div class="setgrp">
@@ -659,13 +673,15 @@ function defaults(){
   return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], finnhub:"",
                       marginX:1, lotRound:1,
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
-                      targetsOn:true, targets:[1,2], setups:[] }, trades:[] };
+                      targetsOn:true, targets:[1,2], setups:[],
+                      fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2 }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
 // each account; only these are shared. lotRound is NOT here: it follows the broker and the
 // instrument, not the method.
 const GROUP_KEYS = ["rPct","tiers","heatCap","coldR","heatOn","coldOn",
-                    "targetsOn","targets","setups"];
+                    "targetsOn","targets","setups",
+                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
   GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
@@ -1507,6 +1523,11 @@ const SET_FIELDS = [
   ["s_target0",   "rule", "targets.0",  "num"],
   ["s_target1",   "rule", "targets.1",  "num"],
   ["s_setups",    "rule", "setups",     "lines"],
+  ["s_fuzz",      "rule", "fuzz",       "num"],
+  ["s_maxAllocOn","rule", "maxAllocOn", "bool"],
+  ["s_maxAlloc",  "rule", "maxAlloc",   "num"],
+  ["s_minAllocOn","rule", "minAllocOn", "bool"],
+  ["s_minAlloc",  "rule", "minAlloc",   "num"],
   ["s_scratchLo", "defs", "scratchLo",  "num"],
   ["s_scratchHi", "defs", "scratchHi",  "num"],
   ["s_winR",      "defs", "winR",       "num"],
@@ -1651,10 +1672,6 @@ function renderSettings(){
       ' <span class="muted">&mdash; each sizes off its own equity above</span>'
     : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(state.settings.aum) + ")</span>";
 
-  const sel = $("nt_tier").value !== "" ? $("nt_tier").value : "1";
-  $("nt_tier").innerHTML = TIERS.map((n,i)=>
-    '<option value="'+i+'"'+(i===parseInt(sel)?" selected":"")+'>'+n+" &mdash; "+s.tiers[i]+"R" +
-    (g ? "" : " ("+fmt$(rUnitNow()*s.tiers[i])+")") + "</option>").join("");
 }
 /* ========================= fast calc ========================= */
 // The question the calculator exists to answer, with nothing in front of it: price, stop, tier,
@@ -1668,11 +1685,11 @@ window.fcToNewTrade = () => {
   clearFills();                              // a new setup, so no account carries an old fill
   $("nt_entry").value = $("fc_price").value;
   $("nt_stop").value = $("fc_stop").value;
-  $("nt_tier").value = String(root.fcTier==null ? 1 : root.fcTier);
   // Carry the size as well as the prices: the calculator just worked it out, and retyping it is
-  // exactly the friction this hand-off exists to remove.
-  const fcq = $("fc_ans").querySelector(".fcbig");
-  if(fcq) $("nt_qty").value = fcq.textContent.replace(/[^0-9.]/g, "");
+  // exactly the friction this hand-off exists to remove. The number comes from the cell marked
+  // standard, which is the only thing clicking a tier changes.
+  const cell = $("fc_ans").querySelectorAll(".fccell")[root.fcTier==null ? 1 : root.fcTier];
+  if(cell) $("nt_qty").value = cell.querySelector(".n").textContent.replace(/[^0-9.]/g, "");
   // The calculator is pinned above every tab now, so this is a tab switch rather than a scroll --
   // and sizing stays on screen while the fill is recorded.
   setTab("new");
@@ -1685,20 +1702,63 @@ window.fcToNewTrade = () => {
 const sideFrom = (P, S) => (isNaN(P) || isNaN(S) || P===S) ? 0 : (S < P ? 1 : -1);
 function fcSide(){ return sideFrom(parseFloat($("fc_price").value), parseFloat($("fc_stop").value)); }
 function ntSide(){ return sideFrom(parseFloat($("nt_entry").value), parseFloat($("nt_stop").value)); }
+// The tier a trade opens under is whichever the calculator is standing on. It is a classification,
+// so it is correctable in the gear afterwards like the setup is -- it never had to be chosen before
+// the fill.
+function ntTier(){ const i = root.fcTier==null ? 1 : root.fcTier; return (i>=0 && i<TIERS.length) ? i : 1; }
 const sidePill = s => '<span class="pill '+(s>0?"long":"short")+'">'+(s>0?"LONG":"SHORT")+'</span> ';
 
-function renderFastCalc(){
-  const ti = root.fcTier==null ? 1 : root.fcTier;
-  const g = inGroup();
-  const tiers = g ? root.groups[root.active].settings.tiers : settingsFor(acctInView()).tiers;
-  $("fc_tiers").innerHTML = TIERS.map((n,i)=>
-    '<button class="small'+(i===ti?" primary":"")+'" onclick="setFcTier('+i+')">'+n+
-    ' <span class="muted" style="font-size:11px">'+tiers[i]+'R</span></button>').join("");
+/* ---- how many shares one tier buys ----
+   Exact R arithmetic is spuriously precise at small counts. Three shares might be 0.81R and four
+   1.08R, and refusing the fourth to stay under budget costs a third of the position to save 0.08R.
+   So the budget is a target with a tolerance, not a ceiling: take the count NEAREST the intended
+   R, provided the overshoot stays inside fuzziness. It only bites when the steps are coarse -- at
+   300 shares against 301 the question never arises, which is why a percentage needs no special
+   case for small positions.
 
-  // Two targets, not one. The calculator is pinned above every tab, and measured at 1440x900 a
-  // group of four renders 339px of it -- over half the viewport once the masthead and both tab
-  // strips are counted. So the pinned part is the answer line, and the per-account breakdown sits
-  // in a disclosure that is only built when it is open.
+   The walls are soft. Max allocation and buying power clamp the number and say which one did it;
+   the minimum only ever annotates, because a position too small to bother with is a judgement, not
+   an error. */
+function tierSize(acct, price, riskPS, mult){
+  const S = settingsFor(acct), pf = root.portfolios[acct];
+  const R = rUnitOf(acct), budget = R*mult, eq = pf ? pf.settings.aum : 0;
+  const walls = [];
+  if(!(riskPS>0) || !(price>0) || !(budget>0)) return {q:0, budget, walls, r:0, under:false};
+
+  const exact = budget/riskPS;
+  const lo = Math.floor(exact), hi = Math.ceil(exact);
+  const fuzz = Math.max(0, S.fuzz||0)/100;
+  const inTolerance = n => n*riskPS <= budget*(1+fuzz) + 1e-9;
+  let q = lo;
+  if(hi>lo && inTolerance(hi) && Math.abs(hi*riskPS-budget) < Math.abs(lo*riskPS-budget)) q = hi;
+  if(q<1 && hi>=1 && inTolerance(hi)) q = hi;      // never round a real trade away to nothing
+
+  if(S.maxAllocOn && eq>0){
+    const cap = Math.floor((S.maxAlloc/100)*eq/price);
+    if(q > cap){ q = Math.max(0, cap); walls.push("max allocation"); }
+  }
+  const qBP = Math.floor(bpFree(acct)/price);
+  if(q > qBP){ q = Math.max(0, qBP); walls.push("buying power"); }
+
+  const under = !!(S.minAllocOn && eq>0 && q*price < (S.minAlloc/100)*eq);
+  return {q, budget, walls, under, r: R>0 ? q*riskPS/R : 0};
+}
+
+/* ---- the fast calculator ----
+   No tier selector. Every tier is priced at once and the whole range is on screen, bottom to top,
+   so the question stops being "which size am I taking" before you have seen what the sizes are.
+   One of them is marked standard; clicking another moves the mark and nothing else, because the
+   range does not depend on it -- it decides only what the hand-off carries into New Trade.
+
+   Each count is the one nearest its tier's intended R rather than the one below it, inside the
+   fuzziness tolerance. The walls are soft: max allocation and buying power clamp a number and say
+   so, the minimum only annotates. */
+function renderFastCalc(){
+  const std = root.fcTier==null ? 1 : root.fcTier;
+  const g = inGroup();
+  const accts = g ? groupMembers(root.active) : [acctInView()].filter(Boolean);
+  const tiers = g ? root.groups[root.active].settings.tiers : settingsFor(acctInView()).tiers;
+
   const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
   const out = $("fc_ans"), more = $("fc_more"), det = $("fc_detail");
   const plain = html => { out.innerHTML = html; more.style.display = "none"; det.innerHTML = ""; };
@@ -1706,40 +1766,67 @@ function renderFastCalc(){
   const side = fcSide();
   if(!side){ plain('<div class="err">Stop and price can’t be the same.</div>'); return; }
   const den = side*(P-S);
+  if(!accts.length){ plain('<div class="err">No account selected.</div>'); return; }
 
-  const accts = g ? groupMembers(root.active) : [acctInView()];
-  const rows = accts.map(m=>{
-    const R = rUnitOf(m), mult = (g ? root.groups[root.active].settings.tiers : settingsFor(m).tiers)[ti];
-    const qR = Math.floor(R*mult/den);
-    const free = bpFree(m);
-    const qBP = P>0 ? Math.floor(free/P) : 0;
-    const q = Math.min(qR, qBP);
-    return { m, R, mult, q, qR, capped:qBP<qR, cost:q*P,
-             alloc: root.portfolios[m].settings.aum>0 ? q*P/root.portfolios[m].settings.aum*100 : 0 };
+  // One column per tier; in a group each column is the sum of what every member can take.
+  const cols = TIERS.map((name,i)=>{
+    const per = accts.map(m=>tierSize(m, P, den, (g ? tiers : settingsFor(m).tiers)[i]));
+    const q = per.reduce((a,x)=>a+x.q, 0);
+    const walls = [...new Set(per.flatMap(x=>x.walls))];
+    return { i, name, mult:tiers[i], q, per, walls,
+             under: per.some(x=>x.under),
+             r: per.reduce((a,x)=>a+x.r, 0)/Math.max(1,per.length) };
   });
-  const total = rows.reduce((a,r)=>a+r.q, 0);
-  const anyCapped = rows.some(r=>r.capped);
+
+  const cell = c => {
+    const on = c.i===std;
+    const col = c.walls.length ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
+    return '<button class="fccell'+(on?" on":"")+'" onclick="setFcTier('+c.i+')" title="'+
+      (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+
+      (c.under ? " · under the minimum allocation" : "")+'">' +
+      '<span class="n" style="color:'+col+'">'+fmtQ(c.q)+'</span>' +
+      '<span class="t">'+c.name+' &middot; '+c.mult+'R</span>' +
+      (c.walls.length ? '<span class="w">'+c.walls[0]+'</span>'
+        : c.under ? '<span class="w">under min</span>' : '') +
+      '</button>';
+  };
 
   out.innerHTML =
-    '<div class="row" style="align-items:flex-end;gap:12px;justify-content:flex-end">' +
-      '<div style="text-align:right"><div class="fcbig">'+fmtQ(total)+'</div>' +
-      '<div class="fcsub">shares '+(side>0?"long":"short")+' &middot; risk/share <b>'+fmtP(den)+'</b>' +
-      (g ? " &middot; "+rows.length+" accounts" : " &middot; "+fmt$(rows[0].cost)+" ("+rows[0].alloc.toFixed(0)+"%)") +
-      (anyCapped ? ' &middot; <span style="color:var(--amber)">BP capped</span>' : "") +
-      '</div></div>' +
+    '<div class="row" style="align-items:center;gap:10px;justify-content:flex-end">' +
+      '<div class="fcrange">'+cols.map(cell).join("")+'</div>' +
+      '<div class="fcsub" style="text-align:right">risk/share <b>'+fmtP(den)+'</b><br>' +
+        (side>0?"long":"short")+(g ? " &middot; "+accts.length+" accounts" : "")+'</div>' +
       '<button class="small primary" onclick="fcToNewTrade()">Send &rarr;</button>' +
     '</div>';
 
+  const stdCol = cols[std] || cols[0];
   det.innerHTML =
-    (g ? '<div class="scroll" style="margin-top:9px"><table><tr><th>Account</th><th class="num">Shares</th><th class="num">Risk</th><th class="num">Cost</th><th class="num">Allocation</th></tr>' +
-      rows.map(r=>"<tr><td>"+esc(r.m)+"</td>" +
-        "<td class='num'><b style='color:var(--gold);font-size:14px'>"+fmtQ(r.q)+"</b>"+(r.capped?" <span class='muted'>of "+fmtQ(r.qR)+"</span>":"")+"</td>" +
-        "<td class='num'>"+fmt$(r.R*r.mult)+"</td><td class='num'>"+fmt$(r.cost)+"</td>" +
-        "<td class='num'>"+r.alloc.toFixed(1)+"%</td></tr>").join("") + "</table></div>"
-      : '<div class="fcsub" style="margin-top:8px">1R '+fmt$(rows[0].R)+' &middot; budget '+
-        fmt$(rows[0].R*rows[0].mult)+' &middot; buying power '+fmt$(bpFree(rows[0].m))+' free</div>') +
-    (anyCapped ? '<div class="fcsub" style="color:var(--amber)">R wants '+fmtQ(rows[0].qR)+
-      ' share'+(rows[0].qR===1?"":"s")+(g?" in at least one account":"")+'.</div>' : "");
+    (g
+      ? '<div class="scroll" style="margin-top:9px"><table><tr><th>Account</th>' +
+        TIERS.map((n,i)=>'<th class="num">'+n+' &middot; '+tiers[i]+'R</th>').join("") +
+        '<th class="num">Cost at '+stdCol.name+'</th><th class="num">Allocation</th></tr>' +
+        accts.map((m,k)=>{
+          const eq = root.portfolios[m].settings.aum;
+          const q = stdCol.per[k].q;
+          return "<tr><td>"+esc(m)+"</td>" +
+            cols.map(c=>"<td class='num'>"+fmtQ(c.per[k].q)+"</td>").join("") +
+            "<td class='num'>"+fmt$(q*P)+"</td>" +
+            "<td class='num'>"+(eq>0?(q*P/eq*100).toFixed(1):"0.0")+"%</td></tr>";
+        }).join("") + "</table></div>"
+      : (function(){
+          const m = accts[0], eq = root.portfolios[m].settings.aum, q = stdCol.per[0].q;
+          return '<div class="fcsub" style="margin-top:8px">' +
+            stdCol.name+' takes <b>'+fmtQ(q)+'</b> for '+fmt$(q*P) +
+            (eq>0 ? ' ('+(q*P/eq*100).toFixed(1)+'% of equity)' : "") +
+            ' &middot; '+(q*den/rUnitOf(m)).toFixed(2)+'R of a '+stdCol.mult+'R budget' +
+            VBAR+'1R '+fmt$(rUnitOf(m))+VBAR+fmt$(bpFree(m))+' buying power free</div>';
+        })()) +
+    (cols.some(c=>c.walls.length)
+      ? '<div class="fcsub" style="color:var(--amber)">Held back by ' +
+        [...new Set(cols.flatMap(c=>c.walls))].join(" and ") + '.</div>' : "") +
+    (settingsFor(accts[0]).fuzz>0
+      ? '<div class="fcsub muted">Sizes round to the nearest whole share within '+
+        settingsFor(accts[0]).fuzz+'% of the tier risk.</div>' : "");
   more.style.display = "";
 }
 
@@ -1892,7 +1979,7 @@ window.setMemberAum = (m,v) => {
 function newTradeCal(){
   if(inGroup()) return renderGroupNewTrade();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = ntTier();
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
   if(!side){
@@ -1943,8 +2030,8 @@ function newTradeCal(){
     ? '<span class="muted" style="align-self:center">internal targets:</span>' + ladderHtml(ladder(side,P,den,null,targetsOf()))
     : "";
 
-  const aptr = parseFloat($("nt_aptr").value);
-  const a = aptrAudit(P, aptr, den);
+  // No APTR at entry any more, so the volatility check waits for the gear to supply one.
+  const a = null;
   if(a){
     let html = '<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+' APTRs to stop</span>';
     if(a.aptrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
@@ -2010,21 +2097,17 @@ function openTrade(){
   if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = ntTier();
   const calQ = newTradeCal();
   const q = $("nt_qty").value ? parseFloat($("nt_qty").value) : calQ;
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
   if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
-  const aptr = parseFloat($("nt_aptr").value);
-
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
     ticker: tk, side, concept: "", tier: ti,
     mult: state.settings.tiers[ti],
-    aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
-    // aptr is live and editable; aptrAtOpen is the volatility you actually signed up for.
-    aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
+    aptr: null, aptrAtOpen: null,     // entered later, from the gear
     rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
     plan: {},                        // filled in later, from the position's gear
     checks: [],
@@ -2039,7 +2122,7 @@ function openTrade(){
 // Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
 // One function so the Clear button and both open paths can never leave different things behind.
 window.clearNewTrade = (focus) => {
-  ["nt_tk","nt_entry","nt_stop","nt_aptr","nt_qty"].forEach(id=>{ $(id).value = ""; });
+  ["nt_tk","nt_entry","nt_stop","nt_qty"].forEach(id=>{ $(id).value = ""; });
   clearFills();
   $("nt_err").textContent = "";
   $("nt_calbox").style.display = "none";
@@ -2507,6 +2590,9 @@ window.gearUI = id => {
       '<div style="flex:1"><label for="g_setup">Setup</label>' +
         '<input id="g_setup" type="text" list="gearSetups" value="'+esc(t.concept||"")+'">' +
         '<datalist id="gearSetups">'+setups.map(x=>'<option value="'+esc(x)+'"></option>').join("")+'</datalist></div>' +
+      '<div style="flex:1"><label for="g_tier">Tier</label>' +
+        '<select id="g_tier">'+TIERS.map((n,i)=>'<option value="'+i+'"'+(t.tier===i?" selected":"")+'>'+
+          n+' &mdash; '+settingsFor(acctOf(id)).tiers[i]+'R</option>').join("")+'</select></div>' +
       '<div style="flex:1"><label for="g_aptr">APTR % now</label>' +
         '<input id="g_aptr" type="number" step="0.1" value="'+(t.aptr==null?"":t.aptr)+'"></div>' +
       '<div style="flex:1"><label for="g_aptr0">APTR % at entry</label>' +
@@ -2528,6 +2614,11 @@ window.gearUI = id => {
     "Save details",
     () => {
       t.concept = mv("g_setup").trim();
+      const ti2 = parseInt(mv("g_tier"));
+      if(!isNaN(ti2) && ti2>=0 && ti2<TIERS.length){
+        t.tier = ti2;
+        t.mult = settingsFor(acctOf(id)).tiers[ti2];   // the pill reads this
+      }
       const a1 = parseFloat(mv("g_aptr")), a0 = parseFloat(mv("g_aptr0"));
       t.aptr = (!isNaN(a1) && a1>0) ? a1 : null;
       // aptrAtOpen is a locked-at-open field, and correcting a typo is not the same as recomputing
@@ -3352,7 +3443,7 @@ function groupSizeRows(P, S, side, ti){
 // away the input the cursor is sitting in.
 function renderGroupNewTrade(){
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = ntTier();
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
   if(!side){
@@ -3394,7 +3485,7 @@ function renderGroupNewTrade(){
 
 function repaintGroupCalc(){
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = ntTier();
   if(isNaN(P) || isNaN(S) || !(side*(P-S)>0) || !$("grow_0")) return null;
   const rows = groupSizeRows(P,S,side,ti);
   paintGroupCalc(rows, P, S, side, ti);
@@ -3446,8 +3537,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
   const skipped = rows.filter(r=>r.on && r.skipped);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
-  const aptr = parseFloat($("nt_aptr").value);
-  const a = aptrAudit(P, aptr, den0);
+  const a = null;
   let vol = a
     ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.aptrs.toFixed(1)+" APTRs away.</span> " +
       (a.aptrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
@@ -3466,7 +3556,7 @@ function paintGroupCalc(rows, P, S, side, ti){
 function openGroupTrade(){
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
-  const side = ntSide(), ti = parseInt($("nt_tier").value)||0;
+  const side = ntSide(), ti = ntTier();
   const rows = renderGroupNewTrade();
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(!rows){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
@@ -3474,16 +3564,13 @@ function openGroupTrade(){
   if(!taking.length){ $("nt_err").textContent = "No account can take this trade — every member is unticked or sized to zero."; return; }
 
   const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
-  const aptr = parseFloat($("nt_aptr").value);
   const now = Date.now();
   taking.forEach(r=>{
     root.portfolios[r.m].trades.unshift({
       id: now+""+Math.floor(Math.random()*1e6),
       gid, gname: root.active,
       ticker: tk, side, concept: "", tier: ti, mult: r.mult,
-      aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
-      // aptr is live and editable; aptrAtOpen is the volatility you actually signed up for.
-      aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
+      aptr: null, aptrAtOpen: null,   // entered later, from each leg's gear
       rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
       plan: {}, checks: [],          // added later from each leg's gear
       events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
@@ -3866,7 +3953,7 @@ function bindSettings(){
   });
   $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
   $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
-  ["nt_entry","nt_stop","nt_tier","nt_aptr","nt_qty"].forEach(id=>$(id).addEventListener("input", newTradeCal));
+  ["nt_entry","nt_stop","nt_qty"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
   $("nt_tk").addEventListener("input", updateWash);
   updateWash();
