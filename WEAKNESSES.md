@@ -1,6 +1,6 @@
 # Weaknesses register
 
-Every flaw this project has identified in itself, in one place. 41 entries. Compiled 2026-10-24 from
+Every flaw this project has identified in itself, in one place. 42 entries. Compiled 2026-10-24 from
 `OPEN-ITEMS.md` (To do, Ruled out and the Decided/done entries, several of which record a weakness
 created or left behind by the fix), `index.html`'s own comments, `SESSION-HANDOFF.md`, and the v2
 review.
@@ -243,6 +243,21 @@ accuracy; these are what the review turned up against it.
 41. **Dead markup left behind.** The `nt_gate` span survives the checklist that wrote to it, and
     `nt_ladder` is an empty div in single-account mode. Harmless, but they are the sort of thing a
     later reader assumes is load-bearing. *Live, trivial.*
+
+42. **Setups became a list and the history was never migrated.** v1.3 stored free text in
+    `t.concept`; v2 offers a list defined in Settings, and nothing connects them. The by-concept
+    table matches on the exact trimmed string, so every closed trade keeps a label that is not in
+    the list and will never be offered again -- and with no case or spacing normalisation,
+    "Mean reversion" and "mean reversion" are already two rows. The table that answers which
+    setups pay is reading two vocabularies at once.
+
+    Related, and introduced by me: New Trade's setup is a `<select>` constrained to the list while
+    the gear is free text with a datalist, so the discipline the list exists to impose is not
+    actually enforced. One of the two is wrong.
+
+    Four options for the history are written out in `REVIEW-2026-10-26.md`, finding 6. The one
+    that reuses an existing pattern is seed-then-prune, with pruned values showing as retired the
+    way a removed loss tag already does. *Live; needs deciding before the closed list grows.*
 
 ## Closed by v2, as of 2026-10-26
 
