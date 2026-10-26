@@ -338,8 +338,8 @@ button.small{--r:7px}
   <div class="fastcalc">
     <!-- The answer sits on the input row rather than under it, which is another 55px of pinned
          height that does not need to exist. -->
+    <div class="head" style="margin-bottom:8px">Fast calc</div>
     <div class="row" style="align-items:flex-end">
-      <div class="head" style="margin:0 4px 8px 0;align-self:center">Fast calc</div>
       <div style="max-width:112px"><label for="fc_price">Price</label>
         <input id="fc_price" type="number" step="any" placeholder="entry"></div>
       <div style="max-width:112px"><label for="fc_stop">Stop</label>
@@ -400,6 +400,7 @@ button.small{--r:7px}
     <div><label for="nt_stop">Stop</label><input id="nt_stop" type="number" step="any" placeholder="152"></div>
     <div><label for="nt_qty">Shares</label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
   </div>
+  <div class="fcrange" id="nt_range" style="margin-top:10px"></div>
 
   <div class="calbox" id="nt_calbox" style="display:none">
     <div class="calans" id="nt_calans"></div>
@@ -540,6 +541,8 @@ button.small{--r:7px}
         <div><label for="s_target0">Target 1 (R)<span class="info" data-tip="First target, as a multiple of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
         <div><label for="s_target1">Target 2 (R)<span class="info" data-tip="Second target, measured the same way.">i</span></label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
         <div><label for="s_fuzz">Fuzziness %</label><input id="s_fuzz" type="number" step="1" min="0"></div>
+        <div><label for="s_noiseOn">Noise check</label>
+          <select id="s_noiseOn"><option value="0">Off</option><option value="1">On</option></select></div>
         <div><label for="s_maxAllocOn">Max allocation</label>
           <select id="s_maxAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
         <div><label for="s_maxAlloc">&mdash; cap (% of equity)</label><input id="s_maxAlloc" type="number" step="1" min="1"></div>
@@ -685,14 +688,15 @@ function defaults(){
                       marginX:1, lotRound:1,
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
                       targetsOn:true, targets:[1,2], setups:[],
-                      fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2 }, trades:[] };
+                      fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2,
+                      noiseOn:false }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
 // each account; only these are shared. lotRound is NOT here: it follows the broker and the
 // instrument, not the method.
 const GROUP_KEYS = ["rPct","tiers","heatCap","coldR","heatOn","coldOn",
                     "targetsOn","targets","setups",
-                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc"];
+                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc","noiseOn"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
   GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
@@ -1535,6 +1539,7 @@ const SET_FIELDS = [
   ["s_target1",   "rule", "targets.1",  "num"],
   ["s_setups",    "rule", "setups",     "lines"],
   ["s_fuzz",      "rule", "fuzz",       "num"],
+  ["s_noiseOn",   "rule", "noiseOn",    "bool"],
   ["s_maxAllocOn","rule", "maxAllocOn", "bool"],
   ["s_maxAlloc",  "rule", "maxAlloc",   "num"],
   ["s_minAllocOn","rule", "minAllocOn", "bool"],
@@ -1757,14 +1762,19 @@ function tierSize(acct, price, riskPS, mult){
   if(hi>lo && inTolerance(hi) && Math.abs(hi*riskPS-budget) < Math.abs(lo*riskPS-budget)) q = hi;
   if(q<1 && hi>=1 && inTolerance(hi)) q = hi;      // never round a real trade away to nothing
 
+  // The allocation walls are soft, so the same tolerance applies to them: three shares past a 25%
+  // cap is not a breach of anything, it is the cap meeting whole shares. Beyond the tolerance the
+  // wall holds and clamps to the cap itself, not to the tolerance.
   if(S.maxAllocOn && eq>0){
-    const cap = Math.floor((S.maxAlloc/100)*eq/price);
-    if(q > cap){ q = Math.max(0, cap); walls.push("max allocation"); }
+    const cap = (S.maxAlloc/100)*eq/price;
+    if(q > cap*(1+fuzz)){ q = Math.max(0, Math.floor(cap)); walls.push("max allocation"); }
   }
+  // Buying power is NOT soft. Everything else here is a preference about how much you want to
+  // hold; this one is whether the money exists.
   const qBP = Math.floor(bpFree(acct)/price);
   if(q > qBP){ q = Math.max(0, qBP); walls.push("buying power"); }
 
-  const under = !!(S.minAllocOn && eq>0 && q*price < (S.minAlloc/100)*eq);
+  const under = !!(S.minAllocOn && eq>0 && q*price < (S.minAlloc/100)*eq*(1-fuzz));
   return {q, budget, walls, under, r: R>0 ? q*riskPS/R : 0};
 }
 
@@ -2007,8 +2017,55 @@ window.setMemberAum = (m,v) => {
 };
 
 /* ========================= new trade ========================= */
+// The same range the calculator shows, under the entry fields. Reading it there closes the gap
+// between sizing and recording: the hand-off is one path to New Trade and typing a ticker straight
+// in is the other, and only the first used to show what the tiers were worth. Clicking a tier
+// fills the share count and files the trade under it, which is the only thing tier does now.
+function renderNtRange(){
+  const box = $("nt_range");
+  if(!box) return;
+  const acct = acctInView();
+  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const side = ntSide();
+  if(!acct || isNaN(P) || isNaN(S) || !side){ box.innerHTML = ""; return; }
+  const den = side*(P-S);
+  const eq = root.portfolios[acct].settings.aum;
+  const tiers = settingsFor(acct).tiers;
+  const typed = parseFloat($("nt_qty").value);
+  const cur = ntTier();
+
+  const cols = TIERS.map((name,i)=>{
+    const z = tierSize(acct, P, den, tiers[i]);
+    return { i, name, mult:tiers[i], q:z.q, walls:z.walls, under:z.under,
+             alloc: eq>0 ? z.q*P/eq*100 : 0,
+             risk:  eq>0 ? z.q*den/eq*100 : 0 };
+  }).sort((a,b)=>a.mult-b.mult);
+
+  box.innerHTML = cols.map(c=>{
+    // Marked when it is the tier the trade will be filed under AND the size matches it, so the
+    // highlight tells the truth after the count is edited by hand.
+    const on = c.i===cur && (isNaN(typed) || typed===c.q);
+    const colour = c.walls.length ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
+    return '<button class="fccell'+(on?" on":"")+'" onclick="ntPickTier('+c.i+','+c.q+')" title="'+
+      (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+'">' +
+      '<span class="n" style="color:'+colour+'">'+fmtQ(c.q)+'</span>' +
+      '<span class="t">'+c.name+' &middot; '+c.mult+'R</span>' +
+      '<span class="a">'+c.alloc.toFixed(1)+'% alloc'+VBAR+c.risk.toFixed(2)+'% risk</span>' +
+      (c.walls.length ? '<span class="w">'+c.walls[0]+'</span>'
+        : c.under ? '<span class="w">under min</span>' : '') +
+      '</button>';
+  }).join("");
+}
+window.ntPickTier = (i, q) => {
+  root.fcTier = i;                    // the tier a trade opens under is the one standing here
+  $("nt_qty").value = q;
+  save();
+  newTradeCal();
+};
+
 function newTradeCal(){
   if(inGroup()) return renderGroupNewTrade();
+  renderNtRange();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   $("nt_err").textContent = "";
@@ -2061,15 +2118,18 @@ function newTradeCal(){
     '</div>';
 
 
+  // The noise check measures the stop against normal daily movement and calls it too tight. That
+  // is a method, not arithmetic, so it ships off and says nothing until it is switched on.
   const aptr = parseFloat($("nt_aptr").value);
-  const a = aptrAudit(P, aptr, den);
+  const a = settingsFor(acct).noiseOn ? aptrAudit(P, aptr, den) : null;
   if(a){
     let html = '<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+' APTRs to stop</span>';
     if(a.aptrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
       '</b>, <b>'+fmtQ(Math.floor(b/(defs().aptrFloor*a.aptrD)))+'</b> shares.';
     $("nt_vol").innerHTML = html;
   } else {
-    $("nt_vol").innerHTML = '<span class="muted">APTR % not set.</span>';
+    $("nt_vol").innerHTML = settingsFor(acct).noiseOn && !(aptr>0)
+      ? '<span class="muted">APTR % not set.</span>' : "";
   }
   return q;
 }
@@ -2280,7 +2340,12 @@ function positionRow(t, acct, showAcct){
   const tile = (k,v,sub,colour) => '<div class="metric"><div class="k">'+k+'</div><div class="v"'+
     (colour?' style="color:'+colour+'"':'')+'>'+v+'</div>'+(sub?'<div class="r">'+sub+'</div>':'')+'</div>';
 
+  const noiseOn = settingsFor(acct).noiseOn;
   let aptr = tile("Daily vol","&mdash;","no APTR set","var(--mut)");
+  if(!noiseOn && t.aptr>0){
+    // Switched off, the tile reports the movement and passes no judgement on the stop.
+    aptr = tile("Daily vol", t.aptr+"%", fmtP(t.last*t.aptr/100)+" on an ordinary day");
+  } else
   if(t.aptr && d.stop!=null && d.Q>0){
     const a = aptrAudit(t.last, t.aptr, t.side*(t.last-d.stop));
     aptr = a ? tile("Daily vol", a.aptrs.toFixed(1)+" APTRs", "to stop &middot; "+t.aptr+"% now", a.color)
@@ -3570,7 +3635,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   const skipped = rows.filter(r=>r.on && r.skipped);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
   const aptr = parseFloat($("nt_aptr").value);
-  const a = aptrAudit(P, aptr, den0);
+  const a = settingsFor(acctInView()).noiseOn ? aptrAudit(P, aptr, den0) : null;
   let vol = a
     ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.aptrs.toFixed(1)+" APTRs away.</span> " +
       (a.aptrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
