@@ -3187,8 +3187,12 @@ function renderClosed(){
         (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
       "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
-      "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt)+
-        (S.rmInt<defs().breachR?" <span class='pill short' style='font-size:10px;padding:1px 7px' title='Lost well beyond the stop it was opened with'>breach</span>":""))+"</td>" +
+      // The pill goes to the LEFT of the figure. In a right-aligned column anything trailing the
+      // number pushes it off the edge the other rows line up on, so the one row carrying a flag is
+      // the one row whose value you cannot scan against the rest.
+      "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":
+        (S.rmInt<defs().breachR?"<span class='pill short' style='font-size:10px;padding:1px 7px;margin-right:6px' title='Lost well beyond the stop it was opened with'>breach</span>":"")+
+        fmtR(S.rmInt))+"</td>" +
       "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
       "<td class='num "+cls(d.realized)+"'>"+fmt$(d.realized)+"</td>" +
       "<td class='num'>"+S.days+"</td>" +
