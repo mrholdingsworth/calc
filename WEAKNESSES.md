@@ -1,6 +1,6 @@
 # Weaknesses register
 
-Every flaw this project has identified in itself, in one place. 35 entries. Compiled 2026-10-24 from
+Every flaw this project has identified in itself, in one place. 41 entries. Compiled 2026-10-24 from
 `OPEN-ITEMS.md` (To do, Ruled out and the Decided/done entries, several of which record a weakness
 created or left behind by the fix), `index.html`'s own comments, `SESSION-HANDOFF.md`, and the v2
 review.
@@ -202,3 +202,61 @@ because the pattern recurs.
 35. **Heat cap and cold streak claimed enforcement the code never had.** Worse than no warning,
     because it invites you to trust it. Both now say "flagged, not blocked" — which is the whole of
     the flag-don't-block invariant, learned from being wrong about it once.
+
+## Found in the v2 review, 2026-10-26
+
+Entries 36 onward. The build is now ahead of the brief on management and
+accuracy; these are what the review turned up against it.
+
+36. **The Equity tile claims protected equity and shows realised-only.** The comment on it says
+    "cash plus what the open positions are protected at", and I said the same thing in the handover
+    message. It is not true: `aum` is cash plus positions **at cost**, moved by closes, trims and
+    cash flows. Measured on a 1000-share position at 50 stopped at 46 — the tile reads $100,000
+    where protected would be $96,000, a $4,000 gap that grows with every open position.
+
+    **The protected basis from decision 2 is not built at all.** No setting, no logic, nothing
+    reading `riskAtStop` into equity. It was settled in principle, recorded as settled, and then
+    never implemented — and the comment quietly asserted it had been. *Live, and the most
+    misleading thing currently in the app.*
+
+37. **Lot rounding is a setting nothing reads.** It is stored, scoped to the account, has a
+    tooltip explaining what it does, and no code consumes it. A control that does nothing is worse
+    than an absent one: it invites you to configure a behaviour you are not getting. Either
+    `tierSize` rounds to it or the setting goes. *Live.*
+
+38. **Recomputation cost multiplied about fourfold.** Register #21 said `derive()` is called from
+    ~26 sites and replays the whole log each time. Pricing every tier instead of one made it worse:
+    measured at 12 open positions, a single keystroke in New Trade costs **48 `derive()` calls**,
+    and in a group of four accounts the calculator costs **144**. At 0.7–0.9ms it is not felt
+    today, and saying otherwise would be alarmism — but the multiplier is real and it scales with
+    both the book and the number of accounts. *Live, not yet painful.*
+
+39. **`root.fcTier` does two jobs.** It is the calculator's highlight *and* the tier a new trade is
+    filed under. Clicking a cell to compare sizes silently changes the classification of the next
+    trade opened. Nothing on screen says so. *Live, by my design, and worth a second look.*
+
+40. **APTR at entry is now editable, which loosens a locked-at-open field.** Deliberate, and it
+    closes #3 — a mistyped volatility used to be permanent. But `aptrAtOpen` is the figure the
+    volatility history leans on, and it can now be rewritten long after the fact with nothing
+    recording that it was. *By design; the asymmetry with the other locked fields is new.*
+
+41. **Dead markup left behind.** The `nt_gate` span survives the checklist that wrote to it, and
+    `nt_ladder` is an empty div in single-account mode. Harmless, but they are the sort of thing a
+    later reader assumes is load-bearing. *Live, trivial.*
+
+## Closed by v2, as of 2026-10-26
+
+Kept rather than deleted, because the reasoning is why the fix looks the way it does.
+
+- **#1 per-account collapse state** — gone with the tab layout; there is no collapse map.
+- **#3 APTR fixed at entry** — the gear edits it, see #40 for what that cost.
+- **#4 loss discipline in account R** — moved to internal R when it became a setting.
+- **#8 `t.checks` fixed length** — the checklist is gone; the statistic retires with it.
+- **#25 pre-trade checks** and **#26 rules panel** — removed; entry asks four questions, all numbers.
+- **#28 the app asserts a method** — warnings neutral, constants are settings, the noise check
+  ships off. The remaining assertion is the default values themselves, which is unavoidable.
+
+Still open from the original list: **#2 `bpUsed` marks at `t.last`**, **#5 shares override in group
+mode** (now moot — shares is a first-class field), **#6 localStorage**, **#7 `deleteTrade` scope**
+(still unfixed and phase 4 added the call site that reaches it), **#17 no daily equity stamps**,
+**#22 `render()` rebuilds everything** (improved by tabs, not solved), **#27 extension check**.

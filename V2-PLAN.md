@@ -219,6 +219,25 @@ Note for whoever reads the .docx next: I.C.2.i's "unrealized gains" survives onl
 (mark)**, which was already in v1.3 and is realised plus open. If that framing is wrong too, it is
 one tile to remove.
 
+### Open questions, 2026-10-26
+
+Raised by the review. The first is the one that matters.
+
+1. **Protected equity was settled and never built.** Decision 2 says the sizing basis is
+   `aum + Σ(−riskAtStop)`. Nothing implements it, and the Equity tile's comment claimed it did.
+   Build it now, as a setting defaulting to realised-only? It carries two riders: the `bpUsed`
+   cost-versus-mark question, and whether the **displayed** Equity figure switches with the basis
+   or stays realised-only while only sizing changes.
+2. **Should the allocation walls have their own tolerance?** Fuzziness at 10% means a 25% cap does
+   not bind until roughly 27.5%. That is consistent with how fuzziness works elsewhere, but share
+   rounding and concentration limits are different jobs and nothing says one number serves both.
+3. **Is `root.fcTier` doing two jobs acceptable?** It is the calculator's highlight and the tier a
+   new trade files under, so comparing sizes silently reclassifies the next trade.
+4. **Lot rounding: consume it or drop it.** It is a setting nothing reads.
+5. **Fuzziness at 10%** — my number, not yet confirmed.
+6. **Marks (I.C.6)** is the largest unbuilt item with daily consequences: with no API key there is
+   still no way to price the book. Next?
+
 ### Still open
 
 - **The sizing pipeline**, to be designed together before any building starts. See phase 6 for the
