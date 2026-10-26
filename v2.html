@@ -3596,12 +3596,12 @@ function renderBook(open){
     // Both of these state your rule and flag the breach. Neither blocks the Open button — that is
     // deliberate, and saying so is the honest version. The old wording claimed an enforcement the
     // code never had, which is worse than no warning: it invites you to trust it.
-    (overCap ? '<div class="banner red">Heat cap breached: '+heatR.toFixed(2)+"R open against your "+cap+
-      "R cap. Your rule is no new trades until it comes back under &mdash; trim, tighten, " +
-      "or let stops ratchet. Flagged here and on the New Trade button; not blocked.</div>" : "") +
-    (coldHit ? '<div class="banner amber">Cold-streak brake: '+streakR.toFixed(1)+"R over your last "+recent.length+
-      " closed trades (threshold &minus;"+settingsFor(acctInView()).coldR+"R). The lever here is stepping back and reviewing &mdash; " +
-      "never resizing R to win it back. Flagged, not blocked.</div>" : "") +
+    // The figure and the threshold it crossed, and nothing else. These used to tell Steve what his
+    // own rule was and what lever to reach for; a generic app states the number and stops.
+    (overCap ? '<div class="banner red">Open heat '+heatR.toFixed(2)+"R against a "+cap+
+      "R cap. Flagged here and on the New Trade button; not blocked.</div>" : "") +
+    (coldHit ? '<div class="banner amber">Last '+recent.length+" closed trades total "+streakR.toFixed(1)+
+      "R, against a -"+S0.coldR+"R threshold. Flagged, not blocked.</div>" : "") +
 '<div class="card">' + openHead(refreshBtnHtml(stale, !!root.finnhub)) +
     '<div class="hint" id="refreshStatus"></div>' +
     '<div class="row" style="justify-content:space-between;align-items:center;margin-top:10px">' +
@@ -3622,24 +3622,52 @@ function renderBook(open){
             if(t.adr>0) dollars += val*t.adr/100; else missing++;
           });
           const pct = eq>0 ? dollars/eq*100 : 0;
-          return '<div class="metric"><div class="k">Weighted ADR</div>' +
+          return '<div class="metric"><div class="k">Weighted APTR</div>' +
             '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmtE(dollars)+
             ' of ordinary daily movement' +
-            (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without ADR</span>" : "") +
+            (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without APTR</span>" : "") +
             '</div></div>';
+        })() +
+        (function(){
+          // Net liq is the only figure here that follows the tape: equity plus what the open
+          // positions are currently worth. It is shown and never sized from -- every R in the app
+          // still comes off cost-based equity, which is the whole point of that rule.
+          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          const unreal = open.reduce((a,t)=>{ const d = derive(t); return a + t.side*(t.last-d.avg)*d.Q; }, 0);
+          return '<div class="metric"><div class="k">Net liq</div>' +
+            '<div class="v">'+fmtE(eq+unreal)+'</div>' +
+            '<div class="r">equity '+fmtE(eq)+VBAR+'<span class="'+cls(unreal)+'">'+fmt$(unreal)+' unrealized</span></div></div>';
+        })() +
+        (function(){
+          // Allocation and buying-power-used were two tiles reading the same number: with margin
+          // off, deployed/equity and deployed/buying-power are identical. One tile, both
+          // denominators -- the percentage against equity, the headroom against buying power, and
+          // the colour from whichever is the binding constraint.
+          // Gross, not net: a short puts capital to work exactly as a long does, and netting them
+          // would read flat while both positions are live.
+          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          const bp = scope().reduce((a,x)=>a+buyingPower(x), 0);
+          const val = open.reduce((a,t)=>a + Math.abs(t.last*derive(t).Q), 0);
+          const pct = eq>0 ? val/eq*100 : 0;
+          const bpPct = bp>0 ? val/bp*100 : 0;
+          const col = bpPct>=100 ? "var(--red)" : (bpPct>=80 ? "var(--amber)" : "");
+          return '<div class="metric"><div class="k">Allocation</div>' +
+            '<div class="v"'+(col?' style="color:'+col+'"':'')+'>'+pct.toFixed(1)+'%</div>' +
+            '<div class="r">'+fmtE(val)+' deployed'+VBAR+fmtE(Math.max(0,bp-val))+' buying power free'+
+            (bp>eq ? ' at '+(bp/eq).toFixed(1)+'&times;' : '')+'</div></div>';
+        })() +
+        (function(){
+          // Cash at risk and open heat are one quantity in two units, so the dollar figure carries
+          // what it is as a share of the book and the R figure carries the cap.
+          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          const pct = eq>0 ? heat$/eq*100 : 0;
+          return '<div class="metric"><div class="k">Cash at risk</div>' +
+            '<div class="v">'+fmt$(heat$)+'</div>' +
+            '<div class="r">'+pct.toFixed(2)+'% of equity if every stop hits</div></div>';
         })() +
         '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
         '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
-        (function(){
-          // Buying power across whatever is in view, so over-extension shows next to open heat.
-          const bp = scope().reduce((a,x)=>a+buyingPower(x), 0);
-          const used = scope().reduce((a,x)=>a+bpUsed(x), 0);
-          const pct = bp>0 ? used/bp*100 : 0;
-          const col = pct>=100 ? "var(--red)" : (pct>=80 ? "var(--amber)" : "var(--green)");
-          return '<div class="metric"><div class="k">Buying power used</div><div class="v" style="color:'+col+'">'+
-            pct.toFixed(0)+'%</div><div class="r">'+fmtE(used)+" of "+fmtE(bp)+" &middot; "+fmtE(Math.max(0,bp-used))+" free</div></div>";
-        })() +
-        '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
+'<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
       '</div>' +
     '</div></div>';
   return heat;
