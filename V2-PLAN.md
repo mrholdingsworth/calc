@@ -117,7 +117,11 @@ it. To stop a real trade being typed into the wrong tab:
    a 100-share floor means different things in a $20k account and a $200k one, where a percentage of
    equity scales on its own.
 
-   **Max stop width joins them as a third toggled setting.** A different quantity — a ceiling on risk
+   **Ruled out 2026-10-26 (Steve): no max stop width.** A wide stop at a fixed R means few shares,
+   which min allocation already flags; the residual case — a wide stop on a name expensive enough to
+   clear min allocation — still risks only R. The original reasoning is kept below for the record.
+
+   ~~**Max stop width joins them as a third toggled setting.**~~ A different quantity — a ceiling on risk
    per share rather than on position value — so it is its own switch and its own field, and it comes
    off the backlog into v2. All three sit on the same settings screen. The old item's crossover
    arithmetic, which treated max-stop-width and min-size as one constraint, no longer applies now
@@ -436,7 +440,7 @@ two-stop position sums correctly and reports uncovered shares.
 - New: **Sizing and risk** — tiers, the setups list, the targets toggle with up to two user levels,
   the sizing basis (default realised-only, switchable to protected equity per decision 2, reversible
   on a live book), and three guards each a toggle plus a field (decision 4): **max allocation**,
-  **min allocation** and **max stop width**.
+  **min allocation** (max stop width ruled out, see decision 4).
 - `GROUP_KEYS` loses `compound`, gains the new overridable keys.
 - The Desk section becomes the fast calculator alone (I.A, III.A), still at `#sec-desk`.
 
@@ -515,7 +519,7 @@ Settled inputs:
   enters, so switching it cannot miss a call site.
 - Protected equity counts unguarded long shares at zero and refuses while a short is unguarded
   (decision 10).
-- Max stop width is now a toggled setting too (decision 4), so it joins the same screen.
+- ~~Max stop width is now a toggled setting too~~ — ruled out 2026-10-26 (decision 4).
 
 *Verify, whatever the design turns out to be:* realised-only with fuzziness off reproduces v1.3's
 share counts exactly; protected equity on the backlog's worked case — a 1000-share long at avg 100 —
@@ -656,7 +660,7 @@ different ways, and all three go:
    | `rmInt < -1.25` | 2133 | when a stop-out counts as a breach | GROUP_KEYS |
    | loss discipline ≤ 1.2R | `bookStats` | which losses were disciplined — also wants `rmInt` (register #4) | GROUP_KEYS |
    | `TARGETS = [1,2]` | 861 | which internal targets exist — already a setting (II.A.3.iv) | GROUP_KEYS |
-   | max / min allocation, max stop width | new | the three guards from decision 4 | GROUP_KEYS |
+   | max / min allocation | new | the guards from decision 4 (max stop width ruled out) | GROUP_KEYS |
    | fuzziness | new | the granularity tolerance (decision 12) | GROUP_KEYS |
    | sizing basis, unguarded-short default | new | decisions 2 and 10 | GROUP_KEYS |
    | `SCRATCH_LO/HI`, `WIN_R` | 511 | where a scratch ends and a win begins, across three win rates | `root` |

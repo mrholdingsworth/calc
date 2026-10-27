@@ -212,7 +212,8 @@ Running list. Newest at the top of each section.
 
   Without a key: a manual "ADRs extended" input, or day high/low fields.
 
-- **A stop that is too wide, and a size that is too small.** Two requested guards that turn out to
+- **Ruled out 2026-10-26, see Ruled out — kept here for the reasoning.** **A stop that is too
+  wide, and a size that is too small.** Two requested guards that turn out to
   be one constraint seen from opposite ends. Both are ceilings on risk per share:
 
   ```
@@ -304,6 +305,9 @@ deliberately.*
 
 ## Ruled out
 
+- **Max stop width — not wanted (2026-10-26).** Min allocation, a percentage of equity, covers it: a
+  stop wide enough to matter at a fixed R makes the position too small, and that is what gets
+  flagged. Do not re-propose without a case min allocation misses.
 - **Adding to positions — removed entirely in 1.2.** Did not suit how Steve trades. `maxAdd`,
   `freshSize`, `budget()`, `modeLabel`, the 1R/BE `sizeMode` toggle, `liveAdd`/`doAdd`/`gAdd`, both
   Add action panels, the Max add box and the "if X happens → add" plan hinge are all gone. ~7.3KB.
@@ -319,6 +323,23 @@ deliberately.*
   accounting stays with the broker's 1099-B.
 
 ## Decided / done
+
+### 2026-10-26 — v2.0-dev, group popups and cleanup
+
+- **Group Buy, Sell and Stop match the single dialogs.** Percent of each leg, with a live preview per
+  account (shares after, break-even, the same warnings), and split stops as a percentage of each
+  leg — rungs summing to 100% hand the rounding remainder to the last rung so no share is left
+  uncovered by flooring.
+- **Buy/Sell warnings kept** (buying power, uncovered shares), by Steve's decision, though the
+  outline said none.
+- **Fast calc starts on tier A** on load, after any trade opens, and on clear.
+- **Max stop width ruled out** — min allocation covers it (see Ruled out).
+- **Cleanup:** hover bubbles on the six settings that had none; v1.3 card handlers and CSS with no
+  callers removed; `deleteTrade` deletes from the trade's own account (register #7); stale
+  "phase 4" comments corrected; SESSION-HANDOFF.md rewritten for v2.
+- **Checked against the 2026-10-22 export:** schema 1 → 4, 48 closed trades all Legacy across 12
+  setup texts, none left holding shares, `compounded` equal to realised on every one, AUM $1,030.79
+  against $1,028.09 at cost (DOCS's stop locks $2.70), every tab renders with no errors.
 
 ### 2026-10-26 — v2.0-dev, shorts, lots, marks, setups, closed-trade gear (V2-PLAN decisions 8–12)
 

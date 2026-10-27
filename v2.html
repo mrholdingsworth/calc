@@ -119,8 +119,6 @@ h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 .clock .c{color:var(--gold)}
 .clock .n{color:var(--gold);font-size:12px;font-weight:700;margin-top:3px;
           max-width:300px;margin-left:auto}
-.tagline{color:var(--sub);max-width:660px;margin:10px 0 18px;font-size:13.5px}
-.tagline em{color:var(--gold);font-weight:700;font-style:normal}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:14px}
 .head{font-size:10.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
@@ -186,27 +184,6 @@ button.small{padding:4px 10px;font-size:12px}
 .calsub b{color:var(--gold);font-weight:700}
 .calrule{margin-top:7px;padding-top:7px;border-top:1px solid rgba(77,159,255,.2)}
 
-.tradehead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px}
-/* Collapsed, the header is the whole card. Drop only its trailing margin — keep the card's own
-   padding, so the row sits at the same height whether the card is open or shut. */
-.card.tradecollapsed .tradehead{margin-bottom:0}
-.tradehead .tk{font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:.02em}
-.actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(252px,1fr));gap:10px;margin-top:12px}
-/* Trim holds five controls where its neighbours hold two. Left to auto-fit it wrapped to a second
-   line and dragged every panel to that height, so above this width the row is proportioned. */
-@media(min-width:1120px){
-  .actions.actrow{grid-template-columns:minmax(140px,1fr) minmax(300px,2fr) minmax(150px,1fr) minmax(150px,1fr)}
-}
-.action{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
-.action .t{font-size:9.5px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-.sublbl{font-size:11.5px;color:var(--sub);margin-bottom:4px}
-.sublbl .muted{font-size:11px}
-.action .row{align-items:stretch}
-.action .row input{width:auto;flex:1;min-width:64px}
-/* Buttons sit beside fields constantly here; a shorter control next to a taller one reads as a
-   mistake, so every control on a row shares the row height. */
-.action .row button,.sechead button{min-height:33px}
-.action .row>span{display:flex;align-items:center}
 .ladder{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 .rung{background:rgba(0,0,0,.22);border:1px solid var(--line2);border-radius:8px;padding:4px 10px;font-family:var(--mono);font-size:12px;color:var(--sub)}
 .rung b{color:var(--gold);font-weight:700}
@@ -232,8 +209,6 @@ td.num,th.num{text-align:right;font-family:var(--mono)}
 details{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
 details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600;list-style:none}
 details summary::-webkit-details-marker{display:none}
-.sechead{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-.sechead.bare{margin:18px 0 10px;padding:0 4px}
 button.warn{color:var(--amber);border-color:rgba(240,168,50,.55)}
 button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(--amber)}
 .dedit{cursor:pointer;border-bottom:1px dotted var(--line2);padding-bottom:1px}
@@ -241,23 +216,15 @@ button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(
 details summary::before{content:"\25B8  ";color:var(--mut)}
 details[open] summary::before{content:"\25BE  "}
 .tabs{display:flex;gap:6px;row-gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-/* A group is marked by a dot, and when open it holds its members inside a bordered box so the
-   nesting is visible rather than implied by order. */
 .modal{display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);
        align-items:center;justify-content:center;padding:20px}
 .modalcard{background:var(--panel);border:1px solid var(--line2);border-radius:14px;
            padding:18px 22px;max-width:460px;width:100%;max-height:80vh;overflow:auto}
+/* A group is marked by a dot, and when open it holds its members inside a bordered box (.gbox). */
 .gdot{color:#fff;font-size:8px;vertical-align:middle;margin-right:5px}
-/* A real border with real padding, and a negative vertical margin of exactly the height it adds
-   (1px border + 4px padding, top and bottom). The box paints outside the row without growing it,
-   so opening a group cannot shove the desk down. */
-/* Separates what you select (accounts, groups) from what you do (create, edit, delete). */
-/* The desk's working surface: price, stop, tier, share count. No ticker, no plan, no record. */
+/* The calculator's working surface: price, stop, the range. No ticker, no plan, no record. */
 .fastcalc{margin-top:14px;padding:12px 14px;border:1px solid rgba(176,141,63,.35);
           border-radius:12px;background:rgba(176,141,63,.06)}
-/* Equal columns, not content-width buttons. The labels differ in length — "2R" against "0.5R" —
-   so a flex row re-widths itself the moment a tier value is edited, and the thing you were about to
-   click moves. Three equal cells with a floor keep the group still. */
 /* The whole range, side by side. Equal cells so a tier label changing length cannot shuffle the
    thing you were about to click. */
 .fcrange{display:flex;gap:6px}
@@ -273,40 +240,27 @@ details[open] summary::before{content:"\25BE  "}
 .fccell .a{font-size:10px;color:var(--sub);font-family:var(--mono);white-space:nowrap}
 .fccell-line{font-size:11.5px;color:var(--sub);font-family:var(--mono);margin-top:2px}
 .fccell .w{font-size:10px;color:var(--amber)}
-/* Sits on the input row inside the pinned block, so it is sized to that row's height rather than
-   setting a taller one. */
-.fcbig{font-family:var(--mono);font-size:25px;font-weight:700;color:var(--gold);line-height:1.1}
 .topbar .mast .logo{font-size:26px}
 .fcsub{font-size:12.5px;color:var(--sub);margin-top:3px}
 .fcsub b{color:var(--tx)}
 /* Gold bar wherever two parallel things sit side by side, in a label or a value. */
 .vbar{color:var(--gold);font-weight:700;padding:0 6px}
-.tabsep{display:inline-block;width:2px;height:20px;border-radius:1px;background:var(--gold);
-        opacity:.7;margin:0 6px;flex:none}
+/* A real border with real padding, and a negative vertical margin of exactly the height it adds
+   (1px border + 4px padding, top and bottom), so opening a group cannot push the strip down. */
 .gbox{display:inline-flex;gap:6px;align-items:center;padding:4px 6px;
       border:1px solid var(--blue);border-radius:13px;background:var(--bluebg);
       margin:-5px 3px}
 .chart{width:100%;height:120px;display:block}
-.spark{width:100%;height:86px;display:block;margin-top:10px}
 .hint{font-size:11.5px;color:var(--mut);margin-top:6px}
 .split{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media(min-width:900px){.split3{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:660px){.split{grid-template-columns:1fr}.wrap{padding:16px 12px 60px}}
-.four{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:8px;margin:0 0 20px}
-.four div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-.four .n{font-family:var(--mono);font-size:10px;color:var(--blue);font-weight:700;letter-spacing:.1em}
-.four .w{font-size:13px;font-weight:600;margin-top:1px}
-.four .d{font-size:11px;color:var(--mut)}
-.chk{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--sub);margin-bottom:5px;cursor:pointer}
-.chk input{width:auto;margin:3px 0 0;accent-color:var(--blue);cursor:pointer}
-.chk b{color:var(--gold);font-weight:700}
 /* ---- squared corners ----
    Panels are square; the things you press or read a state off stay round. The split is by role, not
    by size: a card, a metric, a modal, a banner and a chip of data are all surfaces, while buttons,
    inputs and the status pills (long/short/tier/house) are controls and labels. Declared in one
    place and last in the sheet, so a radius cannot drift back in from an earlier rule. */
-.card,.metric,.calbox,.action,.fastcalc,.modalcard,.banner,.rung,.four div,
-.tradehead,.scroll{border-radius:0}
+.card,.metric,.calbox,.fastcalc,.modalcard,.banner,.rung,.scroll{border-radius:0}
 .pill,button,input,select,textarea,.devbadge,.gbox{border-radius:var(--r,8px)}
 .pill,.devbadge{--r:999px}
 /* The group box wraps buttons rather than content -- it is a control grouping, not a surface, so
@@ -420,7 +374,6 @@ button.small{--r:7px}
 
   <div class="row" style="margin-top:13px;align-items:center">
     <button class="primary" id="nt_open">Open trade</button>
-    <span class="muted" id="nt_gate"></span>
     <button class="small" id="nt_clear" title="Clear the whole form" style="margin-left:auto">&#10005;</button>
   </div>
   <div class="err" id="nt_err"></div>
@@ -542,15 +495,15 @@ button.small{--r:7px}
           <select id="s_targetsOn"><option value="1">Show</option><option value="0">Hide</option></select></div>
         <div><label for="s_target0">Target 1 (R)<span class="info" data-tip="First target, as a multiple of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
         <div><label for="s_target1">Target 2 (R)<span class="info" data-tip="Second target, measured the same way.">i</span></label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
-        <div><label for="s_fuzz">Fuzziness %</label><input id="s_fuzz" type="number" step="1" min="0"></div>
-        <div><label for="s_noiseOn">Noise check</label>
+        <div><label for="s_fuzz">Fuzziness %<span class="info" data-tip="How far past the risk budget or max allocation a suggested size may go to reach the next whole share or lot.">i</span></label><input id="s_fuzz" type="number" step="1" min="0"></div>
+        <div><label for="s_noiseOn">Noise check<span class="info" data-tip="Compares the stop distance with the stock's APTR and colours it against the tight and noise-floor levels under Statistics and definitions.">i</span></label>
           <select id="s_noiseOn"><option value="0">Off</option><option value="1">On</option></select></div>
-        <div><label for="s_maxAllocOn">Max allocation</label>
+        <div><label for="s_maxAllocOn">Max allocation<span class="info" data-tip="Whether suggested sizes are capped at a share of AUM.">i</span></label>
           <select id="s_maxAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_maxAlloc">&mdash; cap (% of equity)</label><input id="s_maxAlloc" type="number" step="1" min="1"></div>
-        <div><label for="s_minAllocOn">Min allocation</label>
+        <div><label for="s_maxAlloc">&mdash; cap (% of equity)<span class="info" data-tip="Largest position value a suggested size may reach, as a percentage of AUM.">i</span></label><input id="s_maxAlloc" type="number" step="1" min="1"></div>
+        <div><label for="s_minAllocOn">Min allocation<span class="info lt" data-tip="Whether a suggested size below a share of AUM is marked as under the minimum.">i</span></label>
           <select id="s_minAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_minAlloc">&mdash; floor (% of equity)</label><input id="s_minAlloc" type="number" step="0.5" min="0.1"></div>
+        <div><label for="s_minAlloc">&mdash; floor (% of equity)<span class="info lt" data-tip="Position value below which a suggested size is marked under the minimum, as a percentage of AUM.">i</span></label><input id="s_minAlloc" type="number" step="0.5" min="0.1"></div>
         <div><label for="s_shortGuard">Unstopped short<span class="info lt" data-tip="What a short position with shares no stop covers does to new trades in that account. Block refuses new trades there until a stop covers it; Warn only flags it.">i</span></label>
           <select id="s_shortGuard"><option value="block">Block new trades</option><option value="warn">Warn only</option></select></div>
       </div>
@@ -1800,7 +1753,7 @@ function renderSetupOptions(){
 // share count. Side is inferred from which way the stop sits, so it is one less field to touch.
 // Nothing here is recorded — commit the real fill through New Trade afterwards.
 window.setFcTier = i => { root.fcTier = i; save(); renderFastCalc(); };
-window.clearFc = () => { $("fc_price").value = ""; $("fc_stop").value = ""; renderFastCalc(); };
+window.clearFc = () => { $("fc_price").value = ""; $("fc_stop").value = ""; root.fcTier = 1; renderFastCalc(); };
 
 // Hand the numbers to New Trade so the only thing left to change is the price you actually got.
 window.fcToNewTrade = () => {
@@ -2310,6 +2263,7 @@ function openTrade(){
     createdAt: Date.now(), lastMarkTs: Date.now()
   });
 
+  root.fcTier = 1;                   // the next trade starts from A, whatever this one was
   clearNewTrade();
   save(); render();
 }
@@ -2393,8 +2347,8 @@ function positionRow(t, acct, showAcct){
   const f = posFacts(t), d = f.d, S = f.S;
   const open = !!rowOpen[t.id];
   const cols = showAcct ? 11 : 10;
-  // No stop at all is the degenerate uncovered position: nothing caps the loss. Split stops arrive
-  // with phase 4, and this is the same warning for the same reason.
+  // Lit when the stops cover fewer shares than held (open risk) or more (an unintended position the
+  // other way once they fill). No stop at all is the fewer-shares case taken to its end.
   const cov = f.cover;
   const stopWarn = cov.under > 0 || cov.over > 0;
 
@@ -2565,10 +2519,6 @@ function groupHeaderRow(gid, run, showAcct){
     '</tr></tbody>';
 }
 
-/* ---- the row's four actions ----
-   Buy and Sell take a price and a quantity and nothing else; Stop takes a price. The break-even
-   preview and split stops arrive with phase 4, along with Buy, which needs the `add` event to be
-   written again rather than only replayed. */
 /* ---- Buy and Sell ----
    Both buttons mean what they say at the broker, so on a short they swap roles: Buy covers and
    Sell adds. Which means neither button is "add" or "reduce" -- the side decides, and getting that
@@ -2673,20 +2623,25 @@ function readStopRows(){
     p: row.querySelector(".sp").value.trim()
   }));
 }
-function paintStopRows(rows){
+// pct: the group dialog, where a rung is a percentage of each leg rather than a share count. The
+// mode is remembered so adding or removing a row repaints in the same units.
+let stopRowsPct = false;
+function paintStopRows(rows, pct){
   const box = $("stopRows");
   if(!box) return;
+  if(pct!==undefined) stopRowsPct = !!pct;
   box.innerHTML = rows.map((r,i)=>
     '<div class="ctlrow srow" style="margin-bottom:6px">' +
-      '<input class="sq" type="number" step="any" min="0" placeholder="all" value="'+esc(r.q)+'" style="width:88px">' +
-      '<span class="suffix">sh&nbsp;@</span>' +
+      '<input class="sq" type="number" step="any" min="0" placeholder="'+(stopRowsPct?"rest":"all")+'" value="'+esc(r.q)+'" style="width:88px">' +
+      '<span class="suffix">'+(stopRowsPct?"%":"sh")+'&nbsp;@</span>' +
       '<input class="sp" type="number" step="any" placeholder="price" value="'+esc(r.p)+'" style="width:auto;flex:1">' +
       '<button class="small danger" tabindex="-1" title="Remove"'+(rows.length>1?'':' disabled style="opacity:.35"')+
         ' onclick="delStopRow('+i+')">&#10005;</button>' +
     '</div>').join("");
 }
-window.addStopRow = () => { const r = readStopRows(); r.push({q:"",p:""}); paintStopRows(r); stopNote(); };
-window.delStopRow = i => { const r = readStopRows(); if(r.length<2) return; r.splice(i,1); paintStopRows(r); stopNote(); };
+// The dialog's own preview, whichever dialog this is -- single, group, or an edit with none.
+window.addStopRow = () => { const r = readStopRows(); r.push({q:"",p:""}); paintStopRows(r); if(modalInput) modalInput(); };
+window.delStopRow = i => { const r = readStopRows(); if(r.length<2) return; r.splice(i,1); paintStopRows(r); if(modalInput) modalInput(); };
 
 let stopCtx = null;                                   // {t, d} for the open dialog
 function stopNote(){
@@ -2742,7 +2697,7 @@ window.stopUI = id => {
       return null;
     },
     stopNote);
-  paintStopRows(start);
+  paintStopRows(start, false);
   stopNote();
 };
 
@@ -2985,7 +2940,7 @@ window.editEvent = (id, i) => {
 
   if(type==="stop"){
     const st = stopsFrom(e);
-    paintStopRows(st.length ? st.map(s=>({q:s.qty==null?"":String(s.qty), p:String(s.price)})) : [{q:"",p:""}]);
+    paintStopRows(st.length ? st.map(s=>({q:s.qty==null?"":String(s.qty), p:String(s.price)})) : [{q:"",p:""}], false);
   }
 };
 
@@ -3002,64 +2957,14 @@ window.deleteEvent = (id, i) => {
 };
 
 /* ========================= trade actions ========================= */
-window.setLast = id => {
-  const t = getTrade(id), v = parseFloat($("px_"+id).value);
-  if(t && !isNaN(v) && v>0){ t.last = v; t.lastMarkTs = Date.now(); save(); render(); }
-};
-window.doTrim = (id, frac) => {
-  const t = getTrade(id), d = derive(t), errEl = $("trerr_"+id);
-  let P = parseFloat($("trp_"+id).value);
-  if(isNaN(P)) P = t.last;
-  let q = frac!=null ? Math.floor(d.Q*frac) : parseFloat($("trq_"+id).value);
-  if(isNaN(q) || q<=0){ errEl.textContent = "Enter a quantity (or use 25% / 50%)."; return; }
-  if(q>d.Q) q = d.Q;
-  t.events.push({type:"trim", qty:q, price:P, ts:Date.now()});
-  t.last = P; t.lastMarkTs = Date.now();
-  syncCompound(t);                       // banked profit is equity the moment it is banked
-  save(); render();
-};
-window.moveStop = id => {
-  const t = getTrade(id), v = parseFloat($("stp_"+id).value);
-  if(isNaN(v)) return;
-  t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()});
-  save(); render();
-};
-window.doAdjust = id => {
-  const t = getTrade(id), errEl = $("ajerr_"+id);
-  const q = parseFloat($("ajq_"+id).value), a = parseFloat($("aja_"+id).value);
-  if(isNaN(q) && isNaN(a)){ errEl.textContent = "Enter a position size or an average price — a blank field keeps its current value."; return; }
-  if(!isNaN(q) && q<0){ errEl.textContent = "Position size can't be negative (side is fixed on the trade)."; return; }
-  t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
-  syncCompound(t);                       // an override of size or average price moves realised too
-  save(); render();
-};
-window.undoEvent = id => {
-  const t = getTrade(id);
-  if(!t) return;
-  if(t.events.length<=1){ alert("Only the opening entry remains. Delete the trade instead if it was a mistake."); return; }
-  const e = t.events[t.events.length-1];
-  const desc = e.type + (e.qty!=null?" "+fmtQ(e.qty):"") + (e.price!=null?" @ "+fmtP(e.price):"") + (e.stop!=null?" · stop "+fmtP(e.stop):"");
-  if(!confirm("Undo the last event ("+desc+")? It is removed from the log.")) return;
-  t.events.pop();
-  syncCompound(t);                       // undoing a trim takes its profit back out of equity
-  save(); render();
-};
+// From the trade's own account, not from `state`: the lookup already spans every book, and the
+// delete has to remove it from the same one it was found in.
 window.deleteTrade = id => {
   const t = getTrade(id);
   if(!t) return;
   if(!confirm("Delete "+t.ticker+" permanently, with its full event log"+(t.status==="closed"?" and its place in the tally":"")+"? AUM is not adjusted.")) return;
-  state.trades = state.trades.filter(x=>x.id!==id);
-  save(); render();
-};
-window.closeTrade = id => {
-  const t = getTrade(id), d = derive(t), errEl = $("clerr_"+id);
-  const P = parseFloat($("clp_"+id).value);
-  if(isNaN(P)){ errEl.textContent = "Enter the exit price."; return; }
-  if(d.Q>0) t.events.push({type:"close", qty:d.Q, price:P, ts:Date.now()});
-  t.status = "closed"; t.closedAt = Date.now(); t.last = P; t.lastMarkTs = Date.now();
-  // Folds in whatever this trade has not already banked into equity, not its whole realised
-  // total -- trims along the way have already contributed their share.
-  syncCompound(t, acctOf(id));
+  const pf = root.portfolios[acctOf(id)];
+  pf.trades = pf.trades.filter(x=>x.id!==id);
   save(); render();
 };
 // Which position rows are open. Deliberately NOT persisted and not on a trade: a row expansion is
@@ -3838,6 +3743,7 @@ function openGroupTrade(){
       createdAt: now, lastMarkTs: now
     });
   });
+  root.fcTier = 1;                           // the next trade starts from A, whatever this one was
   clearNewTrade();                           // a fill belongs to the trade it came from
   save(); render();
 }
@@ -3846,14 +3752,8 @@ function openGroupTrade(){
 const legsOf = gid => scopeTrades("open").filter(x=>x.t.gid===gid);
 function gEach(gid, fn){ legsOf(gid).forEach(x=>fn(x.t, x.acct)); save(); render(); }
 
-// These used to read inputs out of the group card. They take their values as arguments now, which
-// is what lets the same broadcast run from a modal -- and means the trim fraction, the one piece of
-// real logic here, is not tangled up with where the number was typed.
-window.gMoveStopTo = (gid, v) => {
-  if(isNaN(v)) return "Enter a stop price.";
-  gEach(gid, t=>t.events.push({type:"stop", stop:v, price:t.last, ts:Date.now()}));
-  return null;
-};
+// These take their values as arguments rather than reading inputs, so the broadcast runs from a
+// modal and the trim fraction -- the one piece of real logic -- is not tangled up with the form.
 // Trims broadcast as a fraction, never a share count — the accounts hold different sizes.
 window.gTrimFrac = (gid, f, P0) => {
   if(!(f>0)) return "Enter a percentage.";
@@ -3881,12 +3781,6 @@ window.gCloseAt = (gid, P) => {
   });
   return null;
 };
-window.gDelete = gid => {
-  const legs = legsOf(gid);
-  if(!confirm("Delete this group trade from all "+legs.length+" account(s)? This cannot be undone.")) return;
-  legs.forEach(x=>{ root.portfolios[x.acct].trades = root.portfolios[x.acct].trades.filter(t=>t.id!==x.t.id); });
-  save(); render();
-};
 
 /* ---- the group header row's actions ----
    A fanned-out trade is one decision taken in several accounts, so the header acts on all of them
@@ -3906,51 +3800,112 @@ window.gAddFrac = (gid, f, P) => {
   });
   return any ? null : "That percentage rounds to zero shares in every account.";
 };
-window.gBuyUI = gid => {
+/* ---- the group popups ----
+   The same three dialogs a single position has, with one difference forced by the accounts holding
+   different sizes: quantities are a percentage of each leg, never a share count. The live preview
+   is per account, because the break-even, the shares left and the warnings genuinely differ by
+   account -- and it reuses addNote and reduceNote, so a leg previews exactly as it would alone. */
+function gTradeUI(gid, kind){
   const legs = legsOf(gid);
   if(!legs.length) return;
-  const first = legs[0].t, add = isAdd(first.side, "buy");
-  const totQ = legs.reduce((a,x)=>a+derive(x.t).Q, 0);
-  openModal((add?"Buy ":"Buy to cover ") + esc(first.ticker) +
-      ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
+  const first = legs[0].t, add = isAdd(first.side, kind);
+  const verb = kind==="buy" ? "Buy" : "Sell";
+  const sub = add ? "adds to" : (first.side>0 ? "reduces" : "covers");
+  const quick = add ? "" :
+    '<div class="row" style="margin-top:6px">' +
+      [[25,"25%"],[50,"50%"],[100,"All"]].map(([p,label])=>
+        '<button class="small" onclick="setPct('+p+')">'+label+'</button>').join("") +
+    '</div>';
+  openModal(verb + " " + esc(first.ticker) +
+      ' <span class="muted" style="text-transform:none;letter-spacing:0">' + sub + ' ' + legs.length + ' accounts</span>',
     '<div class="row">' +
       '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>' +
-      '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="25"></div>' +
-    '</div>' +
-    '<div class="muted" style="margin-top:6px">A percentage of what each account already holds. ' +
-      fmtQ(totQ)+' shares open in total.</div>',
-    add ? "Buy" : "Cover",
+      '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="'+(add?"25":"33")+'"></div>' +
+    '</div>' + quick,
+    verb,
     () => add ? gAddFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px")))
-              : gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))));
+              : gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))),
+    () => {
+      const el = $("m_note");
+      if(!el) return;
+      const P = parseFloat(mv("m_px")), f = parseFloat(mv("m_pct"))/100;
+      if(!(P>0) || !(f>0)){ el.innerHTML = ""; return; }
+      el.innerHTML = '<table style="margin-top:8px">' + legsOf(gid).map(x=>{
+        const d = derive(x.t), q = Math.floor(d.Q*Math.min(f, add ? f : 1));
+        return '<tr><td>'+esc(x.acct)+'</td><td class="num">'+(q>0 ? (add?"+":"&minus;")+fmtQ(q) : "0")+'</td><td>' +
+          (q>0 ? (add ? addNote(x.t, d, P, q, x.acct) : reduceNote(x.t, d, P, q)) : '<span class="muted">rounds to 0 shares</span>') +
+          '</td></tr>';
+      }).join("") + '</table>';
+    });
+}
+window.gBuyUI  = gid => gTradeUI(gid, "buy");
+window.gSellUI = gid => gTradeUI(gid, "sell");
+window.setPct = p => {
+  const el = $("m_pct");
+  if(!el) return;
+  el.value = p;
+  el.dispatchEvent(new Event("input", {bubbles:true}));
 };
-window.gSellUI = gid => {
-  const legs = legsOf(gid);
-  if(!legs.length) return;
-  // Sell on a short is an add, exactly as it is on a single position.
-  const first = legs[0].t, add = isAdd(first.side, "sell");
-  const totQ = legs.reduce((a,x)=>a+derive(x.t).Q, 0);
-  openModal("Sell " + esc(first.ticker) +
-      ' <span class="muted" style="text-transform:none;letter-spacing:0">' +
-      (add ? "adds to" : "reduces") + " " + legs.length + ' accounts</span>',
-    '<div class="row">' +
-      '<div style="flex:1"><label for="m_px">Price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>' +
-      '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="33"></div>' +
-    '</div>' +
-    '<div class="muted" style="margin-top:6px">A percentage, not a share count &mdash; the accounts hold different sizes. ' +
-      fmtQ(totQ)+' shares open in total.</div>',
-    "Sell",
-    () => add ? gAddFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px")))
-              : gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))));
-};
+
+// A rung's share of each leg becomes a share count per account. Blank means the whole position
+// when it is the only rung, and whatever the other rungs leave when there are several; rungs that
+// add up to exactly 100% give the rounding remainder to the last one, so nothing is left uncovered
+// by a share lost to flooring.
+function legStops(Q, rows){
+  if(rows.length===1 && rows[0].pct==null) return [{qty:null, price:rows[0].price}];
+  const out = rows.map(r=>({qty: r.pct==null ? null : Math.floor(Q*r.pct/100), price:r.price}));
+  const pcts = rows.map(r=>r.pct);
+  if(pcts.every(p=>p!=null) && Math.abs(pcts.reduce((a,p)=>a+p,0)-100) < 1e-9){
+    const others = out.slice(0,-1).reduce((a,s)=>a+s.qty, 0);
+    out[out.length-1].qty = Math.max(0, Q - others);
+  }
+  return out;
+}
+const readPctRows = () => readStopRows().filter(r=>r.p!=="" && !isNaN(+r.p))
+  .map(r=>({pct: r.q==="" ? null : Math.abs(+r.q), price:+r.p}));
+
 window.gStopUI = gid => {
   const legs = legsOf(gid);
   if(!legs.length) return;
   const first = legs[0].t, d0 = derive(first);
-  openModal("Stop &mdash; " + esc(first.ticker) +
+  // Start from the first leg's rungs, read back as percentages of that leg.
+  const start = d0.stops.length
+    ? d0.stops.map(s=>({q: s.qty==null ? "" : String(Math.round(s.qty/d0.Q*1000)/10), p:String(s.price)}))
+    : Array.from({length: Math.max(1, ui().stopCount||1)}, ()=>({q:"",p:""}));
+  openModal("Stops &mdash; " + esc(first.ticker) +
       ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
-    '<div><label for="m_stop">Stop price</label><input id="m_stop" type="number" step="any" value="'+
-      (d0.stop!=null?d0.stop:"")+'"></div>',
-    "Move", () => gMoveStopTo(gid, parseFloat(mv("m_stop"))));
+    '<div class="lbl">Percent of each leg at price &mdash; blank covers the rest</div>' +
+    '<div id="stopRows"></div>' +
+    '<button class="small" onclick="addStopRow()">Add a stop</button>',
+    "Save stops",
+    () => {
+      const rows = readPctRows();
+      if(!rows.length) return "Enter at least one stop price.";
+      gEach(gid, t=>{
+        const stops = legStops(derive(t).Q, rows);
+        t.events.push(stops.length===1 && stops[0].qty==null
+          ? {type:"stop", stop:stops[0].price, price:t.last, ts:Date.now()}
+          : {type:"stop", stops, price:t.last, ts:Date.now()});
+      });
+      return null;
+    },
+    () => {
+      const el = $("m_note");
+      if(!el) return;
+      const rows = readPctRows();
+      if(!rows.length){ el.innerHTML = ""; return; }
+      el.innerHTML = '<table style="margin-top:8px">' + legsOf(gid).map(x=>{
+        const d = derive(x.t), probe = {Q:d.Q, avg:d.avg, stops:legStops(d.Q, rows)};
+        const cov = coverage(probe), seq = riskAtStop(x.t, probe) - d.realized;
+        return '<tr><td>'+esc(x.acct)+'</td><td>' +
+          (cov.under>0 ? '<span style="color:var(--amber)">'+fmtQ(cov.under)+" of "+fmtQ(d.Q)+" uncovered</span>"
+           : cov.over>0 ? '<span style="color:var(--amber)">covers '+fmtQ(cov.covered)+" against "+fmtQ(d.Q)+"</span>"
+           : "covers all "+fmtQ(d.Q)) + '</td><td class="num">' +
+          (seq <= 0 ? "locks <b>"+fmtR(-seq/x.t.rUnit)+"</b>" : "risks <b>"+fmt$(seq)+"</b>") + '</td></tr>';
+      }).join("") + '</table>';
+    });
+  paintStopRows(start, true);
+  if(modalInput) modalInput();
 };
 window.gCloseUI = gid => {
   const legs = legsOf(gid);
@@ -4146,8 +4101,7 @@ function render(){
 /* ========================= audit ledger =========================
    Every transaction in the book, newest first, across whatever is in view. The CSV side of Audit
    needs a thinkorswim test case, but the ledger does not, and it is the half that gets used daily.
-   An edited transaction carries an "Adj." tag -- nothing writes one yet, because editing arrives
-   with the Buy / Sell / Stop phase. */
+   A transaction edited from the gear carries an "Adj." tag, with what it was in the tooltip. */
 function renderLedger(){
   const box = $("ledger"), sum = $("auditSummary");
   if(!box) return;
@@ -4470,7 +4424,11 @@ document.addEventListener("keydown", e=>{
   if(e.key === "Escape" && $("modal").style.display === "flex") closeModal();
 });
 
-load(); bindSettings(); render();
+load();
+// Fast calc always starts on tier A. The highlight is a choice made for one trade; carried over a
+// reload it would quietly file the next one under whatever the last happened to be.
+root.fcTier = 1;
+bindSettings(); render();
 tickClock(); setInterval(tickClock, 1000);
 if(root.finnhub && allOpenTrades().length) refreshMarks();
 setInterval(pollMarks, 60000);

@@ -85,7 +85,8 @@ because the pattern recurs.
     positions until a stop is added — a default, changeable in settings, not a rule. Switched off,
     the basis falls back to realised-only while any short is unguarded.*
 
-12. **Max stop width and the 1.5-APTR floor can leave an empty band.** A 12% APTR wants a stop
+12. *Moot 2026-10-26 — max stop width was ruled out, so there is no band.* **Max stop width and
+    the 1.5-APTR floor can leave an empty band.** A 12% APTR wants a stop
     around 18% wide, which a 5% max forbids. Two guards that are really one conclusion — *this stock
     is too volatile for your rules* — and it must be said once, not twice. *Live in v2, where both
     guards exist.*
