@@ -320,6 +320,38 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-26 — v2.0-dev, shorts, lots, marks, setups, closed-trade gear (V2-PLAN decisions 8–12)
+
+- **Unstopped short setting**, Block by default, Warn as the alternative.
+- **Lot rounding works**: On/Off and "to the nearest multiple of:", per account, default 1,
+  consumed by `tierSize` with the fuzziness rule. Closes register #37.
+- **Manual marks popup** when no key is set, Wheeler-style, all accounts. v2 had no way to mark a
+  position by hand at all before this.
+- **Setups are one list**, SCHEMA 4. Free-text history shows as Legacy until refiled; the gear
+  takes a list rather than free text, which closes register #42's two-vocabularies problem.
+- **Gear on closed trades**, including the fields that lock at open (ticker, AUM and 1R at open),
+  because a fat-fingered value in v1 had no correction path.
+
+### 2026-10-26 — v2.0-dev, takeover fixes (decisions in V2-PLAN.md, "Settled 2026-10-26")
+
+- **Sizing is off AUM = cash + stop × shares** (`aumOf`). Unstopped long shares count at a $0
+  stop and are flagged; unstopped shorts flagged as unbounded. Closes the protected-equity To do
+  item above. The `_dev/compare.js` harness now differs from v1.3 on `rUnit` wherever positions
+  are open — by design, not a regression.
+- **One sizer.** `tierSize` takes the largest count under the risk budget and max allocation, or
+  the share just over when inside fuzziness. New Trade's blank-shares fallback and group New Trade
+  used their own floor-only sizers that ignored fuzziness and max allocation; both now call it.
+  Group mode disables the Shares box rather than silently ignoring it (register #5, which was live).
+- **Fixed:** Send → New Trade carried the wrong tier's size whenever A+ or B was selected (B sent
+  A+'s count, 4× the risk). Clearing a date in the gear moved the event before the entry and erased
+  its realised P/L. Deleting or editing an earlier event could leave a "closed" trade holding
+  shares, hidden from Portfolio — status now follows the shares (`syncStatus`). Gear dates refuse
+  the future and anything before the entry. An unstopped position counted as house money in the
+  book bar. Group heat and cold streak summed R across legs. Modal input listeners piled up and
+  threw after close. Hide values printed `&middot;` literally in inputs.
+- **Coaching text removed** throughout, Closed Trades and Statistics included. The two loss-tag
+  tiles keyed on hard-coded tag names became one tile counting whatever tags exist.
+
 ### 2026-10-21 — v1.3, internal R and account R
 
 - **Targets are internal to the trade.** `ladder()` now prices `entry + k × riskPerShare`, so a $10

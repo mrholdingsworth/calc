@@ -223,6 +223,8 @@ td.tickcell{white-space:nowrap}
    there is simply work outstanding. */
 tr.reviewdue td{background:rgba(176,141,63,.09)}
 tr.reviewdue td:first-child{box-shadow:inset 3px 0 0 var(--gold)}
+/* A setup typed freehand before setups were a list, waiting to be refiled from the gear. */
+td.legacy{background:var(--amberbg)}
 .revdot{color:var(--gold);font-size:11px;vertical-align:middle}
 td.num,th.num{text-align:right;font-family:var(--mono)}
 .scroll{overflow-x:auto}
@@ -439,7 +441,7 @@ button.small{--r:7px}
   <div class="card">
     <div class="panehead"><h2>Statistics</h2>
       <span id="chartsAcct"></span><span class="muted" id="chartsSummary"></span></div>
-    <div id="chartsEmpty" class="muted">Close a few trades and the picture builds itself.</div>
+    <div id="chartsEmpty" class="muted">Needs 2 closed trades.</div>
     <div id="chartsBox" style="display:none">
       <div class="lbl" style="margin-top:14px">Statistics</div>
       <div class="statrow" id="stats2" style="margin-bottom:12px"></div>
@@ -450,7 +452,7 @@ button.small{--r:7px}
           <div class="scroll"><table id="tierTbl"></table></div>
         </div>
         <div class="metric" style="padding:10px 12px">
-          <div class="k">By concept</div>
+          <div class="k">By setup</div>
           <div class="scroll"><table id="conceptTbl"></table></div>
         </div>
       </div>
@@ -510,7 +512,7 @@ button.small{--r:7px}
       <div class="head">Accounts</div>
       <div id="acctAdmin" style="margin-bottom:14px"></div>
       <div class="fields deskrow">
-        <div id="aumCell"><label for="aum">Portfolio value (AUM)<span class="info" data-tip="Equity this account sizes from. It moves on its own as trades realise, so use Deposit and Withdraw for money actually arriving or leaving.">i</span></label><input id="aum" type="text" inputmode="decimal"></div>
+        <div id="aumCell"><label for="aum">Book at cost<span class="info" data-tip="Cash plus what was paid for open positions. AUM is this with every open position valued at its stop instead. Moves on its own as trades realise; Deposit and Withdraw record money arriving or leaving.">i</span></label><input id="aum" type="text" inputmode="decimal"></div>
         <div id="marginCell"><label for="marginOn">Margin<span class="info" data-tip="Buying power as a multiple of equity. Off means cash: you can hold only what you can pay for. On, enter any rate your broker gives you.">i</span></label>
           <div class="ctlrow">
             <label class="inchk" for="marginOn"><input type="checkbox" id="marginOn">on</label>
@@ -549,10 +551,9 @@ button.small{--r:7px}
         <div><label for="s_minAllocOn">Min allocation</label>
           <select id="s_minAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
         <div><label for="s_minAlloc">&mdash; floor (% of equity)</label><input id="s_minAlloc" type="number" step="0.5" min="0.1"></div>
-        <div style="grid-column:span 3"><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Names offered when recording a trade. Suggestions only: anything can be typed, and a trade opens without one.">i</span></label>
-          <textarea id="s_setups" style="min-height:62px"></textarea></div>
+        <div><label for="s_shortGuard">Unstopped short<span class="info lt" data-tip="What a short position with shares no stop covers does to new trades in that account. Block refuses new trades there until a stop covers it; Warn only flags it.">i</span></label>
+          <select id="s_shortGuard"><option value="block">Block new trades</option><option value="warn">Warn only</option></select></div>
       </div>
-      <div class="muted" style="margin-top:8px">Max stop width still to come.</div>
     </div>
 
     <div class="setgrp">
@@ -567,9 +568,12 @@ button.small{--r:7px}
         <div><label for="s_aptrTight">APTR &mdash; tight<span class="info lt" data-tip="Stop distance, in average true ranges, below which the volatility check shows red.">i</span></label><input id="s_aptrTight" type="number" step="0.1" min="0.1"></div>
         <div><label for="s_aptrFloor">APTR &mdash; noise floor<span class="info lt" data-tip="And below which it shows amber. Above it, green.">i</span></label><input id="s_aptrFloor" type="number" step="0.1" min="0.1"></div>
       </div>
-      <div style="margin-top:10px"><label for="s_lossTags">Loss tags &mdash; one per line<span class="info" data-tip="Reasons offered when tagging a loss, one per line. A tag you remove stays on the trades already carrying it, marked retired.">i</span></label>
-        <textarea id="s_lossTags" style="min-height:62px"></textarea></div>
-      <div class="muted" style="margin-top:6px">Changing a definition re-measures every closed trade. A tag you remove stays on the trades that carry it, marked retired.</div>
+      <div class="split" style="margin-top:10px">
+        <div><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Setups offered on New Trade and in each trade's gear. A setup you remove stays on the trades carrying it, marked retired.">i</span></label>
+          <textarea id="s_setups" style="min-height:62px"></textarea></div>
+        <div><label for="s_lossTags">Loss tags &mdash; one per line<span class="info lt" data-tip="Reasons offered when tagging a loss, one per line. A tag you remove stays on the trades already carrying it, marked retired.">i</span></label>
+          <textarea id="s_lossTags" style="min-height:62px"></textarea></div>
+      </div>
     </div>
 
     <div class="setgrp">
@@ -580,7 +584,9 @@ button.small{--r:7px}
         <div><label for="s_colourGrade">Gain/loss colour<span class="info" data-tip="Colour positive and negative figures green and red.">i</span></label>
           <select id="s_colourGrade"><option value="1">On</option><option value="0">Off</option></select></div>
         <div><label for="s_stopCount">Stops loaded per trade<span class="info" data-tip="How many stop rows a newly opened position starts with.">i</span></label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
-        <div><label for="s_lotRound">Lot rounding (shares)<span class="info lt" data-tip="Round share counts down to a multiple of this.">i</span></label><input id="s_lotRound" type="number" step="1" min="1"></div>
+        <div id="lotOnCell"><label for="s_lotOn">Lot rounding<span class="info lt" data-tip="Per account. Suggested share counts move in steps of this many shares. Shares you type are left as typed.">i</span></label>
+          <select id="s_lotOn"><option value="0">Off</option><option value="1">On</option></select></div>
+        <div id="lotRoundCell"><label for="s_lotRound">&mdash; to the nearest multiple of:</label><input id="s_lotRound" type="number" step="1" min="1"></div>
       </div>
     </div>
   </div>
@@ -655,8 +661,20 @@ const DEFS_DEFAULT = {
   aptrTight:1, aptrFloor:1.5,
   // One tag, because the other two were a taxonomy the app had no business asserting. Add your own
   // in Settings; a tag you later remove stays on the trades carrying it, marked retired.
-  lossTags:[ { v:"violation", t:"Rule Violation" } ]
+  lossTags:[ { v:"violation", t:"Rule Violation" } ],
+  setups:[]
 };
+const setupList = () => defs().setups || [];
+// How a trade's setup reads anywhere it is shown: on the list, Legacy (typed freehand before the
+// list existed), or retired (on the list once, removed since).
+function setupHtml(t){
+  const c = String(t.concept||"").trim();
+  if(!c) return "";
+  if(t.legacySetup) return '<span class="pill atrisk" title="Typed freehand before setups were a list. Refile it from the gear.">Legacy</span> '+esc(c);
+  return esc(c) + (setupList().indexOf(c)<0 ? ' <span class="muted">(retired)</span>' : "");
+}
+// The key a trade counts under in the by-setup table.
+const setupKey = t => t.legacySetup ? "Legacy" : (String(t.concept||"").trim() || "(none)");
 // Defensive: normalize() fills root.defs, but these are read from functions that can run before it.
 const defs = () => (root && root.defs) || DEFS_DEFAULT;
 const isScratch = rm => rm >= defs().scratchLo && rm <= defs().scratchHi;
@@ -680,23 +698,24 @@ let overHeat = null;
 // where it is as a permanent fallback and v1.3 keeps working untouched.
 const KEY = "rcalc.v2";
 const LEGACY_KEYS = ["rcalc.v1", "cal.v1"];
-const SCHEMA = 3;
+const SCHEMA = 4;
 let root = null, state = null;
 
 function defaults(){
   return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], finnhub:"",
-                      marginX:1, lotRound:1,
+                      marginX:1, lotOn:false, lotRound:1,
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
-                      targetsOn:true, targets:[1,2], setups:[],
+                      targetsOn:true, targets:[1,2],
                       fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2,
-                      noiseOn:false }, trades:[] };
+                      noiseOn:false, shortGuard:"block" }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
-// each account; only these are shared. lotRound is NOT here: it follows the broker and the
-// instrument, not the method.
+// each account; only these are shared. Lot rounding is NOT here: it is per account, like margin,
+// and in a group it is set per member in the members table rather than through the shared fields.
+// shortGuard: what an unstopped short does to new trades in its account -- "block" or "warn".
 const GROUP_KEYS = ["rPct","tiers","heatCap","coldR","heatOn","coldOn",
-                    "targetsOn","targets","setups",
-                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc","noiseOn"];
+                    "targetsOn","targets",
+                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc","noiseOn","shortGuard"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
   GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
@@ -752,10 +771,35 @@ function bpUsed(acct){
 }
 const bpFree = acct => Math.max(0, buyingPower(acct) - bpUsed(acct));
 
-const rUnitOf = acct => {
+/* ---- AUM: cash plus every open position valued at its stop ----
+   pf.settings.aum is the book at cost: cash plus what was paid for the open positions, moved by
+   realised P/L and cash in and out. AUM is that less what every stop would give back, which is
+   the same number as cash + stop x shares, with the side carrying the sign for a short. A stop
+   raised above entry raises AUM; the tape never moves it. Unstopped long shares count at a $0
+   stop. Everything that sizes or measures against equity reads aumOf, so the basis has one door. */
+const openRisk = acct => {
   const pf = root.portfolios[acct];
-  return pf ? pf.settings.aum * settingsFor(acct).rPct/100 : 0;
+  return pf ? pf.trades.filter(t=>t.status==="open").reduce((a,t)=>a + riskAtStop(t, derive(t)), 0) : 0;
 };
+const aumOf = acct => {
+  const pf = root.portfolios[acct];
+  return pf ? pf.settings.aum - openRisk(acct) : 0;
+};
+// Shares no stop covers, split by side because they mean different things: a long is counted at
+// $0, a short has no worst case at all.
+function unprotected(accts){
+  let long = 0, short = 0;
+  accts.forEach(a=>(root.portfolios[a].trades||[]).forEach(t=>{
+    if(t.status!=="open") return;
+    const d = derive(t), u = coverage(d).under;
+    if(u>0){ if(t.side>0) long += u; else short += u; }
+  }));
+  return {long, short};
+}
+// Unstopped short shares that stop new trades in this account: none when its ruleset says Warn
+// only. The default is Block, because an unstopped short has no worst case for AUM to stand on.
+const shortBlock = acct => settingsFor(acct).shortGuard === "warn" ? 0 : unprotected([acct]).short;
+const rUnitOf = acct => aumOf(acct) * settingsFor(acct).rPct/100;
 // "group" = a group tab with no member drilled into. Everything else behaves as a single account.
 const inGroup = () => isGroup(root.active) && !root.focus;
 const acctInView = () => root.focus || (isGroup(root.active) ? (groupMembers(root.active)[0]||null) : root.active);
@@ -846,6 +890,32 @@ function migrate3(){
   root.v = 3;
 }
 
+/* ---- SCHEMA 4: setups are one list, and free-text history is Legacy ----
+   Setups were a per-ruleset list, and before that free text typed per trade. They are taxonomy,
+   like loss tags: a by-setup table comparing trades filed under different vocabularies reads two
+   naming schemes at once. So there is one list, on root.defs, and every list that existed is folded
+   into it.
+
+   A trade whose setup is not on that list was typed freehand. It is marked legacySetup, keeps its
+   original text exactly, shows as Legacy until it is refiled from the gear, and counts under
+   "Legacy" in the by-setup table. Runs once: after this, a setup not on the list is one that was
+   removed from it, which shows as retired instead. */
+function migrate4(){
+  if(root.v >= 4) return;
+  const list = [];
+  const add = s => { const x = String(s||"").trim(); if(x && list.indexOf(x)<0) list.push(x); };
+  ((root.defs && root.defs.setups) || []).forEach(add);
+  Object.values(root.portfolios || {}).forEach(pf=>((pf.settings && pf.settings.setups) || []).forEach(add));
+  Object.values(root.groups || {}).forEach(g=>((g.settings && g.settings.setups) || []).forEach(add));
+  if(!root.defs || typeof root.defs !== "object") root.defs = {};
+  root.defs.setups = list;
+  Object.values(root.portfolios || {}).forEach(pf=>(pf.trades || []).forEach(t=>{
+    const c = String(t.concept||"").trim();
+    if(c && list.indexOf(c)<0) t.legacySetup = true;
+  }));
+  root.v = 4;
+}
+
 function normalize(){
   // A book with no stamp predates versioning, which makes it schema 1 -- NOT whatever SCHEMA
   // happens to be now. Stamping it as current was harmless while there was nothing to migrate;
@@ -854,6 +924,7 @@ function normalize(){
   if(root.v == null) root.v = 1;
   migrate2();
   migrate3();
+  migrate4();
   if(!root.portfolios || !Object.keys(root.portfolios).length) root.portfolios = newRoot().portfolios;
   if(!Array.isArray(root.order)) root.order = Object.keys(root.portfolios);
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
@@ -868,7 +939,7 @@ function normalize(){
     if(pf.settings.marginOn == null) pf.settings.marginOn = pf.settings.marginX > 1;
     if(!(pf.settings.marginX > 1)) pf.settings.marginX = 2;
     if(!Array.isArray(pf.settings.targets)) pf.settings.targets = [1,2];
-    if(!Array.isArray(pf.settings.setups)) pf.settings.setups = [];
+    if(!(pf.settings.lotRound >= 1)) pf.settings.lotRound = 1;
     // Sections are tabs now, one visible at a time, so there is nothing to collapse. Any `collapsed`
     // or `closedCollapsed` map in an imported v1 book is left in place and simply never read.
     if(!Array.isArray(pf.trades)) pf.trades = [];
@@ -898,6 +969,7 @@ function normalize(){
   // means the v1.3 equivalence harness keeps working across this whole change.
   if(!root.defs || typeof root.defs !== "object") root.defs = {};
   Object.keys(DEFS_DEFAULT).forEach(k=>{ if(root.defs[k]==null) root.defs[k] = DEFS_DEFAULT[k]; });
+  root.defs.setups = (Array.isArray(root.defs.setups) ? root.defs.setups : []).slice();   // never the shared default
   if(!Array.isArray(root.defs.lossTags) || !root.defs.lossTags.length)
     root.defs.lossTags = DEFS_DEFAULT.lossTags.map(o=>({v:o.v, t:o.t}));
   // A book carrying the old three untouched never chose them, so it takes the new default. A list
@@ -997,7 +1069,9 @@ const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefi
 const cls  = v => !ui().colourGrade ? "" : (v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : ""));
 // Hiding values blanks money, never R. The whole system is denominated in R, so a book you cannot
 // read in R is a book you cannot work from -- the dollars are what you might not want on screen.
-const mask = s => ui().hideValues ? "&middot;&middot;&middot;" : s;
+// The characters themselves, not an entity: masked figures also land in input values and
+// textContent, where "&middot;" would print as eight literal characters.
+const mask = s => ui().hideValues ? "···" : s;
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
 // A name going into an inline handler is JS source inside an HTML attribute, so it needs escaping
@@ -1062,9 +1136,6 @@ function coverage(d){
   return { covered, under: Math.max(0, d.Q - covered), over: Math.max(0, covered - d.Q) };
 }
 
-// What a stop-out costs from here, on the shares the stops actually cover. Uncovered shares have no
-// defined worst case, so they contribute nothing rather than being quietly counted at zero risk --
-// the uncovered count is reported separately and is what lights the Stop button.
 // One renderer for a stop event, so the gear, the closed-trade log and the ledger cannot describe
 // the same rungs three different ways.
 const stopDesc = e => {
@@ -1074,8 +1145,12 @@ const stopDesc = e => {
   return st.map(s=>(s.qty==null?"all":fmtQ(s.qty))+" @ "+fmtP(s.price)).join(" + ");
 };
 
+// What a stop-out costs from here. An unstopped long share has an effective stop of $0 -- the stock
+// can go to zero -- so it counts at its full cost rather than at nothing. An unstopped short share
+// has no floor at all; it adds nothing here because no finite number is honest, and coverage()
+// reports it so the row and the banner can say so.
 function riskAtStop(t,d){
-  if(d.Q<=0 || !d.stops.length) return 0;
+  if(d.Q<=0) return 0;
   let risk = 0, left = d.Q;
   for(const s of d.stops){
     if(left<=0) break;
@@ -1084,6 +1159,7 @@ function riskAtStop(t,d){
     risk += t.side*(d.avg - s.price)*q;
     left -= q;
   }
+  if(left>0 && t.side>0) risk += d.avg*left;
   return risk;
 }
 
@@ -1356,7 +1432,7 @@ function renderAccountAdmin(){
               '</select>'
             : '<span class="muted">standalone</span>'))+"</td>" +
       "<td class='num'>"+(g ? "&mdash;" : trades+" ("+open+" open)")+"</td>" +
-      "<td class='num'>"+(g ? "&mdash;" : fmt$(root.portfolios[n].settings.aum))+"</td>" +
+      "<td class='num'>"+(g ? "&mdash;" : fmt$(aumOf(n)))+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         '<button class="small" onclick="switchTab('+q(n)+')">Open</button> ' +
         '<button class="small" onclick="renameEntry('+q(n)+')">Rename</button> ' +
@@ -1370,8 +1446,7 @@ function renderAccountAdmin(){
       '<button class="small" onclick="addGroup()">New group</button>' +
     '</div>' +
     '<div class="scroll"><table><tr><th>Name</th><th>Type</th><th>Group</th>' +
-      '<th class="num">Trades</th><th class="num">Equity</th><th></th></tr>' + rows + '</table></div>' +
-    (groups.length ? '<div class="muted" style="margin-top:6px">Leaving a group hands the account a copy of its ruleset, so open trades keep sizing against what they were opened under.</div>' : "");
+      '<th class="num">Trades</th><th class="num">AUM</th><th></th></tr>' + rows + '</table></div>';
 }
 
 window.switchTab = n => {
@@ -1455,6 +1530,7 @@ window.renameEntry = (n) => {
 window.closeModal = () => {
   $("modal").style.display = "none";
   modalOk = null; modalInput = null;
+  $("modalBody").oninput = null;
 };
 
 /* ---- generic modal, borrowed from Wheeler ----
@@ -1472,10 +1548,10 @@ function openModal(title, body, okLabel, onOk, onInput){
   modalOk = onOk; modalInput = onInput || null;
   $("modal").style.display = "flex";
   $("m_ok").onclick = submitModal;
-  if(modalInput){
-    $("modalBody").addEventListener("input", ()=>modalInput());
-    modalInput();
-  }
+  // A property, not addEventListener: #modalBody outlives every dialog, so a listener added per open
+  // piles up and keeps calling modalInput after a dialog without one has nulled it.
+  $("modalBody").oninput = modalInput ? ()=>modalInput && modalInput() : null;
+  if(modalInput) modalInput();
   const f = $("modalBody").querySelector("input,select");
   if(f) f.focus();
 }
@@ -1537,7 +1613,9 @@ const SET_FIELDS = [
   ["s_targetsOn", "rule", "targetsOn",  "bool"],
   ["s_target0",   "rule", "targets.0",  "num"],
   ["s_target1",   "rule", "targets.1",  "num"],
-  ["s_setups",    "rule", "setups",     "lines"],
+  ["s_setups",    "defs", "setups",     "lines"],
+  ["s_shortGuard","rule", "shortGuard", "str"],
+  ["s_lotOn",     "acct", "lotOn",      "bool"],
   ["s_fuzz",      "rule", "fuzz",       "num"],
   ["s_noiseOn",   "rule", "noiseOn",    "bool"],
   ["s_maxAllocOn","rule", "maxAllocOn", "bool"],
@@ -1600,6 +1678,7 @@ function bindSetFields(){
     if(!el) return;
     el.addEventListener("change", ()=>{
       if(kind==="bool" || kind==="boolInv") setPut(scope, key, el.value==="1");
+      else if(kind==="str") setPut(scope, key, el.value);
       else if(kind==="lines")
         setPut(scope, key, el.value.split("\n").map(s=>s.trim()).filter(Boolean));
       else if(kind==="tags"){
@@ -1630,6 +1709,10 @@ function renderSettings(){
   // list below takes its place.
   $("aumCell").style.display = g ? "none" : "";
   $("marginCell").style.display = g ? "none" : "";
+  // Lot rounding is per account, so with a whole group open it is set per member in the table
+  // below; the single field would otherwise write to whichever member happened to be first.
+  $("lotOnCell").style.display = g ? "none" : "";
+  $("lotRoundCell").style.display = g ? "none" : "";
   if(!g){
     const pf = root.portfolios[acctInView()];
     $("aum").value = fmt$(state.settings.aum);
@@ -1650,9 +1733,10 @@ function renderSettings(){
       // Plain title attributes here rather than the .info bubble: this table sits in a .scroll
       // wrapper, and an absolutely positioned bubble cannot escape a scrolling box.
       ? "<table><tr><th>Account</th>" +
-        "<th class='num' title='Equity this account sizes from'>Equity (AUM)</th>" +
+        "<th class='num' title='Cash plus what was paid for open positions'>Book at cost</th>" +
         "<th title='Record money arriving or leaving this account'>Cash</th>" +
         "<th title='Buying power as a multiple of equity. Off means cash.'>Margin</th>" +
+        "<th title='Lot rounding: suggested sizes move in steps of this many shares'>Lot</th>" +
         "<th class='num' title='Equity times the margin rate'>Buying power</th>" +
         "<th class='num' title='One R in dollars for this account'>1R</th>" +
         "<th class='num'>"+TIERS[0]+"</th><th class='num'>"+TIERS[1]+"</th><th class='num'>"+TIERS[2]+"</th><th></th></tr>" +
@@ -1676,6 +1760,15 @@ function renderSettings(){
                 " onchange=\"setMemberMargin('"+jsq(m)+"',this.value)\" title='Buying power multiple'>" +
               "<span class='suffix'>&times;</span>" +
             "</div></td>" +
+            "<td><div class='ctlrow'>" +
+              "<label class='inchk' title='Round suggested sizes for this account'>" +
+                "<input type='checkbox'" + (root.portfolios[m].settings.lotOn?" checked":"") +
+                " onchange=\"setMemberLot('"+jsq(m)+"','on',this.checked)\">on</label>" +
+              "<input type='number' step='1' min='1' style='width:64px'" +
+                " value='"+root.portfolios[m].settings.lotRound+"'" +
+                (root.portfolios[m].settings.lotOn?"":" disabled") +
+                " onchange=\"setMemberLot('"+jsq(m)+"','n',this.value)\" title='To the nearest multiple of'>" +
+            "</div></td>" +
             "<td class='num'>"+fmt$(buyingPower(m))+"<div class='muted' style='font-size:10.5px'>"+fmt$(bpFree(m))+" free</div></td>" +
             "<td class='num'>"+fmt$(R)+"</td>" +
             s.tiers.map(x=>"<td class='num muted'>"+fmt$(R*x)+"</td>").join("") +
@@ -1687,7 +1780,7 @@ function renderSettings(){
   $("runitBox").innerHTML = g
     ? "One ruleset &middot; " + groupMembers(g).length + " account" + (groupMembers(g).length===1?"":"s") +
       ' <span class="muted">&mdash; each sizes off its own equity above</span>'
-    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(state.settings.aum) + ")</span>";
+    : "1R = " + fmt$(rUnitNow()) + ' <span class="muted">(' + s.rPct + "% of " + fmt$(aumOf(acctInView())) + ")</span>";
 
 }
 // The setups a trade can be filed under, offered as a list rather than typed. Blank is a real
@@ -1696,7 +1789,7 @@ function renderSetupOptions(){
   const sel = $("nt_setup");
   if(!sel) return;
   const cur = sel.value;
-  const list = settingsFor(acctInView()).setups || [];
+  const list = setupList();
   sel.innerHTML = '<option value="">&mdash;</option>' +
     list.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("");
   if(list.indexOf(cur) >= 0) sel.value = cur;
@@ -1716,9 +1809,11 @@ window.fcToNewTrade = () => {
   $("nt_stop").value = $("fc_stop").value;
   // Carry the size as well as the prices: the calculator just worked it out, and retyping it is
   // exactly the friction this hand-off exists to remove. The number comes from the cell marked
-  // standard, which is the only thing clicking a tier changes.
-  const cell = $("fc_ans").querySelectorAll(".fccell")[root.fcTier==null ? 1 : root.fcTier];
-  if(cell) $("nt_qty").value = cell.querySelector(".n").textContent.replace(/[^0-9.]/g, "");
+  // standard, which is the only thing clicking a tier changes. Looked up by tier, never by position:
+  // the cells are sorted by multiple, so the Nth cell is not tier N. In a group each account sizes
+  // itself in New Trade, so a summed count has nowhere to go.
+  const cell = $("fc_ans").querySelector('.fccell[data-tier="'+ntTier()+'"]');
+  if(cell && !inGroup()) $("nt_qty").value = cell.querySelector(".n").textContent.replace(/[^0-9.]/g, "");
   // The calculator is pinned above every tab now, so this is a tab switch rather than a scroll --
   // and sizing stays on screen while the fill is recorded.
   setTab("new");
@@ -1740,38 +1835,45 @@ const sidePill = s => '<span class="pill '+(s>0?"long":"short")+'">'+(s>0?"LONG"
 /* ---- how many shares one tier buys ----
    Exact R arithmetic is spuriously precise at small counts. Three shares might be 0.81R and four
    1.08R, and refusing the fourth to stay under budget costs a third of the position to save 0.08R.
-   So the budget is a target with a tolerance, not a ceiling: take the count NEAREST the intended
-   R, provided the overshoot stays inside fuzziness. It only bites when the steps are coarse -- at
-   300 shares against 301 the question never arises, which is why a percentage needs no special
-   case for small positions.
+   So the budget is a target with a tolerance, not a ceiling: take the largest count that does not
+   pass it, or the one share past it when that overshoot stays inside fuzziness. It only bites when
+   the steps are coarse -- at 300 shares against 301 the question never arises, which is why a
+   percentage needs no special case for small positions.
 
    The walls are soft. Max allocation and buying power clamp the number and say which one did it;
    the minimum only ever annotates, because a position too small to bother with is a judgement, not
    an error. */
 function tierSize(acct, price, riskPS, mult){
   const S = settingsFor(acct), pf = root.portfolios[acct];
-  const R = rUnitOf(acct), budget = R*mult, eq = pf ? pf.settings.aum : 0;
+  const R = rUnitOf(acct), budget = R*mult, eq = pf ? aumOf(acct) : 0;
   const walls = [];
   if(!(riskPS>0) || !(price>0) || !(budget>0)) return {q:0, budget, walls, r:0, under:false};
 
-  const exact = budget/riskPS;
-  const lo = Math.floor(exact), hi = Math.ceil(exact);
+  // As close to each maximum as whole shares allow. The share below a limit is always allowed; the
+  // share above it is allowed only while the overshoot stays inside fuzziness -- Steve's case is 3
+  // shares at 0.81R against 4 at 1.08R, where the fourth share is 8% over one R for a third more
+  // position. Fuzziness only ever buys that one rounding step, never a band to fill: at 300 shares
+  // the step is 0.3% and the answer is simply the count under the limit or the one just over it.
+  //
+  // Lot rounding makes the step a lot instead of a share, and nothing else changes: the multiple
+  // under the limit, or the one above it while that stays inside fuzziness.
   const fuzz = Math.max(0, S.fuzz||0)/100;
-  const inTolerance = n => n*riskPS <= budget*(1+fuzz) + 1e-9;
-  let q = lo;
-  if(hi>lo && inTolerance(hi) && Math.abs(hi*riskPS-budget) < Math.abs(lo*riskPS-budget)) q = hi;
-  if(q<1 && hi>=1 && inTolerance(hi)) q = hi;      // never round a real trade away to nothing
+  const step = (S.lotOn && S.lotRound >= 2) ? Math.floor(S.lotRound) : 1;
+  const upTo = (exact, limit, per) => {
+    const lo = Math.floor(exact/step + 1e-9)*step, hi = Math.ceil(exact/step - 1e-9)*step;
+    return (hi > lo && hi*per <= limit*(1+fuzz) + 1e-9) ? hi : lo;
+  };
+  let q = upTo(budget/riskPS, budget, riskPS);
+  if(q===0 && step>1 && budget/riskPS >= 1) walls.push("lot size");
 
-  // The allocation walls are soft, so the same tolerance applies to them: three shares past a 25%
-  // cap is not a breach of anything, it is the cap meeting whole shares. Beyond the tolerance the
-  // wall holds and clamps to the cap itself, not to the tolerance.
+  // Max allocation is the same kind of limit and gets the same single rounding step.
   if(S.maxAllocOn && eq>0){
-    const cap = (S.maxAlloc/100)*eq/price;
-    if(q > cap*(1+fuzz)){ q = Math.max(0, Math.floor(cap)); walls.push("max allocation"); }
+    const cap$ = (S.maxAlloc/100)*eq, capQ = upTo(cap$/price, cap$, price);
+    if(q > capQ){ q = Math.max(0, capQ); walls.push("max allocation"); }
   }
   // Buying power is NOT soft. Everything else here is a preference about how much you want to
   // hold; this one is whether the money exists.
-  const qBP = Math.floor(bpFree(acct)/price);
+  const qBP = Math.floor(bpFree(acct)/price/step)*step;
   if(q > qBP){ q = Math.max(0, qBP); walls.push("buying power"); }
 
   const under = !!(S.minAllocOn && eq>0 && q*price < (S.minAlloc/100)*eq*(1-fuzz));
@@ -1784,9 +1886,8 @@ function tierSize(acct, price, riskPS, mult){
    One of them is marked standard; clicking another moves the mark and nothing else, because the
    range does not depend on it -- it decides only what the hand-off carries into New Trade.
 
-   Each count is the one nearest its tier's intended R rather than the one below it, inside the
-   fuzziness tolerance. The walls are soft: max allocation and buying power clamp a number and say
-   so, the minimum only annotates. */
+   Each count comes from tierSize, the one sizer every path uses. Max allocation and buying power
+   clamp a number and say so; the minimum only annotates. */
 function renderFastCalc(){
   const std = root.fcTier==null ? 1 : root.fcTier;
   const g = inGroup();
@@ -1796,7 +1897,7 @@ function renderFastCalc(){
   const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
   const out = $("fc_ans"), more = $("fc_more"), det = $("fc_detail");
   const plain = html => { out.innerHTML = html; more.style.display = "none"; det.innerHTML = ""; };
-  if(isNaN(P) || isNaN(S)){ plain('<div class="fcsub">Price and stop. Long or short is read from which side the stop sits.</div>'); return; }
+  if(isNaN(P) || isNaN(S)){ plain(""); return; }
   const side = fcSide();
   if(!side){ plain('<div class="err">Stop and price can’t be the same.</div>'); return; }
   const den = side*(P-S);
@@ -1806,7 +1907,7 @@ function renderFastCalc(){
   // Smallest first: the range reads the way you decide, from the size you would always be happy
   // with up to the one you have to justify. Sorted on the multiple rather than the share count,
   // so two tiers clamped to the same number by a wall keep their order.
-  const eqTot = accts.reduce((a,m)=>a+root.portfolios[m].settings.aum, 0);
+  const eqTot = accts.reduce((a,m)=>a+aumOf(m), 0);
   const cols = TIERS.map((name,i)=>{
     const per = accts.map(m=>tierSize(m, P, den, (g ? tiers : settingsFor(m).tiers)[i]));
     const q = per.reduce((a,x)=>a+x.q, 0);
@@ -1821,7 +1922,7 @@ function renderFastCalc(){
   const cell = c => {
     const on = c.i===std;
     const col = c.walls.length ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
-    return '<button class="fccell'+(on?" on":"")+'" onclick="setFcTier('+c.i+')" title="'+
+    return '<button class="fccell'+(on?" on":"")+'" data-tier="'+c.i+'" onclick="setFcTier('+c.i+')" title="'+
       (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+
       (c.under ? " · under the minimum allocation" : "")+'">' +
       '<span class="n" style="color:'+col+'">'+fmtQ(c.q)+'</span>' +
@@ -1840,14 +1941,14 @@ function renderFastCalc(){
       '<button class="small primary" onclick="fcToNewTrade()">Send &rarr;</button>' +
     '</div>';
 
-  const stdCol = cols[std] || cols[0];
+  const stdCol = cols.find(c=>c.i===std) || cols[0];
   det.innerHTML =
     (g
       ? '<div class="scroll" style="margin-top:9px"><table><tr><th>Account</th>' +
         TIERS.map((n,i)=>'<th class="num">'+n+' &middot; '+tiers[i]+'R</th>').join("") +
         '<th class="num">Cost at '+stdCol.name+'</th><th class="num">Allocation</th></tr>' +
         accts.map((m,k)=>{
-          const eq = root.portfolios[m].settings.aum;
+          const eq = aumOf(m);
           const q = stdCol.per[k].q;
           return "<tr><td>"+esc(m)+"</td>" +
             cols.map(c=>"<td class='num'>"+fmtQ(c.per[k].q)+"</td>").join("") +
@@ -1855,7 +1956,7 @@ function renderFastCalc(){
             "<td class='num'>"+(eq>0?(q*P/eq*100).toFixed(1):"0.0")+"%</td></tr>";
         }).join("") + "</table></div>"
       : (function(){
-          const m = accts[0], eq = root.portfolios[m].settings.aum, q = stdCol.per[0].q;
+          const m = accts[0], eq = aumOf(m), q = stdCol.per[0].q;
           return '<div class="fcsub" style="margin-top:8px">' +
             stdCol.name+' takes <b>'+fmtQ(q)+'</b> for '+fmt$(q*P) +
             (eq>0 ? ' ('+(q*P/eq*100).toFixed(1)+'% of equity)' : "") +
@@ -1864,10 +1965,7 @@ function renderFastCalc(){
         })()) +
     (cols.some(c=>c.walls.length)
       ? '<div class="fcsub" style="color:var(--amber)">Held back by ' +
-        [...new Set(cols.flatMap(c=>c.walls))].join(" and ") + '.</div>' : "") +
-    (settingsFor(accts[0]).fuzz>0
-      ? '<div class="fcsub muted">Sizes round to the nearest whole share within '+
-        settingsFor(accts[0]).fuzz+'% of the tier risk.</div>' : "");
+        [...new Set(cols.flatMap(c=>c.walls))].join(" and ") + '.</div>' : "");
   more.style.display = "";
 }
 
@@ -1922,16 +2020,14 @@ window.previewCash = (acct, kind) => {
       '. Withdraw less than the equity.</span>';
     btn.disabled = true; return;
   }
-  const rNext = next * settingsFor(acct).rPct/100;
+  const aumNext = next - openRisk(acct);
+  const rNext = aumNext * settingsFor(acct).rPct/100;
   const used = bpUsed(acct), bpNext = next * marginXOf(acct);
-  el.innerHTML = "Equity " + fmt$(pf.settings.aum) + " &rarr; <b>" + fmt$(next) + "</b>" +
+  el.innerHTML = "AUM " + fmt$(aumOf(acct)) + " &rarr; <b>" + fmt$(aumNext) + "</b>" +
     " &middot; 1R " + fmt$(rUnitOf(acct)) + " &rarr; <b>" + fmt$(rNext) + "</b>" +
-    '<div class="muted" style="margin-top:4px">Open trades keep the R unit they locked at entry. ' +
-    'This only changes what you size from here.</div>' +
     (bpNext < used
-      ? '<div style="color:var(--amber);margin-top:6px">Open positions are standing on '+fmt$(used)+
-        ', more than the '+fmt$(bpNext)+' of buying power this leaves. Nothing is blocked &mdash; ' +
-        'you would simply be over-extended until something closes.</div>'
+      ? '<div style="color:var(--amber);margin-top:6px">Open positions use '+fmt$(used)+
+        ', more than the '+fmt$(bpNext)+' of buying power this leaves.</div>'
       : "");
   btn.disabled = false;
 };
@@ -1995,9 +2091,6 @@ function renderCash(){
         "<td class='num'><button class='small danger' title='Remove this movement and put the equity back' " +
           'onclick="undoCash(\''+jsq(r.acct)+"',"+r.i+')">&#10005;</button></td></tr>';
     }).join("") + "</table></div>" +
-    '<div class="muted" style="margin-top:6px">Deposits and withdrawals never touch your R multiples, ' +
-    'your per-trade % of equity, or the equity curve &mdash; those are all measured against the equity ' +
-    'each trade was sized against, so money moving in or out cannot flatter or flatten the record.</div>' +
     "</details>";
 }
 
@@ -2008,6 +2101,13 @@ window.setMemberMargin = (m,v) => {
 };
 window.setMemberMarginOn = (m,on) => {
   if(root.portfolios[m]) root.portfolios[m].settings.marginOn = !!on;
+  save(); render();
+};
+window.setMemberLot = (m, which, v) => {
+  const pf = root.portfolios[m];
+  if(!pf) return;
+  if(which==="on") pf.settings.lotOn = !!v;
+  else { const n = Math.floor(parseFloat(v)); if(n>=1) pf.settings.lotRound = n; }
   save(); render();
 };
 window.setMemberAum = (m,v) => {
@@ -2029,7 +2129,7 @@ function renderNtRange(){
   const side = ntSide();
   if(!acct || isNaN(P) || isNaN(S) || !side){ box.innerHTML = ""; return; }
   const den = side*(P-S);
-  const eq = root.portfolios[acct].settings.aum;
+  const eq = aumOf(acct);
   const tiers = settingsFor(acct).tiers;
   const typed = parseFloat($("nt_qty").value);
   const cur = ntTier();
@@ -2072,13 +2172,14 @@ function newTradeCal(){
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
   if(!side){
     $("nt_calbox").style.display="none";
-    $("nt_err").textContent = "Entry and stop can't be the same price — the stop is what tells this which way you are trading.";
+    $("nt_err").textContent = "Entry and stop can't be the same price.";
     return null;
   }
   const den = side*(P-S);
-  const mult = state.settings.tiers[ti];
-  const R = rUnitNow(), b = R*mult;
   const acct = acctInView();
+  // settingsFor, not state.settings: an account in a group sizes from the group's tiers.
+  const mult = settingsFor(acct).tiers[ti];
+  const R = rUnitNow(), b = R*mult;
 
   // R answers how much you may lose. Buying power answers how much you may hold. A tight stop makes
   // the first number large and says nothing about the second, so the smaller of the two wins.
@@ -2086,15 +2187,15 @@ function newTradeCal(){
   // divided by the stop distance. The ticket already says how many shares filled, so the question
   // is now "what did that cost me in R" -- the size is an input and the risk is the readout.
   // A blank share count still falls back to the R-derived number, because the fast calculator's
-  // hand-off fills it and there is no reason to make that path longer.
-  const qR = Math.floor(b/den);
+  // hand-off fills it and there is no reason to make that path longer. It is the same tierSize the
+  // range above uses, so a blank box opens exactly the count the tier cell shows.
+  const z = tierSize(acct, P, den, mult), qR = z.q;
   const free = bpFree(acct);
-  const qBP = P>0 ? Math.floor(free/P) : 0;
   const typed = parseFloat($("nt_qty").value);
-  const q = (!isNaN(typed) && typed>0) ? typed : Math.min(qR, qBP);
+  const q = (!isNaN(typed) && typed>0) ? typed : qR;
   const capped = q*P > free;
 
-  const eq = state.settings.aum;
+  const eq = aumOf(acct);
   $("nt_calbox").style.display = "block";
   $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
     ' <span style="color:var(--sub);font-size:13px">risking <b style="color:var(--gold)">' +
@@ -2109,7 +2210,7 @@ function newTradeCal(){
       '<div class="metric"><div class="k">Risk '+VBAR+' share</div><div class="v">'+fmtP(den)+'</div>' +
         '<div class="r">'+mult+'R = '+fmt$(b)+'</div></div>' +
       '<div class="metric"><div class="k">Cost</div><div class="v">'+fmt$(q*P)+'</div>' +
-        '<div class="r">'+(state.settings.aum>0 ? (q*P/state.settings.aum*100).toFixed(1)+'% of equity' : "")+'</div></div>' +
+        '<div class="r">'+(eq>0 ? (q*P/eq*100).toFixed(1)+'% of AUM' : "")+'</div></div>' +
       '<div class="metric"><div class="k">BP free</div>' +
         '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmt$(free)+'</div>' +
         '<div class="r">of '+fmt$(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
@@ -2124,13 +2225,15 @@ function newTradeCal(){
   const a = settingsFor(acct).noiseOn ? aptrAudit(P, aptr, den) : null;
   if(a){
     let html = '<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+' APTRs to stop</span>';
-    if(a.aptrs<defs().aptrFloor) html += ' &mdash; inside daily noise. For '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
+    if(a.aptrs<defs().aptrFloor) html += ' &middot; at '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
       '</b>, <b>'+fmtQ(Math.floor(b/(defs().aptrFloor*a.aptrD)))+'</b> shares.';
     $("nt_vol").innerHTML = html;
   } else {
     $("nt_vol").innerHTML = settingsFor(acct).noiseOn && !(aptr>0)
       ? '<span class="muted">APTR % not set.</span>' : "";
   }
+  const blk = shortBlock(acct);
+  if(blk) $("nt_err").textContent = "Blocked: "+fmtQ(blk)+" short share"+(blk===1?"":"s")+" in this account have no stop.";
   return q;
 }
 
@@ -2160,21 +2263,18 @@ function washWarning(ticker){
   hits.sort((x,y)=>(y.t.closedAt||0)-(x.t.closedAt||0));
   const { a, t } = hits[0];
   const ago = daysBetween(t.closedAt || t.createdAt, Date.now());
-  const elsewhere = hits.some(h=>h.a !== acctInView());
   return "Wash sale: you closed " + esc(tk) + " at " + fmtR(derive(t).realized/t.rUnit) + " " +
     (ago===0 ? "today" : ago===1 ? "yesterday" : ago+" days ago") +
     " in <b>" + esc(a) + "</b>" +
     (hits.length>1 ? " (and "+(hits.length-1)+" more loss"+(hits.length>2?"es":"")+" in the window)" : "") +
-    ". Re-entering inside " + WASH_DAYS + " days disallows that loss for tax — and is worth a second thought besides." +
-    (elsewhere ? " The rule follows you across accounts, not just this one." : "");
+    ". Inside the " + WASH_DAYS + "-day wash-sale window.";
 }
 // The cap is breached on the book, but the decision it bears on is made here.
 function renderHeatNotice(){
   const el = $("nt_heat");
   if(!el) return;
   el.innerHTML = overHeat
-    ? "Open heat is <b>"+overHeat.heatR.toFixed(2)+"R</b> against your "+overHeat.cap+
-      "R cap. Your rule says nothing new opens until that is back under. Not blocked &mdash; your call."
+    ? "Open heat <b>"+overHeat.heatR.toFixed(2)+"R</b>, cap "+overHeat.cap+"R."
     : "";
   el.style.display = overHeat ? "" : "none";
 }
@@ -2194,15 +2294,16 @@ function openTrade(){
   const q = $("nt_qty").value ? parseFloat($("nt_qty").value) : calQ;
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
+  if(shortBlock(acctInView())) return;              // newTradeCal has already said why
   if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
     ticker: tk, side, concept: mv("nt_setup").trim(), tier: ti,
-    mult: state.settings.tiers[ti],
+    mult: settingsFor(acctInView()).tiers[ti],
     aptr: (!isNaN(aptr)&&aptr>0) ? aptr : null,
     // aptr is live and editable; aptrAtOpen is the volatility actually signed up for.
     aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
-    rUnit: rUnitNow(), aumAtOpen: state.settings.aum, status:"open", last:P,
+    rUnit: rUnitNow(), aumAtOpen: aumOf(acctInView()), status:"open", last:P,
     plan: {},                        // filled in later, from the position's gear
     checks: [],
     events: [{type:"entry", qty:q, price:P, stop:S, ts:Date.now()}],
@@ -2274,11 +2375,13 @@ function posFacts(t){
     d, S, ras, openPL, seq,
     cashAtRisk: Math.max(0, seq),                   // only bites while the stop sits below b/e
     heatR: Math.max(0, seq)/t.rUnit,
-    // An unguarded position is NOT at house money. riskAtStop returns 0 when there is no stop, so
+    // An unguarded position is NOT at house money. riskAtStop returns 0 for an unstopped short, so
     // seq collapses to -realized and the old test read "house money -- sequence can't lose" over a
     // position whose loss is unbounded. The reassurance was the exact inverse of the truth.
     cover: coverage(d),
     unguarded: coverage(d).under > 0 && d.Q > 0,
+    // A long's unstopped shares are inside cashAtRisk at a $0 stop. A short's have no number.
+    unbounded: t.side < 0 && coverage(d).under > 0 && d.Q > 0,
     house: seq <= 1e-4 && d.Q>0 && coverage(d).under === 0 && d.stops.length>0,
     be: beStop(t, d),
     value: t.last*d.Q,
@@ -2314,9 +2417,10 @@ function positionRow(t, acct, showAcct){
         (f.be!=null?"b/e "+fmtP(f.be):"&mdash;")+'</div></td>' +
       '<td class="num">'+(S.initialRisk!=null?(S.initialRisk/t.rUnit).toFixed(2)+"R":"&mdash;")+
         '<div class="sub">'+(S.riskPS>0?fmtP(S.riskPS)+" / sh":"no stop at entry")+'</div></td>' +
-      '<td class="num">'+(f.unguarded ? '<span style="color:var(--amber)">unbounded</span>'
-        : f.house ? '<span class="pill house">house</span>' : fmt$(f.cashAtRisk))+'</td>' +
-      '<td class="num">'+(f.unguarded ? '<span style="color:var(--amber)">no stop</span>'
+      '<td class="num">'+(f.unbounded ? '<span style="color:var(--amber)">unbounded</span>'
+        : f.house ? '<span class="pill house">house</span>' : fmt$(f.cashAtRisk)) +
+        (f.unguarded ? '<div class="sub" style="color:var(--amber)">'+fmtQ(cov.under)+' unprotected</div>' : "")+'</td>' +
+      '<td class="num">'+(f.unbounded ? '<span style="color:var(--amber)">no stop</span>'
         : f.house ? "&mdash;" : f.heatR.toFixed(2)+"R")+'</td>' +
       '<td class="num '+cls(d.realized+f.openPL)+'">'+fmt$(d.realized+f.openPL)+
         '<div class="sub">'+fmtR(f.totR)+'</div></td>' +
@@ -2358,7 +2462,7 @@ function positionRow(t, acct, showAcct){
   const detail =
     '<div class="calsub" style="margin:2px 0 8px">' +
       '<b>'+TIERS[t.tier]+'</b> &middot; 1R '+fmt$(t.rUnit) +
-      (t.concept ? ' &middot; '+esc(t.concept) : "") +
+      (t.concept ? ' &middot; '+setupHtml(t) : "") +
       (t.aptr>0 ? ' &middot; APTR '+t.aptr+'%' : "") + '</div>' +
     '<div class="statrow">' +
       tile("Entry", fmtP(S.entryPx), (e0?fmtQ(e0.qty)+" sh":"") +
@@ -2369,8 +2473,8 @@ function positionRow(t, acct, showAcct){
       tile("Realized", fmt$(d.realized), fmtR(d.realized/t.rUnit)) +
       tile("Unrealized", fmt$(f.openPL), S.entryPx>0 ? (t.side*(t.last-d.avg)/d.avg*100).toFixed(1)+"% on position" : "") +
       tile("Equity P/L", aum0>0 ? ((d.realized+f.openPL)/aum0*100).toFixed(2)+"%" : "&mdash;", "of equity at open") +
-      (f.unguarded
-        ? tile("Sequence at risk", "unbounded", "no stop on "+fmtQ(d.Q)+" shares", "var(--amber)")
+      (f.unbounded
+        ? tile("Sequence at risk", "unbounded", "no stop on "+fmtQ(cov.under)+" short shares", "var(--amber)")
         : tile(f.house?"Sequence locks":"Sequence at risk", fmt$(Math.abs(f.seq)),
             f.house?"worst case is a win":"if the stop hits", f.house?"var(--green)":"var(--amber)")) +
       aptr +
@@ -2396,7 +2500,7 @@ function renderPortfolio(){
   const showAcct = inGroup();
   const legs = scopeTrades("open");
   if(!legs.length){
-    box.innerHTML = '<div class="muted">Nothing open. Size one in New Trade and it appears here.</div>';
+    box.innerHTML = '<div class="muted">Nothing open.</div>';
     return;
   }
   // Heaviest first, and legs of one group trade kept together so a fan-out reads as one idea.
@@ -2683,13 +2787,22 @@ window.gearUI = id => {
   // Everything the entry form no longer asks for lives here. This is the other half of stripping
   // New Trade: you can only take setup, plan and APTR out of the moment the order fills if there
   // is somewhere to put them afterwards, and this is it.
-  const setups = (settingsFor(acctOf(id)).setups || []);
+  // A list, the same one New Trade offers. A setup that is not on it -- Legacy freehand text, or one
+  // removed from the list since -- stays selectable as itself, so saving other details never
+  // silently drops it; choosing a listed setup refiles the trade and clears Legacy.
+  const setups = setupList();
+  const cur = String(t.concept||"").trim();
+  const offList = cur && setups.indexOf(cur)<0;
   const plan = t.plan || {};
+  const loss = derive(t).realized < 0;
+  const legacyTag = t.lossTag && !lossTags().some(o=>o.v===t.lossTag);
   openModal(esc(t.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">details, history and corrections</span>',
     '<div class="row">' +
       '<div style="flex:1"><label for="g_setup">Setup</label>' +
-        '<input id="g_setup" type="text" list="gearSetups" value="'+esc(t.concept||"")+'">' +
-        '<datalist id="gearSetups">'+setups.map(x=>'<option value="'+esc(x)+'"></option>').join("")+'</datalist></div>' +
+        '<select id="g_setup"><option value="">&mdash;</option>' +
+          (offList ? '<option value="__keep__" selected>'+(t.legacySetup ? "Legacy: " : "")+esc(cur)+(t.legacySetup ? "" : " (retired)")+'</option>' : "") +
+          setups.map(x=>'<option value="'+esc(x)+'"'+(!offList && x===cur ? " selected" : "")+'>'+esc(x)+'</option>').join("") +
+        '</select></div>' +
       '<div style="flex:1"><label for="g_tier">Tier</label>' +
         '<select id="g_tier">'+TIERS.map((n,i)=>'<option value="'+i+'"'+(t.tier===i?" selected":"")+'>'+
           n+' &mdash; '+settingsFor(acctOf(id)).tiers[i]+'R</option>').join("")+'</select></div>' +
@@ -2697,6 +2810,22 @@ window.gearUI = id => {
         '<input id="g_aptr" type="number" step="0.1" value="'+(t.aptr==null?"":t.aptr)+'"></div>' +
       '<div style="flex:1"><label for="g_aptr0">APTR % at entry</label>' +
         '<input id="g_aptr0" type="number" step="0.1" value="'+(t.aptrAtOpen==null?"":t.aptrAtOpen)+'"></div>' +
+    '</div>' +
+    // Fields that lock at open, correctable here because a mistyped one used to be permanent. Prices
+    // and share counts are corrected on the transactions below.
+    '<div class="row" style="margin-top:10px">' +
+      '<div style="flex:1"><label for="g_tk">Ticker</label>' +
+        '<input id="g_tk" type="text" value="'+esc(t.ticker)+'"></div>' +
+      '<div style="flex:1"><label for="g_aum0">AUM at open</label>' +
+        '<input id="g_aum0" type="number" step="0.01" value="'+(t.aumAtOpen==null?"":t.aumAtOpen)+'"></div>' +
+      '<div style="flex:1"><label for="g_r0">1R at open ($)</label>' +
+        '<input id="g_r0" type="number" step="0.01" value="'+(t.rUnit==null?"":t.rUnit)+'"></div>' +
+      (loss
+        ? '<div style="flex:1"><label for="g_tag">Loss tag</label><select id="g_tag"><option value="">&mdash;</option>' +
+            lossTags().map(o=>'<option value="'+esc(o.v)+'"'+(t.lossTag===o.v?" selected":"")+'>'+esc(o.t)+'</option>').join("") +
+            (legacyTag ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired)</option>' : "") +
+          '</select></div>'
+        : '<div style="flex:1"></div>') +
     '</div>' +
     '<div class="split split3" style="margin-top:10px">' +
       '<div><label for="g_cut">If Y &rarr; cut</label><input id="g_cut" type="text" value="'+esc(plan.cutIf||"")+'"></div>' +
@@ -2713,7 +2842,15 @@ window.gearUI = id => {
     '</div>',
     "Save details",
     () => {
-      t.concept = mv("g_setup").trim();
+      const tk = mv("g_tk").trim().toUpperCase();
+      if(!tk) return "Enter a ticker.";
+      const r0 = parseFloat(mv("g_r0")), aum0 = parseFloat(mv("g_aum0"));
+      if(!(r0>0)) return "1R at open must be positive.";
+      if(!(aum0>0)) return "AUM at open must be positive.";
+      t.ticker = tk; t.rUnit = r0; t.aumAtOpen = aum0;
+      const sv = mv("g_setup");
+      if(sv !== "__keep__"){ t.concept = sv; t.legacySetup = false; }
+      if($("g_tag")) t.lossTag = mv("g_tag") || null;
       const ti2 = parseInt(mv("g_tier"));
       if(!isNaN(ti2) && ti2>=0 && ti2<TIERS.length){
         t.tier = ti2;
@@ -2726,6 +2863,8 @@ window.gearUI = id => {
       t.aptrAtOpen = (!isNaN(a0) && a0>0) ? a0 : null;
       t.plan = { cutIf:mv("g_cut").trim(), waitIf:mv("g_wait").trim(), exit:mv("g_exit").trim() };
       t.notes = mv("g_notes").trim();
+      // render() rebuilds the closed table shut; put this trade's row back open where it was.
+      if(t.status==="closed") setTimeout(()=>reopenLog(inGroup() ? (t.gid || "solo:"+t.id) : t.id), 0);
       return null;
     });
 };
@@ -2742,21 +2881,31 @@ window.overrideUI = id => {
         '<input id="m_aq" type="number" step="any" placeholder="'+fmtQ(d.Q)+' sh"></div>' +
       '<div style="flex:1"><label for="m_aa">Average price</label>' +
         '<input id="m_aa" type="number" step="any" placeholder="'+fmtP(d.avg)+'"></div>' +
-    '</div>' +
-    '<div class="muted" style="margin-top:6px">Forces the position to match your broker without ' +
-      'rewriting history. A blank field keeps its current value. Prefer editing the transaction ' +
-      'that is wrong.</div>',
+    '</div>',
     "Apply override",
     () => {
       const q = parseFloat(mv("m_aq")), a = parseFloat(mv("m_aa"));
       if(isNaN(q) && isNaN(a)) return "Enter a position size or an average price.";
       if(!isNaN(q) && q<0) return "Position size can't be negative.";
       t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
+      syncStatus(t);
       syncCompound(t, acctOf(id));
       reopenGear(id);
       return null;
     });
 };
+
+// Open or closed follows from the shares, not from which event types happen to be in the log. An
+// edit to an earlier transaction can leave a closed trade still holding shares -- delete a trim and
+// the close no longer empties the position -- or empty an open one. Either way the stored status
+// would lie, and a closed trade holding shares vanishes from the Portfolio while still at risk.
+function syncStatus(t){
+  const d = derive(t), last = t.events[t.events.length-1];
+  if(t.status==="closed" && d.Q > 1e-9){ t.status = "open"; t.closedAt = null; }
+  else if(t.status==="open" && d.Q <= 1e-9 && t.events.length > 1){
+    t.status = "closed"; t.closedAt = last.ts;
+  }
+}
 
 // Reopen the gear after a correction, so the effect is visible where the decision was made.
 const reopenGear = id => setTimeout(()=>gearUI(id), 0);
@@ -2783,14 +2932,19 @@ window.editEvent = (id, i) => {
                              '<button class="small" onclick="addStopRow()">Add a stop</button>';
 
   openModal("Edit " + type + " &mdash; " + esc(t.ticker),
-    body +
-    '<div class="muted" style="margin-top:8px">Everything after this transaction is recalculated: ' +
-      'average, realised, every R multiple, and the equity compounded from them.</div>',
+    body,
     "Save",
     () => {
       const before = JSON.parse(JSON.stringify(e));
       const ts = tsFromDateVal(mv("m_date"), e.ts);
-      if(isNaN(ts)) return "Enter a valid date.";
+      // tsFromDateVal returns null for a cleared field, and isNaN(null) is false -- so this has to
+      // test for null itself, or a blank date sorts the event to the front of the log.
+      if(ts==null || isNaN(ts)) return "Enter a valid date.";
+      if(dayOf(ts) > today0()) return "A transaction can't be dated in the future.";
+      const entry = t.events.find(x=>x.type==="entry");
+      if(type==="entry" ? t.events.some(x=>x!==e && dayOf(x.ts) < dayOf(ts))
+                        : (entry && dayOf(ts) < dayOf(entry.ts)))
+        return "Nothing can be dated before the entry.";
       if(type==="entry" || type==="add" || type==="trim" || type==="close"){
         const q = parseFloat(mv("m_q")), p = parseFloat(mv("m_p"));
         if(isNaN(q) || q<=0) return "Shares must be positive.";
@@ -2821,7 +2975,9 @@ window.editEvent = (id, i) => {
       if(!e.adj){ e.was = before; e.adj = true; }
       // Events are replayed in array order, so a re-dated one has to be moved to keep the log and
       // the arithmetic agreeing about what happened first.
-      t.events.sort((a,b)=>a.ts-b.ts);
+      // The entry stays first even against a same-day event whose clock time is earlier.
+      t.events.sort((a,b)=> a.type==="entry" ? -1 : b.type==="entry" ? 1 : a.ts-b.ts);
+      syncStatus(t);
       syncCompound(t, acctOf(id));
       reopenGear(id);
       return null;
@@ -2840,8 +2996,7 @@ window.deleteEvent = (id, i) => {
   if(e.type==="entry"){ alert("The opening entry cannot be removed. Delete the trade instead."); return; }
   if(!confirm("Remove this "+e.type+" ("+stripTags(EVENT_DESC(e))+")?\n\nEverything after it is recalculated.")) return;
   t.events.splice(i,1);
-  // Removing the close of a closed trade puts it back on the book, since what closed it is gone.
-  if(t.status==="closed" && !t.events.some(x=>x.type==="close")){ t.status = "open"; t.closedAt = null; }
+  syncStatus(t);
   syncCompound(t, acctOf(id));
   save(); render(); reopenGear(id);
 };
@@ -2975,6 +3130,7 @@ window.toggleLog = id => {
   const open = row.style.display !== "none";
   row.style.display = open ? "none" : "table-row";
   if(btn) btn.innerHTML = open ? "&#9656;" : "&#9662;";
+  const gear = $("cg_"+id); if(gear) gear.style.display = open ? "none" : "";
 };
 window.saveNote = id => {
   const t = getTrade(id), ta = $("note_"+id);
@@ -3124,7 +3280,8 @@ window.saveEventDates = id => {
 // render() rebuilds the table and collapses this row — put it back so the result stays in view.
 function reopenLog(id){
   const row = $("log_"+id);
-  if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;"; }
+  if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;";
+           const gear = $("cg_"+id); if(gear) gear.style.display = ""; }
 }
 
 /* ========================= tally ========================= */
@@ -3142,7 +3299,7 @@ function renderClosed(){
 
   const tbl = $("closedTbl");
   if(!closed.length){
-    tbl.innerHTML = "<tr><td class='muted'>No closed trades yet. The tally is where the craft argues back.</td></tr>";
+    tbl.innerHTML = "<tr><td class='muted'>No closed trades.</td></tr>";
     $("stats").innerHTML = "";
     return;
   }
@@ -3185,7 +3342,7 @@ function renderClosed(){
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
         (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
-      "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td>"+esc(t.concept)+"</td>" +
+      "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td"+(t.legacySetup?" class='legacy'":"")+">"+setupHtml(t)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
       // The pill goes to the LEFT of the figure. In a right-aligned column anything trailing the
       // number pushes it off the edge the other rows line up on, so the one row carrying a flag is
@@ -3202,27 +3359,29 @@ function renderClosed(){
       "<td>"+tagSel+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
-        "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button></td></tr>" +
+        "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button>" +
+        // The gear appears once the row is open: correcting a closed trade is deliberate, not a
+        // button to brush past on every line of the tally.
+        "<div><button class='small' id='cg_"+t.id+"' style='display:none;margin-top:4px' title='Details, history and corrections' onclick=\"gearUI('"+t.id+"')\">&#9881;</button></div></td></tr>" +
     "<tr id='log_"+t.id+"' style='display:none'><td colspan='13' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
-      "<div class='muted' style='margin-top:4px'>Logged a day late? Click any date above to change it, then Save dates next to the delete button. The close date sets where this trade sits in the tally, the curve and the cold-streak brake.</div>" +
       "<div class='split' style='margin-top:12px'>" +
         "<div><div class='lbl'>Re-trade review</div>" +
-        "<textarea id='note_"+t.id+"' style='min-height:88px' placeholder='What did the calculator say, and what did you do? Where did the two diverge, and why? What would the re-trade look like?'>"+esc(t.notes||"")+"</textarea>" +
+        "<textarea id='note_"+t.id+"' style='min-height:88px'>"+esc(t.notes||"")+"</textarea>" +
         "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
         "<span class='muted' id='notest_"+t.id+"'></span></div></div>" +
         "<div><div class='lbl'>30-day review " +
           (due ? "<span style='color:var(--gold)'>&mdash; due now</span>"
                : (t.review30 && t.review30.trim()) ? "<span class='pos'>&mdash; done</span>"
                : "<span class='muted'>&mdash; in "+reviewDueIn(t)+" day"+(reviewDueIn(t)===1?"":"s")+"</span>") + "</div>" +
-        "<textarea id='rev_"+t.id+"' style='min-height:88px' placeholder='A month on: did it keep going without you, or did the exit hold up? This is where cutting winners early and getting shaken out of eventual winners become visible.'>"+esc(t.review30||"")+"</textarea>" +
+        "<textarea id='rev_"+t.id+"' style='min-height:88px'>"+esc(t.review30||"")+"</textarea>" +
         "<div class='row' style='margin-top:6px;align-items:center'><button class='small"+(due?" primary":"")+"' onclick=\"saveReview30('"+t.id+"')\">Save 30-day</button></div></div>" +
       "</div></td></tr>";
   }).join("");
 
-  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>1R</th>" +
+  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Setup</th><th class='num'>1R</th>" +
     "<th class='num' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num'>Realized</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
 
   $("stats").innerHTML = statsHtml(bookStats(closed));
@@ -3232,7 +3391,7 @@ function renderClosed(){
 // tally and the statistics panel show the same numbers from the same code.
 function bookStats(list){
   const A = { n:list.length, tot:0, wins:0, exWin:0, decisive:0, scratch:0,
-              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, noise:0, violations:0, tagged:0, planned:0, checked:0, rms:[] };
+              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, tags:{}, tagged:0, planned:0, checked:0, rms:[] };
   list.forEach(t=>{
     const rm = stats(t).rm;
     A.tot += rm; A.rms.push(rm);
@@ -3246,7 +3405,9 @@ function bookStats(list){
     else { A.lr += rm; A.ln++; if(rm<A.worst) A.worst = rm;
            const held = stats(t).rmInt;
            if((held==null ? rm : held) >= -defs().lossDisc) A.discOK++;
-           if(t.lossTag){ A.tagged++; if(t.lossTag==="noise") A.noise++; if(t.lossTag==="violation") A.violations++; } }
+           // Counted by whatever tags exist, not by two hard-coded keys: tags are user-defined, and
+           // renaming one changes its key.
+           if(t.lossTag){ A.tagged++; A.tags[t.lossTag] = (A.tags[t.lossTag]||0) + 1; } }
     if(Array.isArray(t.checks) && t.checks.length){ A.checked++; if(t.checks.every(Boolean)) A.planned++; }
   });
   return A;
@@ -3257,15 +3418,14 @@ function statsHtml(A){
   const exp = A.tot/A.n;
   const payoff = (A.wn && A.ln) ? (A.wr/A.wn)/Math.abs(A.lr/A.ln) : null;
   const disc = A.ln ? Math.round(100*A.discOK/A.ln) : null;
-  const noisePct = A.tagged ? Math.round(100*A.noise/A.tagged) : null;
   const planPct = A.checked ? Math.round(100*A.planned/A.checked) : 0;
-  const discCol = disc==null ? "var(--mut)" : (disc>=80?"var(--green)":(disc>=60?"var(--amber)":"var(--red)"));
-  const noiseCol = noisePct==null ? "var(--mut)" : (noisePct<=20?"var(--green)":(noisePct<=40?"var(--amber)":"var(--red)"));
+  const tagName = v => { const o = lossTags().find(x=>x.v===v); return o ? o.t : v+" (retired)"; };
+  const tagLine = Object.keys(A.tags).sort((a,b)=>A.tags[b]-A.tags[a])
+    .map(v=>esc(tagName(v))+" "+A.tags[v]).join(" &middot; ");
   // All three rates share one denominator — every closed trade — so they read as one idea tightened
   // twice rather than three separate samples. The middle one counts the setups that went nowhere
   // against you, which is the cost in time and buying power.
   const p = a => (Math.round(1000*a/A.n)/10).toFixed(1)+"%";
-  const gap = Math.round(100*(A.wins-A.decisive)/A.n);
   return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
     // Two columns: this tile carries three rates where its neighbours carry one number, and at a
     // single column both the definitions and the values ran past the edge.
@@ -3273,15 +3433,12 @@ function statsHtml(A){
       // Name on one line, the three definitions on the next, so the break never lands mid-word.
       '<div class="k">Win rate</div>' +
       '<div class="k" style="white-space:nowrap">raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+defs().winR+'R</div>' +
-      '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div>' +
-      '<div class="r">'+(gap>=20 ? '<span style="color:var(--amber)">'+gap+' points of the raw rate never cleared '+defs().winR+'R</span>'
-                     : "each stricter than the last") + '</div></div>' +
+      '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div></div>' +
     '<div class="metric"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
-    '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade &mdash; the number that matters</div></div>' +
+    '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade</div></div>' +
     '<div class="metric"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Loss discipline</div><div class="v" style="color:'+discCol+'">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses held at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Noise stopouts</div><div class="v" style="color:'+noiseCol+'">'+(noisePct==null?"&mdash;":noisePct+"%")+'</div><div class="r">'+(A.tagged?A.noise+" of "+A.tagged+" tagged losses &mdash; stops may sit inside the noise":"tag your losses to audit")+'</div></div>' +
-    '<div class="metric"><div class="k">Rule violations</div><div class="v" style="color:'+(A.violations?"var(--red)":"var(--green)")+'">'+(A.tagged?A.violations:"&mdash;")+'</div><div class="r">'+(A.tagged?(A.violations?"losses you caused, not the market":"none tagged — process held"):"tag your losses to audit")+'</div></div>' +
+    '<div class="metric"><div class="k">Loss discipline</div><div class="v">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
+    '<div class="metric"><div class="k">Tagged losses</div><div class="v">'+(A.ln ? A.tagged+" of "+A.ln : "&mdash;")+'</div><div class="r">'+(tagLine||"&mdash;")+'</div></div>' +
     // "Planned at entry" measured compliance with a checklist that no longer exists. Kept while any
     // trade in the set still carries one, so historical books keep the figure; gone once they are
     // all trades opened without it, rather than reporting a number that falls for no reason.
@@ -3336,12 +3493,13 @@ function renderGroupClosed(){
           "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
           "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
           "<td>"+lossTagSelect(x.t)+"</td>" +
-          "<td class='num'><button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
+          "<td class='num' style='white-space:nowrap'><button class='small' title='Details, history and corrections' onclick=\"gearUI('"+x.t.id+"')\">&#9881;</button> " +
+            "<button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
       }).join("") + "</table></div></td></tr>";
     return "<tr"+(due?" class='reviewdue'":"")+">" +
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
-      "<td>"+(f.side>0?"L":"S")+"</td><td>"+TIERS[f.tier]+"</td><td>"+esc(f.concept)+"</td>" +
+      "<td>"+(f.side>0?"L":"S")+"</td><td>"+TIERS[f.tier]+"</td><td"+(f.legacySetup?" class='legacy'":"")+">"+setupHtml(f)+"</td>" +
       "<td class='num'>"+legs.length+"</td>" +
       "<td class='num "+cls(realized)+"'>"+fmt$(realized)+"</td>" +
       "<td class='num "+cls(rMean)+"'>"+fmtR(rMean)+"</td>" +
@@ -3350,10 +3508,10 @@ function renderGroupClosed(){
       "<tr id='log_"+k+"' style='display:none'>"+detail.slice(4);
   }).join("");
 
-  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Concept</th><th class='num'>Accounts</th>" +
+  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Setup</th><th class='num'>Accounts</th>" +
     "<th class='num'>Realized</th><th class='num'>Mean R</th><th class='num'>Days</th><th></th></tr>" + rows;
   $("stats").innerHTML = '<div class="metric"><div class="k">Group totals</div><div class="v '+cls(totR)+'">'+fmtR(totR)+'</div>'+
-    '<div class="r">summed across accounts &mdash; per-account statistics live in section 05</div></div>';
+    '<div class="r">summed across accounts</div></div>';
 }
 // Shared by the account view and the group expansion, so a tag looks and behaves the same in both.
 function lossTagSelect(t){
@@ -3451,15 +3609,11 @@ function renderCharts(chrono){
   const totDays = S.reduce((a,s)=>a+s.days, 0);
   const rpd = totDays ? S.reduce((a,s)=>a+s.rm, 0)/totDays : null;
 
-  // Holding winners longer than losers is the healthy direction; the reverse is the disposition
-  // effect showing up in your own record.
-  const holdOk = (avgDaysWin!=null && avgDaysLoss!=null) ? avgDaysWin >= avgDaysLoss : null;
 
   $("deepStats").innerHTML =
     '<div class="metric"><div class="k">Avg days held</div><div class="v">'+
       (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+VBAR+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
-      '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span>' +
-      (holdOk===false?'<span class="neg"> &mdash; losers held longer</span>':"")+'</div></div>' +
+      '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span></div></div>' +
     '<div class="metric"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
     '<div class="metric"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
     '<div class="metric"><div class="k">Long '+VBAR+' short</div><div class="v">'+
@@ -3468,7 +3622,7 @@ function renderCharts(chrono){
 
   $("stats2").innerHTML = statsHtml(bookStats(chrono));
   $("tierTbl").innerHTML = groupTable(chrono, S, t=>TIERS[t.tier], "Tier");
-  $("conceptTbl").innerHTML = groupTable(chrono, S, t=>(t.concept||"").trim() || "(none)", "Concept");
+  $("conceptTbl").innerHTML = groupTable(chrono, S, setupKey, "Setup");
 }
 
 // Expectancy grouped by any key. Small samples are marked rather than hidden — you need to see the
@@ -3530,15 +3684,16 @@ function groupSizeRows(P, S, side, ti){
   const den = side*(P-S);
   return groupMembers(root.active).map(m=>{
     const px = pxFor(m, P);
-    const s = settingsFor(m), R = rUnitOf(m), mult = s.tiers[ti], budget = R*mult;
-    const qR = den>0 ? Math.floor(budget/den) : 0;
+    // tierSize, the same sizer the fast calculator shows, so the group opens what it quoted.
+    const s = settingsFor(m), R = rUnitOf(m), mult = s.tiers[ti];
+    const z = tierSize(m, P, den, mult), q = z.q, budget = z.budget;
+    const qR = den>0 ? Math.round(budget/den) : 0;
     const free = bpFree(m);
-    const qBP = P>0 ? Math.floor(free/P) : 0;
-    const q = Math.min(qR, qBP);
-    const aum = root.portfolios[m].settings.aum;
-    return { m, px, den, R, mult, budget, q, qR, free, capped:qBP<qR, cost:q*px, aum,
-             alloc: aum>0 ? q*px/aum*100 : 0,
-             on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 };
+    const aum = aumOf(m);
+    const blocked = shortBlock(m);
+    return { m, px, den, R, mult, budget, q, qR, free, capped:z.walls.length>0, walls:z.walls, cost:q*px, aum,
+             alloc: aum>0 ? q*px/aum*100 : 0, blocked,
+             on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 || blocked>0 };
   });
 }
 
@@ -3552,7 +3707,7 @@ function renderGroupNewTrade(){
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
   if(!side){
     $("nt_calbox").style.display="none";
-    $("nt_err").textContent = "Entry and stop can't be the same price — the stop is what tells this which way you are trading.";
+    $("nt_err").textContent = "Entry and stop can't be the same price.";
     return null;
   }
   const rows = groupSizeRows(P,S,side,ti);
@@ -3606,8 +3761,7 @@ function paintGroupCalc(rows, P, S, side, ti){
                 : taking.length+" of "+rows.length+" accounts") +
     " &middot; " + fmtQ(taking.reduce((a,r)=>a+r.q,0)) + " shares total" +
     (off.length ? '<div style="color:var(--amber);font-size:12.5px;font-weight:600;font-family:var(--sans)">' +
-      "Unticked: "+off.map(r=>esc(r.m)).join(", ")+" &mdash; and they stay unticked for every trade " +
-      "until you tick them back.</div>" : "");
+      "Unticked: "+off.map(r=>esc(r.m)).join(", ")+" &mdash; stays unticked for later trades.</div>" : "");
 
   // One risk per share, because sizing is settled at the shared entry regardless of where each
   // account actually filled.
@@ -3618,7 +3772,9 @@ function paintGroupCalc(rows, P, S, side, ti){
   rows.forEach((r,i)=>{
     const tr = $("grow_"+i); if(!tr) return;
     tr.style.opacity = (!r.on || r.skipped) ? ".5" : "";
-    $("gq_"+i).innerHTML = r.skipped
+    $("gq_"+i).innerHTML = r.blocked
+      ? "<span style='color:var(--red)'>blocked</span>"
+      : r.skipped
       ? "<span class='muted'>0 &mdash; too small</span>"
       : "<b style='color:var(--gold)'>"+fmtQ(r.q)+"</b>";
     const px = $("gfill_"+i); if(px) px.style.color = (gPx[r.m]>0) ? "var(--gold)" : "";
@@ -3627,7 +3783,8 @@ function paintGroupCalc(rows, P, S, side, ti){
     const bp = $("gbp_"+i);
     bp.textContent = fmt$(r.free);
     bp.style.color = r.capped ? "var(--amber)" : "";
-    bp.title = r.capped ? ("R alone wants "+fmtQ(r.qR)+" shares here") : "";
+    bp.style.color = r.walls.indexOf("buying power")>=0 ? "var(--amber)" : "";
+    bp.title = r.capped ? ("Risk alone: "+fmtQ(r.qR)+" shares") : "";
   });
 
   // A target price does not depend on account size — shares scale with R, so k*R/shares reduces to
@@ -3636,23 +3793,23 @@ function paintGroupCalc(rows, P, S, side, ti){
   const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
 
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
-  const skipped = rows.filter(r=>r.on && r.skipped);
+  const skipped = rows.filter(r=>r.on && r.skipped && !r.blocked);
+  const blockedRows = rows.filter(r=>r.on && r.blocked);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
   const aptr = parseFloat($("nt_aptr").value);
   const a = settingsFor(acctInView()).noiseOn ? aptrAudit(P, aptr, den0) : null;
-  let vol = a
-    ? '<span style="color:'+a.color+';font-weight:600">Daily vol check: stop is '+a.aptrs.toFixed(1)+" APTRs away.</span> " +
-      (a.aptrs<defs().aptrFloor ? "Inside normal daily noise — shakeout territory." : "Normal daily noise should not reach it.")
-    : '<span class="muted">Enter APTR % to audit this stop against daily volatility.</span>';
+  const lines = [];
+  if(a) lines.push('<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+" APTRs to stop</span>");
+  else if(settingsFor(acctInView()).noiseOn && !(aptr>0)) lines.push('<span class="muted">APTR % not set.</span>');
   // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
-  if(badRows.length) vol += '<br><span style="color:var(--amber)">Fill is already past the stop for: '+
-    badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+" &mdash; check the entry. These still open.</span>";
-  if(skipped.length) vol += '<br><span style="color:var(--amber)">Skipped: '+skipped.map(r=>esc(r.m)).join(", ")+
-    " &mdash; no room at this stop, on risk or on buying power. Nothing is opened for them.</span>";
-  if(cappedRows.length) vol += '<br><span style="color:var(--amber)">Capped by buying power: '+
-    cappedRows.map(r=>esc(r.m)+" ("+fmtQ(r.q)+" of "+fmtQ(r.qR)+")").join(", ")+
-    " &mdash; those accounts take less than a full "+mult0+"R.</span>";
-  $("nt_vol").innerHTML = vol;
+  if(badRows.length) lines.push('<span style="color:var(--amber)">Fill past the stop: '+
+    badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+"</span>");
+  if(skipped.length) lines.push('<span style="color:var(--amber)">0 shares, not opened: '+skipped.map(r=>esc(r.m)).join(", ")+"</span>");
+  if(blockedRows.length) lines.push('<span style="color:var(--red)">Blocked, unstopped short: '+
+    blockedRows.map(r=>esc(r.m)+" ("+fmtQ(r.blocked)+" sh)").join(", ")+"</span>");
+  if(cappedRows.length) lines.push('<span style="color:var(--amber)">Held back: '+
+    cappedRows.map(r=>esc(r.m)+" ("+fmtQ(r.q)+" of "+fmtQ(r.qR)+", "+r.walls.join(" and ")+")").join(", ")+"</span>");
+  $("nt_vol").innerHTML = lines.join("<br>");
 }
 
 function openGroupTrade(){
@@ -3818,11 +3975,11 @@ window.gCloseUI = gid => {
 // The refresh control sits with the positions it updates, and wears the staleness so you can see
 // the book needs marking without reading a number.
 function refreshBtnHtml(staleN, hasKey){
-  const label = staleN ? "Refresh marks &mdash; " + staleN + " stale" : "Refresh marks";
+  const label = staleN ? "Update marks &mdash; " + staleN + " stale" : "Update marks";
   const title = hasKey
     ? (staleN ? staleN+" position(s) last marked over "+STALE_HOURS+"h ago" : "Pull last prices for every open ticker")
-    : "Add a Finnhub key under Data Management to pull prices automatically";
-  return '<button class="small'+(staleN?" warn":"")+'" title="'+title+'" onclick="refreshMarks()">'+label+'</button>';
+    : "Enter last prices for every symbol held, all accounts";
+  return '<button class="small'+(staleN?" warn":"")+'" title="'+title+'" onclick="updateMarks()">'+label+'</button>';
 }
 
 function renderBook(open){
@@ -3834,44 +3991,63 @@ function renderBook(open){
     $("refreshBtn").innerHTML = "";
     return;
   }
-  const heat = open.map(t=>{ const d = derive(t); const seq = riskAtStop(t,d)-d.realized; return {t,d,seq,seqR:seq/t.rUnit}; });
+  const heat = scopeTrades("open").map(({acct,t})=>{
+    const d = derive(t), seq = riskAtStop(t,d)-d.realized, cov = coverage(d);
+    return {acct, t, d, seq, seqR:seq/t.rUnit, house: seq<=1e-4 && d.Q>0 && cov.under===0 && d.stops.length>0};
+  });
   const heat$ = heat.reduce((s,h)=>s+Math.max(0,h.seq), 0);
-  const heatR = heat.reduce((s,h)=>s+Math.max(0,h.seqR), 0);
-  const houseN = heat.filter(h=>h.seq<=1e-4 && h.d.Q>0).length;
+  const houseN = heat.filter(h=>h.house).length;
   const totPL = heat.reduce((s,h)=>s+h.d.realized+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
   const stale = heat.filter(h=>isStale(h.t)).length;
   const S0 = settingsFor(acctInView());
   const cap = S0.heatCap;
+
+  // Heat and the cold streak are measured per account. R is a different number of dollars in each
+  // account, so summing it across a group counts one idea once per leg: a 0.5R trade in four
+  // accounts is 0.5R of heat in each of them, not 2R. A group shows its heaviest account.
+  const accts = scope();
+  const heatByAcct = accts.map(a=>({a, r: heat.filter(h=>h.acct===a).reduce((s,h)=>s+Math.max(0,h.seqR), 0)}));
+  const worstHeat = heatByAcct.reduce((w,x)=>x.r>w.r ? x : w, {a:null, r:0});
+  const heatR = worstHeat.r;
   const overCap = S0.heatOn !== false && heatR > cap;
   overHeat = overCap ? {heatR, cap} : null;      // read by New Trade, which is where it matters
 
-  // Across whatever is in view, so a group reads its own last five rather than the first member's.
-  const recent = scopeTrades("closed").map(x=>x.t)
-    .sort((a,b)=>(b.closedAt||0)-(a.closedAt||0)).slice(0,5);
-  const streakR = recent.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
-  const coldHit = S0.coldOn !== false && recent.length>=3 && streakR <= -S0.coldR;
+  const streaks = accts.map(a=>{
+    const recent = (root.portfolios[a].trades||[]).filter(t=>t.status==="closed")
+      .sort((x,y)=>(y.closedAt||0)-(x.closedAt||0)).slice(0,5);
+    return {a, n: recent.length, r: recent.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0)};
+  });
+  const coldWorst = streaks.filter(s=>s.n>=3).reduce((w,s)=>(!w || s.r<w.r) ? s : w, null);
+  const coldHit = S0.coldOn !== false && coldWorst && coldWorst.r <= -S0.coldR;
+  const unp = unprotected(accts);
+  const inG = accts.length>1;
 
   $("refreshBtn").innerHTML = refreshBtnHtml(stale, !!root.finnhub);
 
   // The figure and the threshold it crossed, and nothing else. Neither blocks the Open button, and
   // both say so: a warning that claims an enforcement the code lacks is worse than no warning.
   $("bookBanners").innerHTML =
-    (overCap ? '<div class="banner red">Open heat '+heatR.toFixed(2)+"R against a "+cap+
-      "R cap. Flagged here and on the New Trade button; not blocked.</div>" : "") +
-    (coldHit ? '<div class="banner amber">Last '+recent.length+" closed trades total "+streakR.toFixed(1)+
-      "R, against a -"+S0.coldR+"R threshold. Flagged, not blocked.</div>" : "");
+    (unp.long || unp.short ? '<div class="banner amber">Unprotected: ' +
+      [unp.long ? fmtQ(unp.long)+" long share"+(unp.long===1?"":"s")+" with no stop, counted at a $0 stop" : null,
+       unp.short ? fmtQ(unp.short)+" short share"+(unp.short===1?"":"s")+" with no stop, no limit on the loss" +
+         (accts.some(a=>shortBlock(a)>0) ? " &mdash; new trades blocked" : "") : null]
+        .filter(Boolean).join(" &middot; ") + ".</div>" : "") +
+    (overCap ? '<div class="banner red">Open heat '+heatR.toFixed(2)+"R"+(inG ? " in "+esc(worstHeat.a) : "")+
+      " against a "+cap+"R cap. Not blocked.</div>" : "") +
+    (coldHit ? '<div class="banner amber">Last '+coldWorst.n+" closed trades"+(inG ? " in "+esc(coldWorst.a) : "")+
+      " total "+coldWorst.r.toFixed(1)+"R, against a -"+S0.coldR+"R threshold. Not blocked.</div>" : "");
 
   hb.innerHTML =
       '<div class="statrow">' +
         // Gold as the resting colour, matching the R it is denominated in — but a breached cap is a
         // survival lever, so that one state still shouts in red.
-        '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+fmt$(heat$)+' if every stop hits &middot; cap '+cap+'R</div></div>' +
+        '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+(inG ? "heaviest account" : fmt$(heat$)+" if every stop hits")+' &middot; cap '+cap+'R</div></div>' +
         (function(){
           // The other side of open heat. Heat is what an ordinary day costs if every stop hits;
           // this is what an ordinary day moves when nothing goes wrong: each position's share of
           // equity times its own APTR, summed. A position with no APTR set contributes nothing, so
           // the count of those is stated rather than letting the figure quietly read low.
-          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
           let dollars = 0, missing = 0;
           open.forEach(t=>{
             const val = Math.abs(t.last*derive(t).Q);        // shorts move the book too
@@ -3886,21 +4062,16 @@ function renderBook(open){
             '</div></div>';
         })() +
         (function(){
-          // Equity, and nothing marked. Net liq stood here briefly and was reverted: a live
-          // net-liq readout is the number that makes a trader protect unrealised gains, which is
-          // the exact reason value at risk was cut from the spec. Showing it would have undone
-          // that decision from a different direction.
-          //
-          // So this is AUM: cash plus what the open positions are protected at. It moves on a
-          // close, a trim, a stop move or cash in and out, and never on the tape. It also puts the
-          // equity and 1R readout back somewhere permanently visible -- it had ended up inside the
-          // fast calculator's disclosure, which is shut most of the time.
-          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          // AUM: cash plus every open position at its stop (aumOf). It moves on a close, a trim, a
+          // stop move or cash in and out, and never on the tape. No net liq, by Steve's decision:
+          // unrealised gains counted as assets are what make a trader abandon a trailing stop to
+          // protect them.
+          const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
           const R  = scope().length===1 ? rUnitOf(scope()[0]) : null;
-          return '<div class="metric"><div class="k">Equity</div>' +
+          return '<div class="metric"><div class="k">AUM</div>' +
             '<div class="v">'+fmt$(eq)+'</div>' +
             '<div class="r">'+(R!=null
-              ? '1R = '+fmt$(R)+VBAR+settingsFor(acctInView()).rPct+'% of equity'
+              ? '1R = '+fmt$(R)+VBAR+settingsFor(acctInView()).rPct+'% of AUM'
               : scope().length+' accounts')+'</div></div>';
         })() +
         (function(){
@@ -3910,7 +4081,7 @@ function renderBook(open){
           // the colour from whichever is the binding constraint.
           // Gross, not net: a short puts capital to work exactly as a long does, and netting them
           // would read flat while both positions are live.
-          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
           const bp = scope().reduce((a,x)=>a+buyingPower(x), 0);
           const val = open.reduce((a,t)=>a + Math.abs(t.last*derive(t).Q), 0);
           const pct = eq>0 ? val/eq*100 : 0;
@@ -3924,7 +4095,7 @@ function renderBook(open){
         (function(){
           // Cash at risk and open heat are one quantity in two units, so the dollar figure carries
           // what it is as a share of the book and the R figure carries the cap.
-          const eq = scope().reduce((a,x)=>a+root.portfolios[x].settings.aum, 0);
+          const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
           const pct = eq>0 ? heat$/eq*100 : 0;
           return '<div class="metric"><div class="k">Cash at risk</div>' +
             '<div class="v">'+fmt$(heat$)+'</div>' +
@@ -3956,6 +4127,12 @@ function render(){
   renderBackupBadge();        // renderBook rebuilds the header this writes into, so it follows it
   renderHeatNotice();
   updateWash();
+  // A group sizes each account separately below, so one share count has nothing to apply to.
+  // Disabled rather than silently ignored, which is what it used to be (register #5).
+  const qBox = $("nt_qty");
+  qBox.disabled = inGroup();
+  qBox.placeholder = inGroup() ? "per account" : "from R";
+  if(inGroup()) qBox.value = "";
 
   if(tab==="portfolio"){ renderCash(); renderPortfolio(); }
   if(tab==="tally")  renderClosed();
@@ -4177,7 +4354,7 @@ async function refreshMarks(){
   const open = allOpenTrades();
   // The status line lives inside the book bar, which is absent when nothing is open.
   const say = m => { const st = $("refreshStatus"); if(st) st.textContent = m; };
-  if(!key){ say("No Finnhub key set — add one under Data Management, or keep setting marks by hand."); return; }
+  if(!key){ marksUI(); return; }
   if(!open.length){ say("No open trades to refresh."); return; }
 
   const byTicker = new Map();
@@ -4211,6 +4388,42 @@ async function refreshMarks(){
     (allFailed ? "  Every request failed. In a sandboxed preview outside connections are blocked — use the hosted page. Otherwise check the key." : ""));
   refreshing = false;
 }
+/* ---- manual marks, Wheeler's pattern ----
+   With no key, one window lists every symbol held in any account -- not just the one in view,
+   since a stale mark in another account falsifies its P/L and buying power just the same --
+   alphabetised, with the shares held across all of them. A mark is a fact about the symbol, so one
+   price is written to every open position holding it. A field left blank leaves that symbol's
+   marks as they were; saving a filled field counts as marking it now. */
+window.updateMarks = () => root.finnhub ? refreshMarks() : marksUI();
+window.marksUI = () => {
+  const held = new Map();
+  allOpenTrades().forEach(t=>{
+    const k = String(t.ticker||"").toUpperCase();
+    if(!held.has(k)) held.set(k, {q:0, legs:[]});
+    const h = held.get(k); h.q += derive(t).Q; h.legs.push(t);
+  });
+  const syms = [...held.keys()].sort();
+  // The most recently marked leg speaks for the symbol, in case two accounts disagree.
+  const latest = s => held.get(s).legs.reduce((w,t)=>(!w || (t.lastMarkTs||0) > (w.lastMarkTs||0)) ? t : w, null);
+  const body = syms.length
+    ? '<div class="scroll"><table>' + syms.map((s,i)=>{
+        const t = latest(s);
+        return '<tr><td><b style="font-family:var(--mono)">'+esc(s)+'</b></td>' +
+          '<td class="num muted">'+fmtQ(held.get(s).q)+' sh</td>' +
+          '<td class="num muted" style="font-size:11px">'+(markAgeHtml(t) ? markAgeHtml(t).replace(/^ /,"") : "")+'</td>' +
+          '<td style="width:130px"><input id="mk_'+i+'" type="number" step="any" value="'+(t.last||"")+'" placeholder="mark"></td></tr>';
+      }).join("") + '</table></div>'
+    : '<div class="muted">Nothing open.</div>';
+  openModal("Marks", body, "Save", () => {
+    const now = Date.now();
+    syms.forEach((s,i)=>{
+      const v = parseFloat(mv("mk_"+i));
+      if(v>0) held.get(s).legs.forEach(t=>{ t.last = v; t.lastMarkTs = now; });
+    });
+    return null;
+  });
+};
+
 function pollMarks(){
   if(!root.finnhub) return;
   if(!allOpenTrades().length) return;

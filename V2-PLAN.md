@@ -238,6 +238,51 @@ Raised by the review. The first is the one that matters.
 6. **Marks (I.C.6)** is the largest unbuilt item with daily consequences: with no API key there is
    still no way to price the book. Next?
 
+### Settled 2026-10-26, Steve's answers on takeover
+
+These supersede anything above that disagrees, including the outline's II.A.3.v options.
+
+1. **Sizing basis is AUM = cash + stop × shares** for every open position, side carrying the sign
+   for a short. Not trade price, not net liq, not cash. Reason: sizing off trade price before the
+   stop moves lets a cold streak hit harder than it should. Built: `aumOf()`; `rUnitOf()`, the
+   allocation walls, New Trade, the group table and the AUM tile all read it. `pf.settings.aum` is
+   now labelled *Book at cost* — the stored base the basis is derived from.
+2. **No net liq, anywhere.** Unrealised gains counted as assets make traders abandon trailing stops
+   to protect them. Confirms the 2026-10-26 reversal.
+3. **Unstopped long shares take a $0 effective stop and are flagged.** They count at full cost in
+   cash at risk, heat and AUM; an amber banner and the row say how many. Unstopped shorts are still
+   flagged "unbounded" and add nothing — no finite number is honest (decision 10's refusal default
+   is not built; flag only, for now).
+4. **Size as close to the maximum as possible without passing the risk budget or max allocation,
+   within fuzziness.** Built as: the largest count under each limit, or the one share over it when
+   that overshoot is inside fuzziness — never a band to fill. 3.73 exact → 4, 10.2 → 11, 3.4 → 3,
+   300.5 → 301. Replaces "nearest". The allocation wall takes the same one rounding step, which
+   answers open question 2 above. One sizer (`tierSize`) now serves Fast calc, New Trade with a
+   blank share count, and group New Trade.
+5. **Group warnings are per account.** Each account takes the same trades, so heat and the cold
+   streak are measured per account and the group shows the heaviest; summing R across legs counted
+   one idea once per account. Heat cap and cold streak stay user-toggled with user-set caps.
+6. **Settings and Data stay text tabs**, not icons.
+7. **All coaching text removed.** Warnings state the figure and the threshold only.
+8. **Unstopped shorts: Block (default) or Warn**, a ruleset setting (`shortGuard`). Block refuses
+   New Trade in that account, and skips that account in a group trade, until a stop covers it.
+9. **Lot rounding: On/Off plus "to the nearest multiple of:"**, applied to every suggested size
+   (Fast calc, the New Trade range and blank-shares fallback, group New Trade); typed shares are
+   left alone. Built with the same rule as single shares: the multiple under the limit, or the one
+   over while inside fuzziness — so 250 exact at lots of 100 gives 200, 295 gives 300 (confirmed by
+   Steve). **Per account, default 1**: set in Sizing for one account, and per member in the group
+   members table when a group is open, so an edit never lands on the first member by accident.
+10. **Manual marks follow Wheeler.** With no Finnhub key, Update marks opens one window: every symbol
+    held in any account, alphabetised, shares held, mark age, one price per symbol written to every
+    position holding it.
+11. **Setups are one user-defined list** (root.defs.setups, beside loss tags). SCHEMA 4 folds every
+    old per-account list into it and marks any trade whose text is not on it `legacySetup`: shown as
+    a Legacy pill on an amber cell with the original text, counted under "Legacy" by setup, and
+    refiled from the gear. Applied to open trades too, since they carry the same free text.
+12. **The gear reaches closed trades** — under the ✕ once the row is expanded, and per leg in a
+    group's expansion. It edits setup, tier, APTR now and at entry, ticker, AUM and 1R at open, loss
+    tag, plan, notes, and every transaction.
+
 ### Still open
 
 - **The sizing pipeline**, to be designed together before any building starts. See phase 6 for the
