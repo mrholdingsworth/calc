@@ -65,13 +65,23 @@ Where the load-bearing pieces live:
 
 ## Invariants — break these and the numbers lie
 
-**AUM is cash + stop × shares.** `aumOf` = `pf.settings.aum` (the book at cost) less
-`riskAtStop` over open trades. Side carries the sign for a short. Unstopped long shares count at a
+**The book is worked out, never stored.** `bookOf(acct)` = `initialCapital` + every cash flow
+(deposit, withdrawal, signed adjustment) + every trade's realised P/L. Nothing writes a balance:
+the only hand-typed figure is initial capital, and drift is an `adjust` cash flow (the Adjust
+dialog computes it from the broker's cash against `appCash`). Old books' stored `aum` is turned
+into a worked-back initial capital once in `normalize()` and deleted.
+
+**AUM is cash + stop × shares.** `aumOf` = `bookOf` less `riskAtStop` over open trades. Side carries the sign for a short. Unstopped long shares count at a
 $0 stop; unstopped short shares have no finite worst case, add nothing, and are flagged — and by
 default (`shortGuard: "block"`) block new trades in that account. **No net liq, anywhere.**
 
 **Equity responds to decisions, never to the tape.** Closes, trims, stop moves, cash in and out.
-`bpUsed` still marks at `t.last` — the one known exception, left open.
+Buying power used is at cost for a cash account and at the mark for a margin account, where the
+broker's requirement genuinely is marked.
+
+**Estimated tax lives apart.** `taxReport()` works FIFO lots from the event logs and applies wash
+sales across all accounts; nothing it does reaches `derive()`, the Portfolio or Closed Trades.
+Acceptance of the disclaimer is `root.taxAck = {at, k}`, valid only while `k === ackCode(at)`.
 
 **One sizing rule.** The largest count under the risk budget and max allocation, or one step over
 while that overshoot is inside fuzziness. The step is a share, or a lot when lot rounding is on
@@ -80,9 +90,10 @@ while that overshoot is inside fuzziness. The step is a share, or a lot when lot
 **Locked at open, but correctable by hand.** `t.rUnit`, `t.aumAtOpen`, `t.aptrAtOpen`, the entry
 event. Nothing recomputes them; the gear lets a person correct a typo in them.
 
-**`t.compounded` tracks how much realised P/L is already inside the book.** Any path that realises
-anything calls `syncCompound(t, acct)`. **Status follows the shares**: any path that edits or
-removes an event calls `syncStatus(t)`, or a closed trade can be left holding shares.
+**`syncCompound` no longer moves money** — the book is worked out — but still records
+`t.compounded` on every realising path, which the migrations read. **Status follows the shares**:
+any path that edits or removes an event calls `syncStatus(t)`, or a closed trade can be left
+holding shares.
 
 **Removing a feature removes what *creates* it, never what *reads* it.** Old `add`, `budget` and
 `adjust` events must still replay; `t.checks` is still read for old books.
@@ -115,11 +126,11 @@ telling the user what to do.
 
 ## Waiting on Steve, not on work
 
-- **Estimated tax liability** (II.A.2.v) — not started. The largest remaining piece; wash-sale
-  disallowance is the hard part.
-- **Audit CSV** (II.B) — needs a thinkorswim activity export to build against.
-- **Initial capital** (II.A.2.i) and **what each panel shows** (II.A.1.v) — not started.
-- **Naming the app.** The masthead is still a placeholder.
+- **Audit CSV** (II.B) — waiting on a thinkorswim activity export.
+- **What each panel shows** (II.A.1.v) — proposal given, waiting on Steve's picks.
+- **Unrealised gains in the Portfolio summary** — Steve undecided.
+- Later, by Steve's order: the Closed Trades / Statistics / 30-day review pass, the ADR and Loss
+  audit revisit, then cutover once everything else is done.
 
 ## Working conventions
 
@@ -134,6 +145,7 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
 - **Two harnesses, both in `_dev/`, both run from a gitignored probe copy** (build command in each
   file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
-  the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded — 85 hand-computed cases; `runChecks()` returns `{passed, failed}`. **Run
+  the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax — 102
+  hand-computed cases; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.

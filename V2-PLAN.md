@@ -300,6 +300,16 @@ These supersede anything above that disagrees, including the outline's II.A.3.v 
 19. **"Stops loaded", default 1, affects only an open position's Stop button:** its current stops
     first, then blank rows up to the setting. Blank rows are dropped on save. Group stops and the
     edit dialogs ignore it.
+20. **Initial capital is the base (option b).** The book is initial capital + deposits −
+    withdrawals ± adjustments + realised P/L, worked out every time, never stored. Drift from
+    broker rounding is an Adjust movement: type the broker's cash and the difference is recorded.
+    Existing books get a worked-back initial capital, marked estimated, so nothing moves.
+21. **Estimated tax:** per account, short-term rate (default 22%) and long-term (default 15%);
+    FIFO lots; long-term over 365 days, shorts always short-term; wash sales across accounts,
+    used only in the estimate; ST/LT netted within the calendar year; a YTD tile on the Portfolio.
+    Red not-advice dialog on first switch-on; acceptance stored with its time and a check code.
+22. **Buying power used:** cost for a cash account, the mark for a margin account.
+23. **Name: RCalculator.** Masthead, title and backup filename. The repo and URL stay `calc`.
 
 Still open by Steve's choice: unrealised gains in the summary. Kept for now: fuzziness 10%, open
 heat in R.

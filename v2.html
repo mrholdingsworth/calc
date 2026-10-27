@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>R Calculator 2.0-dev</title>
+<title>RCalculator 2.0-dev</title>
 <meta name="description" content="Position sizing and trade management denominated in R. Development build of version 2.">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e13'/%3E%3Ctext x='16' y='24' font-size='20' font-family='monospace' font-weight='700' fill='%234d9fff' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
@@ -310,7 +310,7 @@ button.small{--r:7px}
   <!-- One row, not two. The masthead and the account strip were 47px and 28px of separate chrome
        above a block that is pinned on every tab, and measuring it is what made that obvious. -->
   <div class="mast" style="align-items:flex-start;gap:12px">
-    <div class="logo"><span class="gold">R</span><span class="devbadge">2.0-dev</span></div>
+    <div class="logo"><span class="gold">R</span>Calculator<span class="devbadge">2.0-dev</span></div>
     <div class="clock" id="clock" aria-live="off" style="margin-left:auto"></div>
   </div>
   <div class="tabs" id="tabs" style="margin:6px 0 0"></div>
@@ -503,12 +503,17 @@ button.small{--r:7px}
       <div class="head">Accounts</div>
       <div id="acctAdmin"></div>
       <div id="acctOwn" style="margin-top:10px">
-        <div class="srow"><label for="aum">Book at cost<span class="info" data-tip="Cash plus what was paid for open positions. AUM is this with every open position valued at its stop instead. Moves on its own as trades realise; Deposit and Withdraw record money arriving or leaving.">i</span></label>
+        <div class="srow"><label for="aum">Initial capital<span class="info" data-tip="What the account started with. The book is this plus deposits, less withdrawals, plus everything realised, plus any adjustments.">i</span>
+            <span class="pill warn" id="initEst" style="display:none;margin-left:8px" title="Worked back from the book when initial capital was introduced. Entering the real figure changes the book by the difference.">estimated</span></label>
           <div class="sctl"><input id="aum" type="text" inputmode="decimal" style="width:140px"></div></div>
+        <div class="srow"><label>Book at cost<span class="info" data-tip="Cash plus what was paid for open positions, worked out from initial capital and every movement since. AUM is this with every open position valued at its stop.">i</span></label>
+          <div class="sctl"><span id="bookCost" style="font-family:var(--mono);font-size:13px"></span></div></div>
         <div class="srow"><label for="marginOn">Margin<span class="info" data-tip="Buying power as a multiple of equity. Off means cash: you can hold only what you can pay for. On, enter any rate your broker gives you.">i</span></label>
           <div class="sctl"><input type="checkbox" id="marginOn"><input id="marginX" type="number" step="0.1" min="1" placeholder="2"><span class="suffix">&times;</span></div></div>
         <div class="srow"><label for="s_lotOn">Lot rounding, to the nearest multiple of<span class="info" data-tip="Per account. Suggested share counts move in steps of this many shares. Shares you type are left as typed.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_lotOn"><input id="s_lotRound" type="number" step="1" min="1"><span class="suffix">sh</span></div></div>
+        <div class="srow"><label for="s_taxOn">Estimated tax, short-term and long-term rate<span class="info" data-tip="An estimate of tax on this calendar year's realised gains, shown on the Portfolio. Short-term applies to lots held a year or less and to shorts; long-term to long lots held longer. Not tax advice.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_taxOn"><input id="s_taxST" type="number" step="0.5" min="0"><input id="s_taxLT" type="number" step="0.5" min="0"><span class="suffix">%</span></div></div>
       </div>
       <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
     </div>
@@ -710,12 +715,13 @@ const SCHEMA = 4;
 let root = null, state = null;
 
 function defaults(){
-  return { settings:{ aum:100000, rPct:1, tiers:[1,0.5,0.25], finnhub:"",
+  return { settings:{ initialCapital:100000, rPct:1, tiers:[1,0.5,0.25], finnhub:"",
                       marginX:1, lotOn:false, lotRound:1,
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
                       targetsOn:true, targets:[1,2],
                       fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2,
-                      noiseOn:false, shortGuard:"block" }, trades:[] };
+                      noiseOn:false, shortGuard:"block",
+                      taxOn:false, taxST:22, taxLT:15 }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
 // each account; only these are shared. Lot rounding is NOT here: it is per account, like margin,
@@ -768,20 +774,47 @@ const marginXOf = acct => {
 };
 const buyingPower = acct => {
   const pf = root.portfolios[acct];
-  return pf ? pf.settings.aum * marginXOf(acct) : 0;
+  return pf ? bookOf(acct) * marginXOf(acct) : 0;
 };
-// What open positions are currently standing on, marked to the last price.
+
+/* ---- the book at cost: worked out, never stored ----
+   Initial capital, plus every cash movement, plus everything any trade has realised. It used to be
+   a running total that each realising path nudged and that could be typed over, which is how a
+   book drifts without anyone being able to say why. Now every change to it is a record: a deposit,
+   a withdrawal, a realised trade, or an adjustment -- the last for the cents a broker's rounding
+   leaves that no trade explains. */
+const flowSigned = f => f.type==="deposit" ? f.amount : f.type==="withdraw" ? -f.amount : (+f.amount || 0);
+function bookOf(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return 0;
+  const flows = (pf.cashFlows||[]).reduce((a,f)=>a + flowSigned(f), 0);
+  const realised = (pf.trades||[]).reduce((a,t)=>a + derive(t).realized, 0);
+  return Math.round(((pf.settings.initialCapital||0) + flows + realised)*100)/100;
+}
+// What the app thinks the broker holds in cash: the book less what open positions cost, with a
+// short's proceeds counting the other way. Compared with the broker's figure, the difference is the
+// adjustment.
+function appCash(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return 0;
+  return Math.round((bookOf(acct) - pf.trades.filter(t=>t.status==="open")
+    .reduce((a,t)=>{ const d = derive(t); return a + t.side*d.avg*d.Q; }, 0))*100)/100;
+}
+// What open positions are standing on. A cash account owns what it paid for, so its positions use
+// buying power at cost and a rising price consumes nothing. A margin account's requirement is set by
+// the broker on the live value, so there it follows the mark.
 function bpUsed(acct){
   const pf = root.portfolios[acct];
   if(!pf) return 0;
+  const marked = !!pf.settings.marginOn;
   return pf.trades.filter(t=>t.status==="open")
-    .reduce((a,t)=>{ const d = derive(t); return a + Math.abs(t.last*d.Q); }, 0);
+    .reduce((a,t)=>{ const d = derive(t); return a + Math.abs((marked ? t.last : d.avg)*d.Q); }, 0);
 }
 const bpFree = acct => Math.max(0, buyingPower(acct) - bpUsed(acct));
 
 /* ---- AUM: cash plus every open position valued at its stop ----
-   pf.settings.aum is the book at cost: cash plus what was paid for the open positions, moved by
-   realised P/L and cash in and out. AUM is that less what every stop would give back, which is
+   bookOf is the book at cost: cash plus what was paid for the open positions, moved by realised
+   P/L and cash in and out. AUM is that less what every stop would give back, which is
    the same number as cash + stop x shares, with the side carrying the sign for a short. A stop
    raised above entry raises AUM; the tape never moves it. Unstopped long shares count at a $0
    stop. Everything that sizes or measures against equity reads aumOf, so the basis has one door. */
@@ -791,7 +824,7 @@ const openRisk = acct => {
 };
 const aumOf = acct => {
   const pf = root.portfolios[acct];
-  return pf ? pf.settings.aum - openRisk(acct) : 0;
+  return pf ? bookOf(acct) - openRisk(acct) : 0;
 };
 // Shares no stop covers, split by side because they mean different things: a long is counted at
 // $0, a short has no worst case at all.
@@ -967,6 +1000,17 @@ function normalize(){
         (t.status==="closed" && Array.isArray(t.events)) ? derive(t).realized : 0;
     });
     if(!Array.isArray(pf.cashFlows)) pf.cashFlows = [];   // additive; no migration needed
+    // The old running total becomes a starting figure. Initial capital is worked back from it --
+    // the stored book less every cash movement and everything realised -- so bookOf returns exactly
+    // the number the account had, and the stored total is dropped so nothing can drift from it.
+    // An account with history is marked estimated until a real starting figure is entered.
+    if(pf.settings.aum != null){
+      const flows = pf.cashFlows.reduce((a,f)=>a + flowSigned(f), 0);
+      const realised = pf.trades.reduce((a,t)=>a + derive(t).realized, 0);
+      pf.settings.initialCapital = Math.round((pf.settings.aum - flows - realised)*100)/100;
+      pf.settings.initialEstimated = pf.trades.length>0 || pf.cashFlows.length>0;
+      delete pf.settings.aum;
+    }
   });
   // groups
   if(root.finnhub==null){
@@ -1145,7 +1189,11 @@ const TIPS = {
   "Entry": "Entry price, shares, and allocation at open.",
   "Equity": "AUM this account sizes from.",
   "Equity P/L": "Realised plus unrealised P/L as a percentage of AUM at open.",
-  "Equity after": "Book at cost after this movement.",
+  "Equity after": "Book at cost after this movement.", "Book after": "Book at cost after this movement.",
+  "Broker cash": "The cash balance the broker shows for this account. The adjustment is its difference from the app's figure.",
+  "Or adjust by": "A signed amount to add to the book directly.",
+  "Initial capital": "What the account started with; the book is worked out from it.",
+  "Book at cost": "Cash plus what was paid for open positions.",
   "Equity curve over time": "Starting AUM plus realised P/L, by close date.",
   "Event": "The kind of transaction.",
   "Exit plan": "How the trade is meant to be closed.",
@@ -1205,6 +1253,7 @@ const TIPS = {
   "Weighted APTR": "Each position's share of AUM times its APTR, summed: how far the book moves on an ordinary day.",
   "Win %": "Share of trades closing above zero.",
   "Win rate": "How often a closed trade won, three ways, each stricter than the last.",
+  "Est. tax YTD": "Estimated tax on this calendar year's realised gains, at the account's short- and long-term rates, wash sales included. Not tax advice.",
   "Name": "Account or group name.", "Type": "Account or group.",
   "Group": "The group this account belongs to, if any; changing it moves the account.",
   "Trades": "Trades recorded in this account, and how many are open.",
@@ -1321,10 +1370,10 @@ function syncCompound(t, acct){
   acct = acct || acctOf(t.id);
   const pf = root.portfolios[acct];
   if(!pf) return 0;
+  // The book is worked out from realised P/L now (bookOf), so nothing is added here; this only
+  // records how much of the trade's result the book already reflects, which old books carry.
   const now = derive(t).realized;
   const delta = now - (t.compounded || 0);
-  if(!delta) return 0;
-  pf.settings.aum = Math.round((pf.settings.aum + delta)*100)/100;
   t.compounded = now;
   return delta;
 }
@@ -1788,7 +1837,9 @@ const SET_FIELDS = [
   ["s_hideValues","page", "hideValues", "bool"],
   ["s_colourGrade","page","colourGrade","bool"],
   ["s_stopCount", "page", "stopCount",  "num"],
-  ["s_lotRound",  "acct", "lotRound",   "num"]
+  ["s_lotRound",  "acct", "lotRound",   "num"],
+  ["s_taxST",     "acct", "taxST",      "num"],
+  ["s_taxLT",     "acct", "taxLT",      "num"]
 ];
 function setTarget(scope){
   if(scope==="defs") return root.defs;
@@ -1857,6 +1908,7 @@ function bindSetFields(){
 
 function renderSettings(){
   renderSetFields();
+  $("s_taxOn").checked = taxOn(acctInView());
   // The built-ins switched on, shown locked above the editable list.
   const bl = BUILTIN_TAGS.filter(o=>(defs().builtins||{})[o.v]);
   $("builtinTagList").innerHTML = bl.map(o=>'<span class="pill tier" title="Built in; switched off below, not edited here">&#128274; '+esc(o.t)+'</span>').join(" ");
@@ -1878,10 +1930,12 @@ function renderSettings(){
   // A value whose switch is off is shown, but greyed and not editable, so it reads as unused.
   [["s_maxAllocOn",["s_maxAlloc"]], ["s_minAllocOn",["s_minAlloc"]], ["s_heatOn",["heatcap"]],
    ["s_coldOn",["coldr"]], ["s_noiseOn",["s_aptrTight","s_aptrFloor"]], ["s_targetsOn",["s_target0","s_target1"]],
-   ["s_lotOn",["s_lotRound"]]].forEach(([sw, vals])=>vals.forEach(id=>{ $(id).disabled = !$(sw).checked; }));
+   ["s_lotOn",["s_lotRound"]], ["s_taxOn",["s_taxST","s_taxLT"]]].forEach(([sw, vals])=>vals.forEach(id=>{ $(id).disabled = !$(sw).checked; }));
   if(!g){
     const pf = root.portfolios[acctInView()];
-    $("aum").value = fmt$(state.settings.aum);
+    $("aum").value = fmt$(pf.settings.initialCapital||0);
+    $("initEst").style.display = pf.settings.initialEstimated ? "" : "none";
+    $("bookCost").innerHTML = fmt$(bookOf(acctInView()));
     $("marginOn").checked = !!(pf && pf.settings.marginOn);
     $("marginX").value = pf ? pf.settings.marginX : 2;
     $("marginX").disabled = !(pf && pf.settings.marginOn);
@@ -1899,6 +1953,7 @@ function renderSettings(){
       // Plain title attributes here rather than the .info bubble: this table sits in a .scroll
       // wrapper, and an absolutely positioned bubble cannot escape a scrolling box.
       ? "<table><tr><th>Account</th>" +
+        "<th class='num' title='What the account started with; the book is worked out from it'>Initial capital</th>" +
         "<th class='num' title='Cash plus what was paid for open positions'>Book at cost</th>" +
         "<th title='Record money arriving or leaving this account'>Cash</th>" +
         "<th title='Buying power as a multiple of equity. Off means cash.'>Margin</th>" +
@@ -1910,12 +1965,16 @@ function renderSettings(){
           const R = rUnitOf(m);
           return "<tr><td>"+esc(m)+"</td>" +
             "<td class='num'><input type='text' inputmode='decimal' style='max-width:130px;text-align:right' value='"+
-              fmt$(root.portfolios[m].settings.aum)+"' onchange=\"setMemberAum('"+jsq(m)+"',this.value)\"></td>" +
+              fmt$(root.portfolios[m].settings.initialCapital||0)+"' onchange=\"setMemberInitial('"+jsq(m)+"',this.value)\">" +
+              (root.portfolios[m].settings.initialEstimated ? "<div class='muted' style='font-size:10.5px;color:var(--amber)' title='Worked back from the book; enter the real figure if you know it'>estimated</div>" : "") + "</td>" +
+            "<td class='num'>"+fmt$(bookOf(m))+"</td>" +
             // Each account moves its own cash: one group order does not imply one transfer.
             '<td style="white-space:nowrap"><button class="small" title="Deposit into '+esc(m)+
               '" onclick="openCash(\''+jsq(m)+'\',\'deposit\')">+</button> ' +
               '<button class="small" title="Withdraw from '+esc(m)+
-              '" onclick="openCash(\''+jsq(m)+'\',\'withdraw\')">&minus;</button></td>' +
+              '" onclick="openCash(\''+jsq(m)+'\',\'withdraw\')">&minus;</button> ' +
+              '<button class="small" title="Adjust '+esc(m)+' to the broker\'s cash" ' +
+              'onclick="openCash(\''+jsq(m)+'\',\'adjust\')">&plusmn;</button></td>' +
             "<td><div class='ctlrow'>" +
               "<label class='inchk' title='Trade this account on margin'>" +
                 "<input type='checkbox'" + (root.portfolios[m].settings.marginOn?" checked":"") +
@@ -2137,21 +2196,17 @@ function renderFastCalc(){
 }
 
 /* ========================= cash in and out ========================= */
-// Equity already moves on its own: closing a trade compounds its realised P/L into AUM. Typing a
-// new total by hand fights that mechanism, because a broker balance carries the *unrealised* P/L of
-// everything still open — key that in and the same money is counted twice the moment those
-// positions close. A deposit or a withdrawal is a delta instead: it adjusts whatever the number
-// happens to be at the time, leaves compounding alone, and is recorded so that money arriving is
-// never later mistaken for money earned.
-//
-// The manual AUM field stays, for correcting a figure that was wrong to begin with. That is a
-// different job from moving cash, and it is the only one it should be used for now.
+// A deposit, a withdrawal or an adjustment is a record, and the book is worked out from the
+// records (bookOf). Nothing here sets a total, so money arriving can never later be mistaken for
+// money earned, and the cents a broker's rounding leaves are an adjustment with a date and a note
+// rather than a silent edit to a balance.
 const cashFlows = acct => { const pf = root.portfolios[acct]; return (pf && pf.cashFlows) || []; };
 const cashAmount = () => parseFloat(String($("cashAmt").value).replace(/[^0-9.]/g,""));
 
 window.openCash = (acct, kind) => {
   const pf = root.portfolios[acct];
   if(!pf) return;
+  if(kind === "adjust") return openAdjust(acct);
   const dep = kind === "deposit";
   $("modalTitle").textContent = (dep ? "Deposit into " : "Withdraw from ") + acct;
   $("modalBody").innerHTML =
@@ -2182,10 +2237,10 @@ window.previewCash = (acct, kind) => {
     el.innerHTML = '<span class="muted">Enter an amount.</span>';
     btn.disabled = true; return;
   }
-  const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
+  const next = Math.round((bookOf(acct) + (kind==="deposit" ? v : -v))*100)/100;
   if(next <= 0){
     el.innerHTML = '<span style="color:var(--red)">That would leave '+esc(acct)+' at '+fmt$(next)+
-      '. Withdraw less than the equity.</span>';
+      '. Withdraw less than the book.</span>';
     btn.disabled = true; return;
   }
   const aumNext = next - openRisk(acct);
@@ -2204,12 +2259,48 @@ window.applyCash = (acct, kind) => {
   const pf = root.portfolios[acct];
   const v = cashAmount();
   if(!pf || !(v > 0)) return;
-  const next = Math.round((pf.settings.aum + (kind==="deposit" ? v : -v))*100)/100;
+  const next = Math.round((bookOf(acct) + (kind==="deposit" ? v : -v))*100)/100;
   if(next <= 0) return;
-  pf.settings.aum = next;
+  // aumAfter is the book after the movement; the field keeps its old name so old records read.
   pf.cashFlows.push({ type:kind, amount:v, note:$("cashNote").value.trim(), ts:Date.now(), aumAfter:next });
   closeModal(); save(); render();
 };
+
+/* ---- adjustments: matching the broker ----
+   The usual case is a few cents of rounding no trade accounts for. Type the cash balance the
+   broker shows and the adjustment is the difference from what the app works out it should be; or
+   type the amount directly. Either way it is a dated record with a note, and removable like any
+   other movement. */
+function openAdjust(acct){
+  const adjBy = () => {
+    const direct = parseFloat(mv("adjAmt")), broker = parseFloat(mv("adjBroker"));
+    if(!isNaN(direct)) return Math.round(direct*100)/100;
+    if(!isNaN(broker)) return Math.round((broker - appCash(acct))*100)/100;
+    return NaN;
+  };
+  openModal("Adjust " + esc(acct),
+    '<div class="row">' +
+      '<div style="flex:1"><label for="adjBroker">Broker cash</label><input id="adjBroker" type="number" step="0.01" placeholder="'+appCash(acct).toFixed(2)+'"></div>' +
+      '<div style="flex:1"><label for="adjAmt">Or adjust by</label><input id="adjAmt" type="number" step="0.01" placeholder="+0.00"></div>' +
+    '</div>' +
+    '<div style="margin-top:8px"><label for="adjNote">Note <span class="muted">(optional)</span></label><input id="adjNote" type="text" placeholder="rounding, fee"></div>',
+    "Adjust",
+    () => {
+      const a = adjBy();
+      if(isNaN(a) || Math.abs(a) < 0.005) return "Nothing to adjust.";
+      const pf = root.portfolios[acct];
+      pf.cashFlows.push({ type:"adjust", amount:a, note:mv("adjNote").trim(), ts:Date.now(),
+                          aumAfter: Math.round((bookOf(acct) + a)*100)/100 });
+      return null;
+    },
+    () => {
+      const a = adjBy(), el = $("m_note");
+      if(!el) return;
+      el.innerHTML = "App cash " + fmt$(appCash(acct)) +
+        (isNaN(a) ? "" : " &middot; adjustment <b>" + (a>=0?"+":"&minus;") + fmt$(Math.abs(a)) + "</b>" +
+          " &middot; book " + fmt$(bookOf(acct)) + " &rarr; <b>" + fmt$(bookOf(acct) + a) + "</b>");
+    });
+}
 
 // Reversing is the only sane correction for a mistyped amount: a compensating movement in the other
 // direction would leave two wrong entries in the record rather than none.
@@ -2217,10 +2308,10 @@ window.undoCash = (acct, i) => {
   const pf = root.portfolios[acct];
   const f = pf && pf.cashFlows[i];
   if(!f) return;
-  const next = Math.round((pf.settings.aum + (f.type==="deposit" ? -f.amount : f.amount))*100)/100;
-  if(!confirm("Remove this "+f.type+" of "+fmt$(f.amount)+" from "+acct+"?\n\nEquity goes from "+
-              fmt$(pf.settings.aum)+" to "+fmt$(next)+". The record of it is deleted, not offset.")) return;
-  pf.settings.aum = next;
+  const before = bookOf(acct), next = Math.round((before - flowSigned(f))*100)/100;
+  const what = f.type==="adjust" ? "adjustment" : f.type;
+  if(!confirm("Remove this "+what+" of "+fmt$(Math.abs(flowSigned(f)))+" from "+acct+"?\n\nThe book goes from "+
+              fmt$(before)+" to "+fmt$(next)+". The record of it is deleted, not offset.")) return;
   pf.cashFlows.splice(i,1);
   save(); render();
 };
@@ -2232,31 +2323,31 @@ function renderCash(){
   const a = acctInView();
   btns.innerHTML = (inGroup() || !a) ? "" :
     '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'deposit\')">Deposit</button>' +
-    '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'withdraw\')">Withdraw</button>';
+    '<button class="small" onclick="openCash(\''+jsq(a)+'\',\'withdraw\')">Withdraw</button>' +
+    '<button class="small" title="Match the broker\'s cash, or record a small difference" onclick="openCash(\''+jsq(a)+'\',\'adjust\')">Adjust</button>';
 
   const rows = [];
   scope().forEach(acct=>cashFlows(acct).forEach((f,i)=>rows.push({acct, f, i})));
   if(!rows.length){ box.innerHTML = ""; return; }
   rows.sort((x,y)=>y.f.ts - x.f.ts);
-  const inTot  = rows.reduce((s,r)=>s + (r.f.type==="deposit"  ? r.f.amount : 0), 0);
-  const outTot = rows.reduce((s,r)=>s + (r.f.type==="withdraw" ? r.f.amount : 0), 0);
-  const net = inTot - outTot;
+  const net = rows.reduce((s,r)=>s + flowSigned(r.f), 0);
 
   box.innerHTML = '<details style="margin-top:10px"><summary>Cash in and out &mdash; ' +
     rows.length + " movement" + (rows.length===1?"":"s") + ", net " +
     (net>=0 ? "+" : "&minus;") + fmt$(Math.abs(net)) + "</summary>" +
     '<div class="scroll" style="margin-top:8px"><table>' +
     "<tr><th>Date</th>" + (inGroup() ? "<th>Account</th>" : "") +
-    "<th>Movement</th><th class='num'>Amount</th><th class='num'>Equity after</th><th>Note</th><th></th></tr>" +
+    "<th>Movement</th><th class='num'>Amount</th><th class='num'>Book after</th><th>Note</th><th></th></tr>" +
     rows.map(r=>{
-      const dep = r.f.type === "deposit";
+      const v = flowSigned(r.f), up = v >= 0;
+      const name = r.f.type==="deposit" ? "Deposit" : r.f.type==="withdraw" ? "Withdrawal" : "Adjustment";
       return "<tr><td>"+new Date(r.f.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td>" +
         (inGroup() ? "<td>"+esc(r.acct)+"</td>" : "") +
-        '<td class="'+(dep?"pos":"neg")+'">'+(dep?"Deposit":"Withdrawal")+"</td>" +
-        '<td class="num '+(dep?"pos":"neg")+'">'+(dep?"+":"&minus;")+fmt$(r.f.amount)+"</td>" +
+        '<td class="'+(r.f.type==="adjust" ? "" : up?"pos":"neg")+'">'+name+"</td>" +
+        '<td class="num '+(r.f.type==="adjust" ? "" : up?"pos":"neg")+'">'+(up?"+":"&minus;")+fmt$(Math.abs(v))+"</td>" +
         "<td class='num'>"+fmt$(r.f.aumAfter)+"</td>" +
         "<td>"+esc(r.f.note||"")+"</td>" +
-        "<td class='num'><button class='small danger' title='Remove this movement and put the equity back' " +
+        "<td class='num'><button class='small danger' title='Remove this movement and put the book back' " +
           'onclick="undoCash(\''+jsq(r.acct)+"',"+r.i+')">&#10005;</button></td></tr>';
     }).join("") + "</table></div>" +
     "</details>";
@@ -2278,9 +2369,9 @@ window.setMemberLot = (m, which, v) => {
   else { const n = Math.floor(parseFloat(v)); if(n>=1) pf.settings.lotRound = n; }
   save(); render();
 };
-window.setMemberAum = (m,v) => {
-  const n = parseFloat(String(v).replace(/[^0-9.]/g,""));
-  if(root.portfolios[m] && !isNaN(n) && n>0) root.portfolios[m].settings.aum = n;
+window.setMemberInitial = (m,v) => {
+  const pf = root.portfolios[m], n = parseFloat(String(v).replace(/[^0-9.]/g,""));
+  if(pf && !isNaN(n) && n>0){ pf.settings.initialCapital = Math.round(n*100)/100; pf.settings.initialEstimated = false; }
   save(); render();
 };
 
@@ -3302,7 +3393,7 @@ const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
 // else, so the age of the last real backup is worth a standing label rather than a line in a hint.
 // Only Download and Copy count: "Export to box" puts the JSON on screen without it leaving the page.
 const BACKUP_DAYS = 6;
-const backupName = () => "r-calculator-book-"+new Date().toISOString().slice(0,10)+".json";
+const backupName = () => "rcalculator-book-"+new Date().toISOString().slice(0,10)+".json";
 window.markBackedUp = () => { root.lastBackup = Date.now(); save(); renderBackupBadge(); };
 function backupAgeDays(){ return root.lastBackup ? daysBetween(root.lastBackup, Date.now()) : null; }
 function backupDue(){
@@ -3742,7 +3833,7 @@ function renderCharts(chrono){
   $("plTime").innerHTML = svgTimeLine(cumByDay, fmt$);
 
   // Baseline is the equity the first trade was sized against — the same anchor the R unit used.
-  const startEquity = S[0].aum0 || state.settings.aum;
+  const startEquity = S[0].aum0 || bookOf(chartAcct());
   $("plPct").innerHTML = svgTimeLine(cumByDay.map(p=>({x:p.x, y:p.y/startEquity*100})), v=>v.toFixed(1)+"%");
   $("eqCurve").innerHTML = svgTimeLine(
     [{x: days[0]-864e5, y: startEquity}].concat(cumByDay.map(p=>({x:p.x, y:startEquity+p.y}))), fmt$, {zeroBase:false});
@@ -4169,6 +4260,112 @@ window.gCloseUI = gid => {
 // gToggleCard, legStats and groupTradeCard are gone: the position list renders both modes, so
 // there is no second card renderer to keep in step.
 
+/* ========================= estimated tax =========================
+   An estimate, and the disclaimer says so. It works from the trades' own buys and sells, never
+   touching derive(): the Portfolio and Closed Trades keep the average-cost figures they always
+   showed, and nothing a wash sale does here reaches them.
+
+   - Lots are matched first in, first out, the broker default. A trade's whole realised total is
+     the same either way; a partial trim's is not, and tax follows the lots.
+   - Long-term is a long lot held more than 365 days. A short is short-term however long it ran.
+   - A wash sale is a loss on a long sale with the same ticker bought within 30 days either side,
+     in any account -- the rule follows the taxpayer. The disallowed loss is added to the
+     replacement shares' basis, so it comes back when they are sold. Holding-period tacking, IRAs,
+     options and the like are not modelled.
+   - Short- and long-term net against each other within the calendar year; a net loss is no tax.
+
+   Acceptance is stored with a check code beside its timestamp, so the flag cannot be switched on
+   by typing "true" into an export, and the JSON still records when it was accepted. */
+const ackCode = at => { let h = 7; const s = String(at) + "|rcalc-tax"; for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) | 0; return (h>>>0).toString(36); };
+const taxAccepted = () => !!(root.taxAck && root.taxAck.at && root.taxAck.k === ackCode(root.taxAck.at));
+const taxOn = acct => { const pf = root.portfolios[acct]; return !!(pf && pf.settings.taxOn && taxAccepted()); };
+
+// FIFO lots and the sale pieces matched against them, for one trade.
+function taxLots(t){
+  let lots = []; const made = [], pieces = [];
+  t.events.forEach((e,i)=>{
+    if(e.type==="entry" || e.type==="add"){
+      const L = {id:t.id+"#"+i, ticker:String(t.ticker).toUpperCase(), side:t.side, qty:e.qty, orig:e.qty,
+                 price:e.price, ts:e.ts, deferred:0, room:e.qty};
+      lots.push(L); made.push(L);
+    } else if(e.type==="trim" || e.type==="close"){
+      let q = e.qty;
+      while(q > 1e-9 && lots.length){
+        const L = lots[0], take = Math.min(q, L.qty);
+        pieces.push({lot:L, qty:take, px:e.price, ts:e.ts, sale:t.id+"@"+i, disallowed:0});
+        L.qty -= take; q -= take;
+        if(L.qty <= 1e-9){ L.gone = e.ts; lots.shift(); }       // when the last of the lot was sold
+      }
+    } else if(e.type==="adjust"){
+      // An override is not a purchase: the remaining shares fold into one lot at the stated size
+      // and price, keeping the oldest date, and it can never be a wash replacement.
+      const tot = lots.reduce((a,L)=>a+L.qty, 0);
+      const avg = tot ? lots.reduce((a,L)=>a+L.qty*L.price, 0)/tot : (e.price||0);
+      const qty = e.qty!=null ? e.qty : tot;
+      lots = qty>0 ? [{id:t.id+"#a"+i, ticker:String(t.ticker).toUpperCase(), side:t.side, qty, orig:qty,
+                       price: e.price!=null ? e.price : avg, ts: lots.length ? lots[0].ts : e.ts, deferred:0, room:0}] : [];
+    }
+  });
+  return {made, pieces};
+}
+
+function taxReport(year){
+  year = year || new Date().getFullYear();
+  const pieces = [], buys = [];
+  Object.keys(root.portfolios).forEach(acct=>root.portfolios[acct].trades.forEach(t=>{
+    const r = taxLots(t);
+    r.pieces.forEach(p=>{ p.acct = acct; pieces.push(p); });
+    r.made.forEach(L=>buys.push(L));
+  }));
+  pieces.sort((a,b)=>a.ts-b.ts);
+  const inSale = {};
+  pieces.forEach(p=>{ (inSale[p.sale] = inSale[p.sale] || new Set()).add(p.lot.id); });
+  const out = {};
+  const acc = a => out[a] || (out[a] = {st:0, lt:0, washed:0});
+  pieces.forEach(p=>{
+    const L = p.lot;
+    const basisAdd = L.deferred * p.qty / L.orig;                 // a wash loss carried into these shares
+    let gain = L.side * (p.px - L.price) * p.qty - basisAdd;
+    if(L.side > 0 && gain < 0){
+      let need = p.qty;
+      // A replacement is bought within the window and is either bought after this sale or still
+      // held at it: shares already sold before it replace nothing.
+      buys.filter(B=>B.ticker===L.ticker && B.side>0 && B.room>0 && !inSale[p.sale].has(B.id) &&
+                     Math.abs(B.ts - p.ts) <= WASH_DAYS*864e5 && (B.ts > p.ts || B.gone == null || B.gone >= p.ts))
+          .sort((a,b)=>Math.abs(a.ts-p.ts) - Math.abs(b.ts-p.ts))
+          .forEach(B=>{
+            if(need <= 1e-9) return;
+            const take = Math.min(need, B.room), dis = -gain * take / p.qty;
+            B.deferred += dis; B.room -= take; need -= take; p.disallowed += dis;
+          });
+      gain += p.disallowed;
+    }
+    if(new Date(p.ts).getFullYear() !== year) return;
+    const a = acc(p.acct);
+    if(L.side > 0 && p.ts - L.ts > 365*864e5) a.lt += gain; else a.st += gain;
+    a.washed += p.disallowed;
+  });
+  Object.keys(out).forEach(acct=>{
+    const a = out[acct], S = root.portfolios[acct].settings;
+    let st = a.st, lt = a.lt;
+    if(st < 0 && lt > 0){ lt += st; st = 0; } else if(lt < 0 && st > 0){ st += lt; lt = 0; }
+    a.tax = Math.max(0, st)*(S.taxST||0)/100 + Math.max(0, lt)*(S.taxLT||0)/100;
+  });
+  return out;
+}
+
+// The first switch-on asks once. Accepting is recorded with its date and time; every account after
+// the first switches on without asking again. Cancel leaves the box off, and asks next time.
+function taxDisclaimer(onAccept){
+  openModal('<span style="color:var(--red)">Estimated tax &mdash; not tax advice</span>',
+    '<div class="banner red" style="font-size:14px;line-height:1.5">' +
+      'This is an estimate, not tax advice. It approximates holding periods and wash sales from the ' +
+      'trades recorded here, and leaves out state tax, other income, carryovers and anything not ' +
+      'entered in this app. Consult a CPA or tax professional before relying on it.</div>',
+    "Accept",
+    () => { const at = new Date().toISOString(); root.taxAck = {at, k:ackCode(at)}; onAccept(); return null; });
+}
+
 /* ========================= book bar ========================= */
 // The section header lives inside this card rather than floating above it, so section 03 lines up
 // with every other section's card edge.
@@ -4187,11 +4384,25 @@ function refreshBtnHtml(staleN, hasKey){
   return '<button class="small'+(staleN?" warn":"")+'" title="'+title+'" onclick="updateMarks()">'+label+'</button>';
 }
 
+// Only for accounts with the estimate switched on; in a group, the sum of theirs, each at its own
+// rates. The wash-sale amount stays out of sight except in the mouseover: it is inside the figure,
+// and it touches nothing else in the app.
+function taxTileHtml(accts){
+  const on = accts.filter(taxOn);
+  if(!on.length) return "";
+  const rep = taxReport(), z = {st:0, lt:0, washed:0, tax:0};
+  on.forEach(a=>{ const r = rep[a]; if(r) ["st","lt","washed","tax"].forEach(k=>{ z[k] += r[k]; }); });
+  return '<div class="metric" title="Estimate only, not tax advice.'+(z.washed>0.005 ? ' Includes '+stripTags(fmt$(z.washed))+' of losses disallowed as wash sales.' : '')+'">' +
+    '<div class="k">Est. tax YTD</div><div class="v">'+fmt$(z.tax)+'</div>' +
+    '<div class="r">ST '+fmt$(z.st)+VBAR+'LT '+fmt$(z.lt)+(on.length<accts.length ? ' &middot; '+on.length+' of '+accts.length+' accounts' : '')+'</div></div>';
+}
+
 function renderBook(open){
   const hb = $("bookBar");
   overHeat = null;
   if(!open.length){
-    hb.innerHTML = "";
+    const tax = taxTileHtml(scope());       // the year's tax does not stop mattering when the book is flat
+    hb.innerHTML = tax ? '<div class="statrow" style="grid-template-columns:repeat(auto-fit,minmax(146px,220px))">'+tax+'</div>' : "";
     $("bookBanners").innerHTML = "";
     $("refreshBtn").innerHTML = "";
     return;
@@ -4306,6 +4517,7 @@ function renderBook(open){
             '<div class="v">'+fmt$(heat$)+'</div>' +
             '<div class="r">'+pct.toFixed(2)+'% of equity if every stop hits</div></div>';
         })() +
+        taxTileHtml(accts) +
         '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
         '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
 '<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
@@ -4403,9 +4615,19 @@ function chartTrades(){
 /* ========================= bindings ========================= */
 function bindSettings(){
   bindSetFields();
+  // Switching the estimate on goes through the disclaimer until it has been accepted once.
+  $("s_taxOn").addEventListener("change", e=>{
+    const pf = root.portfolios[acctInView()];
+    if(!pf) return;
+    if(!e.target.checked || taxAccepted()){ pf.settings.taxOn = e.target.checked; save(); render(); return; }
+    e.target.checked = false;
+    taxDisclaimer(()=>{ pf.settings.taxOn = true; });
+  });
+  // Initial capital: the one figure typed by hand. Everything after it is a record.
   $("aum").addEventListener("change", e=>{
+    const pf = root.portfolios[acctInView()];
     const v = parseFloat(e.target.value.replace(/[^0-9.]/g,""));
-    if(!isNaN(v) && v>0) state.settings.aum = v;
+    if(pf && !isNaN(v) && v>0){ pf.settings.initialCapital = Math.round(v*100)/100; pf.settings.initialEstimated = false; }
     save(); render();
   });
   // A ruleset edit lands on the group when one is open, otherwise on the account. Members read

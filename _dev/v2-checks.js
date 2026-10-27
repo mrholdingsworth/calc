@@ -264,10 +264,12 @@ const CASES = {
     check("setups merged to one list", root.defs.setups, ["Breakout"]);
     check("freehand setup is Legacy", [!!closedT.legacySetup, !!openT.legacySetup], [true, false]);
     // Compounding was off: the backlog is marked banked, so nothing lands in equity at once.
-    check("no backlog dumped", [closedT.compounded, openT.compounded, pf.settings.aum], [1000, 250, 100000]);
+    check("no backlog dumped", [closedT.compounded, openT.compounded, bookOf("Main")], [1000, 250, 100000]);
+    // The stored total became a starting figure worked back from it: 100,000 less 1,250 realised.
+    check("initial capital worked back", [pf.settings.initialCapital, pf.settings.initialEstimated, "aum" in pf.settings], [98750, true, false]);
     openT.events.push(ev("trim", {qty:25, price:56}, 4));
     syncCompound(openT, "Main");
-    check("next trim folds in only itself (25 x 6)", pf.settings.aum, 100150);
+    check("next trim folds in only itself (25 x 6)", bookOf("Main"), 100150);
   },
 
   /* New Trade warns when typed shares leave the tier's fuzziness or the allocation limits. */
@@ -376,6 +378,71 @@ const CASES = {
     gStopUI("gs");
     check("group stop ignores it", readStopRows().length, 1);
     closeModal();
+  },
+
+  /* Buying power: cash accounts at cost, margin accounts at the mark. */
+  buyingPowerBasis(){
+    const t = trade({last:60, events:[ev("entry",{qty:100, price:50, stop:48})]});
+    const pf = book([t]);
+    check("cash account uses cost (100 x 50)", bpUsed("Trading"), 5000);
+    pf.settings.marginOn = true; pf.settings.marginX = 2;
+    check("margin account uses the mark (100 x 60)", bpUsed("Trading"), 6000);
+  },
+
+  /* The book is initial capital plus every record; adjustments match the broker. */
+  initialCapital(){
+    const c = trade({status:"closed", closedAt:T0()+3*D, last:65, events:[ev("entry",{qty:100, price:50, stop:48}, 0), ev("close",{qty:100, price:65}, 3)]});
+    const o = trade({last:22, events:[ev("entry",{qty:200, price:20, stop:19}, 4)]});
+    const pf = book([c, o], {initialCapital:94734.56});
+    pf.cashFlows.push({type:"deposit", amount:5000, ts:T0(), aumAfter:0});
+    // 94,734.56 + 5,000 deposited + 1,500 realised
+    check("book from records", bookOf("Trading"), 101234.56);
+    // cash = book less the 200 x 20 the open position cost
+    check("app cash", appCash("Trading"), 97234.56);
+    root.tab = "portfolio"; render();
+    openCash("Trading", "adjust"); $("adjBroker").value = "97234.59"; submitModal();
+    check("broker cash 0.03 higher adjusts by +0.03", [pf.cashFlows[1].type, pf.cashFlows[1].amount, bookOf("Trading")], ["adjust", 0.03, 101234.59]);
+    undoCash("Trading", 1);
+    check("adjustment removable", bookOf("Trading"), 101234.56);
+  },
+
+  /* Estimated tax: FIFO lots, holding period, shorts, wash sales, netting, the disclaimer. */
+  tax(){
+    const d = s => new Date(s+"T12:00:00").getTime();
+    const E = (type, qty, price, s) => ({type, qty, price, stop: type==="entry" ? price*0.9 : undefined, ts:d(s)});
+    const T = (ticker, side, events, status) => trade({ticker, side, status:status||"closed", events, last:events[events.length-1].price, closedAt:events[events.length-1].ts});
+    const year = () => taxReport(2026).Trading;
+    const pf = book([
+      T("AAA", 1, [E("entry",100,50,"2026-03-01"), E("close",100,60,"2026-05-01")]),      // ST +1,000
+      T("BBB", 1, [E("entry",100,20,"2025-01-10"), E("close",100,30,"2026-03-01")])       // LT +1,000
+    ], {taxOn:true});
+    check("ST 1,000 at 22% + LT 1,000 at 15%", [year().st, year().lt, year().tax], [1000, 1000, 370]);
+    pf.trades.push(T("CCC", 1, [E("entry",100,50,"2026-06-01"), E("close",100,40,"2026-06-10")]));   // -1,000
+    check("a loss nets against short-term", [year().st, year().tax], [0, 150]);
+    pf.trades.push(T("CCC", 1, [E("entry",100,42,"2026-06-20")], "open"));
+    check("bought back in 10 days: loss disallowed", [year().st, year().washed], [1000, 1000]);
+    pf.trades[3].events.push(E("close",100,45,"2026-07-01")); pf.trades[3].status = "closed";
+    // replacement gains 300 on price, less the 1,000 carried into its basis: -700
+    check("replacement sold: the loss returns", [year().st, Math.round(year().tax*100)/100], [300, 216]);
+    book([T("BBB", 1, [E("entry",100,20,"2025-01-10"), E("close",100,30,"2026-03-01")]),
+          T("CCC", 1, [E("entry",100,50,"2026-06-01"), E("close",100,40,"2026-06-10")])], {taxOn:true});
+    check("short-term loss nets against long-term gain", year().tax, 0);
+    book([T("SSS", -1, [E("entry",100,50,"2025-01-01"), E("close",100,40,"2026-02-01")]),
+          T("FFF", 1, [E("entry",100,10,"2026-01-05"), E("add",100,20,"2026-02-05"), E("trim",100,25,"2026-03-05")], "open")]);
+    // the short is short-term after 13 months; the trim sells the $10 lot first: 1,000 + 1,500
+    check("shorts short-term, trims FIFO", [year().st, year().lt], [2500, 0]);
+
+    // The disclaimer: Cancel leaves it off; Accept records when; later accounts skip it; a typed flag fails.
+    book(); root.portfolios.Two = defaults(); root.order.push("Two"); normalize(); root.tab = "settings"; render();
+    const tick = () => { $("s_taxOn").checked = true; $("s_taxOn").dispatchEvent(new Event("change")); };
+    tick(); closeModal(); render();
+    check("cancel leaves it off", [!!root.portfolios.Trading.settings.taxOn, !!root.taxAck], [false, false]);
+    tick(); submitModal();
+    check("accept switches it on and records when", [taxOn("Trading"), !!(root.taxAck && root.taxAck.at && root.taxAck.k)], [true, true]);
+    switchTab("Two"); root.tab = "settings"; render(); tick();
+    check("next account needs no second accept", [taxOn("Two"), $("modal").style.display === "flex"], [true, false]);
+    root.taxAck = {at:"2026-01-01", k:"true"};
+    check("a hand-typed acceptance is refused", taxAccepted(), false);
   },
 
   /* Small things that each broke once. */

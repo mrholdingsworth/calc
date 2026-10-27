@@ -324,6 +324,19 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-27 — v2.0-dev, initial capital, estimated tax, buying power, the name
+
+- **The book is worked out from records** (V2-PLAN 20): initial capital plus every movement plus
+  everything realised. The Adjust dialog matches the broker's cash for the micro-cent drift. On the
+  2026-10-22 export the book is unchanged at $1,028.09, with initial capital worked back to $996.53.
+- **Estimated tax** (V2-PLAN 21), checked by hand: ST $1,000 at 22% + LT $1,000 at 15% = $370; a
+  $1,000 loss bought back in 10 days is disallowed and returns when the replacement is sold (ST
+  $300, tax $216). Found while checking: a replacement already sold before the loss was absorbing
+  it, so the loss vanished — fixed, a replacement must be bought after the sale or still held.
+- **Buying power used** at cost for cash accounts, at the mark for margin. Closes register #2.
+- **RCalculator** on the masthead, title and backup filename.
+- `v2-checks.js` at 102 cases, the new ones shown to fail.
+
 ### 2026-10-27 — v2.0-dev, Settings laid out as a list
 
 - **Why it looked scattered, measured:** every section reused v1.3's nine-column Desk grid, so a
