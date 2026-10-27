@@ -445,6 +445,33 @@ const CASES = {
     check("a hand-typed acceptance is refused", taxAccepted(), false);
   },
 
+  /* Every show/hide item matches something on its panel, hides when off and shows when on. A
+     tag mistyped in a renderer, or a registry entry nothing carries, fails here by name. */
+  panels(){
+    const t = o => trade(Object.assign({concept:"x", plan:{cutIf:"c"}, notes:"n", aptr:5, checks:[true,true,true,true]}, o));
+    const pf = book([
+      t({events:[ev("entry",{qty:100, price:50, stop:48}, 15)]}),
+      t({status:"closed", closedAt:T0()+18*D, last:48, lossTag:"noise", events:[ev("entry",{qty:100, price:50, stop:48}, 15), ev("close",{qty:100, price:48}, 18)]}),
+      t({status:"closed", closedAt:T0()+19*D, last:55, events:[ev("entry",{qty:100, price:50, stop:48}, 16), ev("close",{qty:100, price:55}, 19)]})
+    ], {taxOn:true});
+    root.defs.builtins.noise = true;
+    const at = new Date().toISOString(); root.taxAck = {at, k:ackCode(at)};
+    rowOpen[pf.trades[0].id] = true;
+    const tab = k => /^p[rds]-/.test(k) ? "portfolio" : k.startsWith("ct-") ? "tally" : /^s[tc]-/.test(k) ? "charts" : k.startsWith("nt-") ? "new" : "portfolio";
+    const live = item => [...document.querySelectorAll(item[2] || ".v-"+item[0])].filter(e=>e.closest(".tabpane.on, #topbar"));
+    const paint = k => { root.tab = tab(k); render(); if(k.startsWith("fc-")){ $("fc_price").value = "50"; $("fc_stop").value = "48"; renderFastCalc(); } };
+    SHOWABLE.flatMap(([,items])=>items).forEach(item=>{
+      const k = item[0];
+      root.ui.hidden = {}; paint(k);
+      const on = live(item);
+      check("show "+k+": matches and visible", on.length>0 && on.some(e=>getComputedStyle(e).display!=="none"), true);
+      root.ui.hidden[k] = true; paint(k);
+      check("show "+k+": hidden when off", live(item).every(e=>getComputedStyle(e).display==="none"), true);
+    });
+    root.ui.hidden = {};
+    rowOpen = {};
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();

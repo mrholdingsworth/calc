@@ -119,6 +119,12 @@ button.stopwarn{color:var(--amber);border-color:var(--amber);background:var(--am
 .sctl select{width:auto}
 .sctl input[type=checkbox]{width:auto;margin:0 4px 0 0;accent-color:var(--blue);cursor:pointer}
 .sctl input:disabled{opacity:.4}
+/* Show on screen: a panel's name, then its parts as a wrapping row of checkboxes. */
+.showgrp{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line)}
+.setbox .head + #showList .showgrp:first-child{border-top:none}
+.showgrp>.lbl{flex:0 0 170px;margin:0}
+.showopts{flex:1 1 300px;display:flex;flex-wrap:wrap;gap:4px 16px}
+.showopts .inchk{font-weight:500;color:var(--sub)}
 /* A fixed-width unit, and the same space reserved where there is none, so the inputs in a box end
    on one vertical line whatever their unit says. */
 .sctl>.suffix:last-child{min-width:38px}
@@ -389,7 +395,7 @@ button.small{--r:7px}
     <div class="calsub calrule" id="nt_vol"></div>
   </div>
 
-  <div class="fields" style="margin-top:12px;grid-template-columns:minmax(160px,260px) 120px">
+  <div class="fields v-nt-setup" style="margin-top:12px;grid-template-columns:minmax(160px,260px) 120px">
     <div><label for="nt_setup">Setup <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="The setup this trade is filed under, from the list in Settings.">i</span></label>
       <select id="nt_setup"></select></div>
     <div><label for="nt_aptr">APTR % <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="Average true range as a percentage of price: how far the stock moves on an ordinary day.">i</span></label>
@@ -398,12 +404,12 @@ button.small{--r:7px}
   <!-- Optional, never required to open: the plan and a note, written now if there is time and
        otherwise from the position's gear. The note carries through to the position and the
        closed trade, where it is the same field. -->
-  <div class="split split3" style="margin-top:10px">
+  <div class="split split3 v-nt-plan" style="margin-top:10px">
     <div><label for="nt_cut">If Y &rarr; cut <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="The condition that ends the trade early.">i</span></label><input id="nt_cut" type="text"></div>
     <div><label for="nt_wait">If Z &rarr; wait <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="The condition under which the trade is held through noise.">i</span></label><input id="nt_wait" type="text"></div>
     <div><label for="nt_exit">Exit plan <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info lt" data-tip="How the trade is meant to be closed.">i</span></label><input id="nt_exit" type="text"></div>
   </div>
-  <div style="margin-top:10px"><label for="nt_notes">Notes <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="Free text that stays with the trade: shown on the open position and on the closed trade, and editable from the gear.">i</span></label>
+  <div class="v-nt-notes" style="margin-top:10px"><label for="nt_notes">Notes <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="Free text that stays with the trade: shown on the open position and on the closed trade, and editable from the gear.">i</span></label>
     <textarea id="nt_notes" style="min-height:52px"></textarea></div>
 
   <div class="row" style="margin-top:13px;align-items:center">
@@ -581,6 +587,11 @@ button.small{--r:7px}
     </div>
 
     <div class="setbox full">
+      <div class="head">Show on screen</div>
+      <div id="showList"></div>
+    </div>
+
+    <div class="setbox full">
       <div class="head">Setups and loss tags</div>
       <div class="split">
         <div><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Setups offered on New Trade and in each trade's gear. A setup you remove stays on the trades carrying it, marked retired.">i</span></label>
@@ -697,7 +708,48 @@ const lossTags = () => {
    About the person and the screen, never about a book. On root for the reason register #1 records:
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
-const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1 };
+const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{} };
+
+/* ---- what each panel shows ----
+   Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
+   rule per hidden key, so no renderer branches on it and a renderer and its setting cannot drift.
+   The store keeps only what is hidden, so anything added later shows until someone hides it.
+   Never listed: a position's identity, its share count, the prices acted on, and the actions. */
+const SHOWABLE = [
+  ["Portfolio rows", [["pr-avg","Avg"],["pr-last","Last"],["pr-stop","Stop"],["pr-initr","Initial R"],
+    ["pr-car","Cash at risk"],["pr-heat","Open heat"],["pr-pl","P/L"]]],
+  ["Portfolio expanded row", [["pd-entry","Entry"],["pd-istop","Initial stop"],["pd-alloc","Allocation"],
+    ["pd-real","Realized"],["pd-unreal","Unrealized"],["pd-eqpl","Equity P/L"],["pd-seq","Sequence"],
+    ["pd-vol","Daily vol"],["pd-targets","Targets"],["pd-plan","Plan"],["pd-notes","Notes"]]],
+  ["Portfolio summary", [["ps-heat","Open heat"],["ps-aptr","Weighted APTR"],["ps-aum","AUM"],
+    ["ps-alloc","Allocation"],["ps-car","Cash at risk"],["ps-tax","Est. tax"],["ps-open","Open trades"],
+    ["ps-pl","Book P/L"],["ps-stale","Stale marks"]]],
+  ["Closed Trades", [["ct-side","Side"],["ct-tier","Tier"],["ct-setup","Setup"],["ct-1r","1R"],
+    ["ct-rint","R internal"],["ct-racct","R account"],["ct-real","Realized"],["ct-days","Days"],
+    ["ct-rday","R/day"],["ct-pospct","Position P/L %"],["ct-eqpct","% equity"],["ct-loss","Loss audit"]]],
+  ["Statistics tiles", [["st-closed","Closed trades"],["st-win","Win rate"],["st-total","Total R"],
+    ["st-exp","Expectancy"],["st-avg","Avg win | loss"],["st-disc","Loss discipline"],["st-tags","Tagged losses"],
+    ["st-noise","Noise stopouts"],["st-viol","Rule violations"],["st-planned","Planned at entry"],
+    ["st-days","Avg days held"],["st-rpd","R per day"],["st-dd","Max drawdown"],["st-ls","Long | short"]]],
+  ["Statistics charts", [["sc-hist","R distribution","#pane-charts .metric:has(#histChart)"],
+    ["sc-curve","Cumulative R","#pane-charts .metric:has(#curveChart)"],
+    ["sc-plbars","P/L per trade","#pane-charts .metric:has(#plBars)"],
+    ["sc-pltrades","Cumulative P/L, trades","#pane-charts .metric:has(#plTrades)"],
+    ["sc-pltime","Cumulative P/L, time","#pane-charts .metric:has(#plTime)"],
+    ["sc-plpct","P/L %","#pane-charts .metric:has(#plPct)"],
+    ["sc-eq","Equity curve","#pane-charts .metric:has(#eqCurve)"],
+    ["sc-tier","By tier","#pane-charts .metric:has(#tierTbl)"],
+    ["sc-setup","By setup","#pane-charts .metric:has(#conceptTbl)"]]],
+  ["New Trade", [["nt-setup","Setup and APTR"],["nt-plan","Plan fields"],["nt-notes","Notes"]]],
+  ["Fast calc", [["fc-line","Allocation and risk under each size",".fccell .a"]]]
+];
+function applyShow(){
+  let el = $("showStyle");
+  if(!el){ el = document.createElement("style"); el.id = "showStyle"; document.head.appendChild(el); }
+  const hid = (root && root.ui && root.ui.hidden) || {};
+  el.textContent = SHOWABLE.flatMap(([,items])=>items)
+    .filter(([k])=>hid[k]).map(([k,,sel])=>(sel || ".v-"+k)+"{display:none!important}").join("\n");
+}
 const ui = () => (root && root.ui) || UI_DEFAULT;
 // SCHEMA is stamped onto every saved book. Until now migrations were inferred from absent fields,
 // which works exactly until two of them need ordering. LEGACY_KEYS are read once if the current key
@@ -1044,6 +1096,7 @@ function normalize(){
   root.defs.lossTags = root.defs.lossTags.filter(o=>!BUILTIN_TAGS.some(x=>x.v===o.v));
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
+  root.ui.hidden = Object.assign({}, root.ui.hidden);     // never the shared default object
 
   if(!root.groups || typeof root.groups !== "object") root.groups = {};
   const gd = groupDefaults().settings;
@@ -1906,8 +1959,18 @@ function bindSetFields(){
   });
 }
 
+// One line per panel, a checkbox per part. Checked is shown.
+function renderShowList(){
+  const hid = root.ui.hidden || {};
+  $("showList").innerHTML = SHOWABLE.map(([panel, items])=>
+    '<div class="showgrp"><div class="lbl">'+esc(panel)+'</div><div class="showopts">' +
+      items.map(([k,label])=>'<label class="inchk"><input type="checkbox" data-show="'+k+'"'+(hid[k]?"":" checked")+'>'+esc(label)+'</label>').join("") +
+    '</div></div>').join("");
+}
+
 function renderSettings(){
   renderSetFields();
+  renderShowList();
   $("s_taxOn").checked = taxOn(acctInView());
   // The built-ins switched on, shown locked above the editable list.
   const bl = BUILTIN_TAGS.filter(o=>(defs().builtins||{})[o.v]);
@@ -2686,21 +2749,21 @@ function positionRow(t, acct, showAcct){
       '</td>' +
       (showAcct ? '<td>'+esc(acct)+'</td>' : "") +
       '<td class="num">'+fmtQ(d.Q)+'</td>' +
-      '<td class="num">'+fmtP(d.avg)+'</td>' +
-      '<td class="num">'+fmtP(t.last)+'<div class="sub">'+fmt$(f.value)+markAgeHtml(t)+'</div></td>' +
-      '<td class="num">'+(d.stops.length===0
+      '<td class="num v-pr-avg">'+fmtP(d.avg)+'</td>' +
+      '<td class="num v-pr-last">'+fmtP(t.last)+'<div class="sub">'+fmt$(f.value)+markAgeHtml(t)+'</div></td>' +
+      '<td class="num v-pr-stop">'+(d.stops.length===0
           ? '<span style="color:var(--amber)">none</span>'
           : d.stops.length===1 ? fmtP(d.stop) : d.stops.length+' stops')+
         '<div class="sub">'+(d.stops.length>1 ? "worst "+fmtP(d.stop)+VBAR : "")+
         (f.be!=null?"b/e "+fmtP(f.be):"&mdash;")+'</div></td>' +
-      '<td class="num">'+(S.initialRisk!=null?(S.initialRisk/t.rUnit).toFixed(2)+"R":"&mdash;")+
+      '<td class="num v-pr-initr">'+(S.initialRisk!=null?(S.initialRisk/t.rUnit).toFixed(2)+"R":"&mdash;")+
         '<div class="sub">'+(S.riskPS>0?fmtP(S.riskPS)+" / sh":"no stop at entry")+'</div></td>' +
-      '<td class="num">'+(f.unbounded ? '<span style="color:var(--amber)">unbounded</span>'
+      '<td class="num v-pr-car">'+(f.unbounded ? '<span style="color:var(--amber)">unbounded</span>'
         : f.house ? '<span class="pill house">house</span>' : fmt$(f.cashAtRisk)) +
         (f.unguarded ? '<div class="sub" style="color:var(--amber)">'+fmtQ(cov.under)+' unprotected</div>' : "")+'</td>' +
-      '<td class="num">'+(f.unbounded ? '<span style="color:var(--amber)">no stop</span>'
+      '<td class="num v-pr-heat">'+(f.unbounded ? '<span style="color:var(--amber)">no stop</span>'
         : f.house ? "&mdash;" : f.heatR.toFixed(2)+"R")+'</td>' +
-      '<td class="num '+clsR(f.totR)+'">'+fmt$(d.realized+f.openPL)+
+      '<td class="num v-pr-pl '+clsR(f.totR)+'">'+fmt$(d.realized+f.openPL)+
         '<div class="sub">'+fmtR(f.totR)+'</div></td>' +
       '<td class="acts">' +
         '<button class="small" onclick="buyUI(\''+t.id+'\')" title="Add shares">Buy</button>' +
@@ -2719,7 +2782,9 @@ function positionRow(t, acct, showAcct){
   // behind the gear, so the two disclosures never overlap.
   const e0 = t.events.find(e=>e.type==="entry");
   const aum0 = t.aumAtOpen;
-  const tile = (k,v,sub,colour) => '<div class="metric"><div class="k">'+k+'</div><div class="v"'+
+  const PD = {"Entry":"entry", "Initial stop":"istop", "Allocation":"alloc", "Realized":"real", "Unrealized":"unreal",
+              "Equity P/L":"eqpl", "Sequence at risk":"seq", "Sequence locks":"seq", "Daily vol":"vol"};
+  const tile = (k,v,sub,colour) => '<div class="metric v-pd-'+PD[k]+'"><div class="k">'+k+'</div><div class="v"'+
     (colour?' style="color:'+colour+'"':'')+'>'+v+'</div>'+(sub?'<div class="r">'+sub+'</div>':'')+'</div>';
 
   const noiseOn = settingsFor(acct).noiseOn;
@@ -2758,7 +2823,7 @@ function positionRow(t, acct, showAcct){
       aptr +
     '</div>' +
     (d.Q>0 && S.riskPS>0
-      ? '<div class="ladder"><span class="muted" style="align-self:center">internal targets:</span>' +
+      ? '<div class="ladder v-pd-targets"><span class="muted" style="align-self:center">internal targets:</span>' +
         ladderHtml(ladder(t.side, S.entryPx, S.riskPS, t.last, targetsOf(acct)))+'</div>' : "") +
     (function(){
       const bits = [
@@ -2766,9 +2831,9 @@ function positionRow(t, acct, showAcct){
         t.plan && t.plan.waitIf ? "<b>wait if</b> "+esc(t.plan.waitIf) : null,
         t.plan && t.plan.exit   ? "<b>exit</b> "+esc(t.plan.exit)      : null
       ].filter(Boolean);
-      return bits.length ? '<div class="calsub" style="margin-top:8px">'+bits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "";
+      return bits.length ? '<div class="calsub v-pd-plan" style="margin-top:8px">'+bits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "";
     })() +
-    (t.notes ? '<div class="calsub" style="margin-top:6px;white-space:pre-wrap"><b>notes</b> '+esc(t.notes)+'</div>' : "");
+    (t.notes ? '<div class="calsub v-pd-notes" style="margin-top:6px;white-space:pre-wrap"><b>notes</b> '+esc(t.notes)+'</div>' : "");
 
   return '<tbody class="open">'+row+'<tr class="drow"><td colspan="'+cols+'">'+detail+'</td></tr></tbody>';
 }
@@ -2808,9 +2873,9 @@ function renderPortfolio(){
 
   box.innerHTML = '<table class="poslist"><thead><tr>' +
     '<th>Position</th>' + (showAcct ? '<th>Account</th>' : "") +
-    '<th class="num">Shares</th><th class="num">Avg</th><th class="num">Last</th><th class="num">Stop</th>' +
-    '<th class="num">Initial R</th><th class="num">Cash at risk</th><th class="num">Open heat</th>' +
-    '<th class="num">P/L</th><th></th>' +
+    '<th class="num">Shares</th><th class="num v-pr-avg">Avg</th><th class="num v-pr-last">Last</th><th class="num v-pr-stop">Stop</th>' +
+    '<th class="num v-pr-initr">Initial R</th><th class="num v-pr-car">Cash at risk</th><th class="num v-pr-heat">Open heat</th>' +
+    '<th class="num v-pr-pl">P/L</th><th></th>' +
     '</tr></thead>' + body.join("") + '</table>';
   applyTips(box);                     // toggling a row repaints this without a full render
 }
@@ -2829,13 +2894,13 @@ function groupHeaderRow(gid, run, showAcct){
         '<div class="sub">'+run.length+' accounts</div></td>' +
       (showAcct ? '<td class="muted">all</td>' : "") +
       '<td class="num">'+fmtQ(totQ)+'</td>' +
-      '<td class="num">'+(totQ>0?fmtP(cost/totQ):"&mdash;")+'</td>' +
-      '<td class="num">'+fmtP(first.last)+'</td>' +
-      '<td class="num">'+(f[0].d.stop!=null?fmtP(f[0].d.stop):"&mdash;")+'</td>' +
-      '<td class="num">&mdash;</td>' +
-      '<td class="num">'+fmt$(totRisk)+'</td>' +
-      '<td class="num">'+totHeat.toFixed(2)+'R</td>' +
-      '<td class="num '+cls(totPL)+'">'+fmt$(totPL)+'</td>' +
+      '<td class="num v-pr-avg">'+(totQ>0?fmtP(cost/totQ):"&mdash;")+'</td>' +
+      '<td class="num v-pr-last">'+fmtP(first.last)+'</td>' +
+      '<td class="num v-pr-stop">'+(f[0].d.stop!=null?fmtP(f[0].d.stop):"&mdash;")+'</td>' +
+      '<td class="num v-pr-initr">&mdash;</td>' +
+      '<td class="num v-pr-car">'+fmt$(totRisk)+'</td>' +
+      '<td class="num v-pr-heat">'+totHeat.toFixed(2)+'R</td>' +
+      '<td class="num v-pr-pl '+cls(totPL)+'">'+fmt$(totPL)+'</td>' +
       '<td class="acts">' +
         '<button class="small" onclick="gBuyUI(\''+jsq(gid)+'\')" title="Buy a percentage into every leg">Buy</button>' +
         '<button class="small" onclick="gSellUI(\''+jsq(gid)+'\')" title="Sell a percentage of every leg">Sell</button>' +
@@ -3581,21 +3646,21 @@ function renderClosed(){
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
         (t.notes?" <span class='muted' title='Has notes'>&#9998;</span>":"")+"</td>" +
-      "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td"+(t.legacySetup?" class='legacy'":"")+">"+setupHtml(t)+"</td>" +
-      "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
+      "<td class='v-ct-side'>"+(t.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[t.tier]+"</td><td class='v-ct-setup"+(t.legacySetup?" legacy":"")+"'>"+setupHtml(t)+"</td>" +
+      "<td class='num v-ct-1r'>"+fmt$(t.rUnit)+"</td>" +
       // The pill goes to the LEFT of the figure. In a right-aligned column anything trailing the
       // number pushes it off the edge the other rows line up on, so the one row carrying a flag is
       // the one row whose value you cannot scan against the rest.
-      "<td class='num "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":
+      "<td class='num v-ct-rint "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":
         (S.rmInt<defs().breachR?"<span class='pill short' style='font-size:10px;padding:1px 7px;margin-right:6px' title='Lost well beyond the stop it was opened with'>breach</span>":"")+
         fmtR(S.rmInt))+"</td>" +
-      "<td class='num "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
-      "<td class='num "+clsR(rm)+"'>"+fmt$(d.realized)+"</td>" +
-      "<td class='num'>"+S.days+"</td>" +
-      "<td class='num "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
-      "<td class='num "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
-      "<td class='num "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
-      "<td>"+tagSel+"</td>" +
+      "<td class='num v-ct-racct "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
+      "<td class='num v-ct-real "+clsR(rm)+"'>"+fmt$(d.realized)+"</td>" +
+      "<td class='num v-ct-days'>"+S.days+"</td>" +
+      "<td class='num v-ct-rday "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
+      "<td class='num v-ct-pospct "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
+      "<td class='num v-ct-eqpct "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
+      "<td class='v-ct-loss'>"+tagSel+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
         "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button>" +
@@ -3620,8 +3685,8 @@ function renderClosed(){
       "</div></td></tr>";
   }).join("");
 
-  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Setup</th><th class='num'>1R</th>" +
-    "<th class='num' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num'>Realized</th><th class='num'>Days</th><th class='num'>R/day</th><th class='num' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th>Loss audit</th><th></th></tr>" + rows;
+  tbl.innerHTML = "<tr><th>Ticker</th><th class='v-ct-side'>Side</th><th class='v-ct-tier'>Tier</th><th class='v-ct-setup'>Setup</th><th class='num v-ct-1r'>1R</th>" +
+    "<th class='num v-ct-rint' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num v-ct-racct' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num v-ct-real'>Realized</th><th class='num v-ct-days'>Days</th><th class='num v-ct-rday'>R/day</th><th class='num v-ct-pospct' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num v-ct-eqpct' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th class='v-ct-loss'>Loss audit</th><th></th></tr>" + rows;
 
   $("stats").innerHTML = statsHtml(bookStats(closed));
 }
@@ -3665,29 +3730,29 @@ function statsHtml(A){
   // twice rather than three separate samples. The middle one counts the setups that went nowhere
   // against you, which is the cost in time and buying power.
   const p = a => (Math.round(1000*a/A.n)/10).toFixed(1)+"%";
-  return '<div class="metric"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
+  return '<div class="metric v-st-closed"><div class="k">Closed trades</div><div class="v">'+A.n+'</div><div class="r">'+A.scratch+' of them scratches</div></div>' +
     // Two columns: this tile carries three rates where its neighbours carry one number, and at a
     // single column both the definitions and the values ran past the edge.
-    '<div class="metric" style="grid-column:span 2" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+defs().scratchHi+'R. '+defs().winR+'R+: paid for a full loss.">' +
+    '<div class="metric v-st-win" style="grid-column:span 2" title="All three over every closed trade. Raw: any result above zero. Ex-scratch: above +'+defs().scratchHi+'R. '+defs().winR+'R+: paid for a full loss.">' +
       // Name on one line, the three definitions on the next, so the break never lands mid-word.
       '<div class="k">Win rate</div>' +
       '<div class="k" style="white-space:nowrap">raw '+VBAR+' ex-scratch '+VBAR+' &ge;'+defs().winR+'R</div>' +
       '<div class="v" style="font-size:15px">'+p(A.wins)+VBAR+p(A.exWin)+VBAR+'<span class="pos">'+p(A.decisive)+'</span></div></div>' +
-    '<div class="metric"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
-    '<div class="metric"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade</div></div>' +
-    '<div class="metric"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Loss discipline</div><div class="v">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
-    '<div class="metric"><div class="k">Tagged losses</div><div class="v">'+(A.ln ? A.tagged+" of "+A.ln : "&mdash;")+'</div><div class="r">'+(tagLine||"&mdash;")+'</div></div>' +
+    '<div class="metric v-st-total"><div class="k">Total R</div><div class="v '+cls(A.tot)+'">'+fmtR(A.tot)+'</div><div class="r">across '+A.n+' closes</div></div>' +
+    '<div class="metric v-st-exp"><div class="k">Expectancy</div><div class="v '+cls(exp)+'">'+fmtR(exp)+'</div><div class="r">per trade</div></div>' +
+    '<div class="metric v-st-avg"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
+    '<div class="metric v-st-disc"><div class="k">Loss discipline</div><div class="v">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
+    '<div class="metric v-st-tags"><div class="k">Tagged losses</div><div class="v">'+(A.ln ? A.tagged+" of "+A.ln : "&mdash;")+'</div><div class="r">'+(tagLine||"&mdash;")+'</div></div>' +
     // The two built-ins, each only while it is switched on. Neutral: no share of noise stopouts or
     // count of violations is right or wrong in itself.
     ((defs().builtins||{}).noise
-      ? '<div class="metric"><div class="k">Noise stopouts</div><div class="v">'+(A.tagged ? Math.round(100*(A.tags.noise||0)/A.tagged)+"%" : "&mdash;")+'</div><div class="r">'+(A.tags.noise||0)+' of '+A.tagged+' tagged losses</div></div>' : "") +
+      ? '<div class="metric v-st-noise"><div class="k">Noise stopouts</div><div class="v">'+(A.tagged ? Math.round(100*(A.tags.noise||0)/A.tagged)+"%" : "&mdash;")+'</div><div class="r">'+(A.tags.noise||0)+' of '+A.tagged+' tagged losses</div></div>' : "") +
     ((defs().builtins||{}).violation
-      ? '<div class="metric"><div class="k">Rule violations</div><div class="v">'+(A.tags.violation||0)+'</div><div class="r">of '+A.ln+' losses</div></div>' : "") +
+      ? '<div class="metric v-st-viol"><div class="k">Rule violations</div><div class="v">'+(A.tags.violation||0)+'</div><div class="r">of '+A.ln+' losses</div></div>' : "") +
     // "Planned at entry" measured compliance with a checklist that no longer exists. Kept while any
     // trade in the set still carries one, so historical books keep the figure; gone once they are
     // all trades opened without it, rather than reporting a number that falls for no reason.
-    (A.checked ? '<div class="metric"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">of '+A.checked+' trades opened under the checklist</div></div>' : "");
+    (A.checked ? '<div class="metric v-st-planned"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">of '+A.checked+' trades opened under the checklist</div></div>' : "");
 }
 
 // Closed group trades: the visible line is the whole group, the expansion is one row per account.
@@ -3725,36 +3790,36 @@ function renderGroupClosed(){
     const days = Math.max(...legs.map(x=>stats(x.t).days));
     const due = legs.some(reviewDueLeg);
     const detail = "<tr><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
-      "<div class='scroll'><table><tr><th>Account</th><th class='num'>1R</th><th class='num'>Realized</th>" +
-      "<th class='num'>R internal</th><th class='num'>R account</th><th class='num'>Days</th><th class='num'>R/day</th>" +
-      "<th class='num'>Position P/L %</th><th class='num'>% equity</th><th>Loss audit</th><th></th></tr>" +
+      "<div class='scroll'><table><tr><th>Account</th><th class='num v-ct-1r'>1R</th><th class='num v-ct-real'>Realized</th>" +
+      "<th class='num v-ct-rint'>R internal</th><th class='num v-ct-racct'>R account</th><th class='num v-ct-days'>Days</th><th class='num v-ct-rday'>R/day</th>" +
+      "<th class='num v-ct-pospct'>Position P/L %</th><th class='num v-ct-eqpct'>% equity</th><th class='v-ct-loss'>Loss audit</th><th></th></tr>" +
       legs.map(x=>{
         const S = stats(x.t), rm = S.rm;
-        return "<tr><td>"+esc(x.acct)+"</td><td class='num'>"+fmt$(x.t.rUnit)+"</td>" +
-          "<td class='num "+clsR(rm)+"'>"+fmt$(S.d.realized)+"</td>" +
-          "<td class='num "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
-          "<td class='num "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
-          "<td class='num'>"+S.days+"</td><td class='num "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
-          "<td class='num "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
-          "<td class='num "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
-          "<td>"+lossTagSelect(x.t)+"</td>" +
+        return "<tr><td>"+esc(x.acct)+"</td><td class='num v-ct-1r'>"+fmt$(x.t.rUnit)+"</td>" +
+          "<td class='num v-ct-real "+clsR(rm)+"'>"+fmt$(S.d.realized)+"</td>" +
+          "<td class='num v-ct-rint "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
+          "<td class='num v-ct-racct "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
+          "<td class='num v-ct-days'>"+S.days+"</td><td class='num v-ct-rday "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
+          "<td class='num v-ct-pospct "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
+          "<td class='num v-ct-eqpct "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
+          "<td class='v-ct-loss'>"+lossTagSelect(x.t)+"</td>" +
           "<td class='num' style='white-space:nowrap'><button class='small' title='Details, history and corrections' onclick=\"gearUI('"+x.t.id+"')\">&#9881;</button> " +
             "<button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
       }).join("") + "</table></div></td></tr>";
     return "<tr"+(due?" class='reviewdue'":"")+">" +
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
-      "<td>"+(f.side>0?"L":"S")+"</td><td>"+TIERS[f.tier]+"</td><td"+(f.legacySetup?" class='legacy'":"")+">"+setupHtml(f)+"</td>" +
+      "<td class='v-ct-side'>"+(f.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[f.tier]+"</td><td class='v-ct-setup"+(f.legacySetup?" legacy":"")+"'>"+setupHtml(f)+"</td>" +
       "<td class='num'>"+legs.length+"</td>" +
-      "<td class='num "+clsR(rMean)+"'>"+fmt$(realized)+"</td>" +
-      "<td class='num "+clsR(rMean)+"'>"+fmtR(rMean)+"</td>" +
-      "<td class='num'>"+days+"</td>" +
+      "<td class='num v-ct-real "+clsR(rMean)+"'>"+fmt$(realized)+"</td>" +
+      "<td class='num v-ct-racct "+clsR(rMean)+"'>"+fmtR(rMean)+"</td>" +
+      "<td class='num v-ct-days'>"+days+"</td>" +
       "<td class='num'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">&#10005;</button></td></tr>" +
       "<tr id='log_"+k+"' style='display:none'>"+detail.slice(4);
   }).join("");
 
-  tbl.innerHTML = "<tr><th>Ticker</th><th>Side</th><th>Tier</th><th>Setup</th><th class='num'>Accounts</th>" +
-    "<th class='num'>Realized</th><th class='num'>Mean R</th><th class='num'>Days</th><th></th></tr>" + rows;
+  tbl.innerHTML = "<tr><th>Ticker</th><th class='v-ct-side'>Side</th><th class='v-ct-tier'>Tier</th><th class='v-ct-setup'>Setup</th><th class='num'>Accounts</th>" +
+    "<th class='num v-ct-real'>Realized</th><th class='num v-ct-racct'>Mean R</th><th class='num v-ct-days'>Days</th><th></th></tr>" + rows;
   $("stats").innerHTML = '<div class="metric"><div class="k">Group totals</div><div class="v '+cls(totR)+'">'+fmtR(totR)+'</div>'+
     '<div class="r">summed across accounts</div></div>';
 }
@@ -3856,12 +3921,12 @@ function renderCharts(chrono){
 
 
   $("deepStats").innerHTML =
-    '<div class="metric"><div class="k">Avg days held</div><div class="v">'+
+    '<div class="metric v-st-days"><div class="k">Avg days held</div><div class="v">'+
       (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+VBAR+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
       '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span></div></div>' +
-    '<div class="metric"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
-    '<div class="metric"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
-    '<div class="metric"><div class="k">Long '+VBAR+' short</div><div class="v">'+
+    '<div class="metric v-st-rpd"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
+    '<div class="metric v-st-dd"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
+    '<div class="metric v-st-ls"><div class="k">Long '+VBAR+' short</div><div class="v">'+
       (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+VBAR+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
       '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
 
@@ -4392,7 +4457,7 @@ function taxTileHtml(accts){
   if(!on.length) return "";
   const rep = taxReport(), z = {st:0, lt:0, washed:0, tax:0};
   on.forEach(a=>{ const r = rep[a]; if(r) ["st","lt","washed","tax"].forEach(k=>{ z[k] += r[k]; }); });
-  return '<div class="metric" title="Estimate only, not tax advice.'+(z.washed>0.005 ? ' Includes '+stripTags(fmt$(z.washed))+' of losses disallowed as wash sales.' : '')+'">' +
+  return '<div class="metric v-ps-tax" title="Estimate only, not tax advice.'+(z.washed>0.005 ? ' Includes '+stripTags(fmt$(z.washed))+' of losses disallowed as wash sales.' : '')+'">' +
     '<div class="k">Est. tax YTD</div><div class="v">'+fmt$(z.tax)+'</div>' +
     '<div class="r">ST '+fmt$(z.st)+VBAR+'LT '+fmt$(z.lt)+(on.length<accts.length ? ' &middot; '+on.length+' of '+accts.length+' accounts' : '')+'</div></div>';
 }
@@ -4457,7 +4522,7 @@ function renderBook(open){
       '<div class="statrow">' +
         // Gold as the resting colour, matching the R it is denominated in — but a breached cap is a
         // survival lever, so that one state still shouts in red.
-        '<div class="metric"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+(inG ? "heaviest account" : fmt$(heat$)+" if every stop hits")+' &middot; cap '+cap+'R</div></div>' +
+        '<div class="metric v-ps-heat"><div class="k">Open heat</div><div class="v" style="color:'+(overCap?"var(--red)":"var(--gold)")+'">'+heatR.toFixed(2)+'R</div><div class="r">'+(inG ? "heaviest account" : fmt$(heat$)+" if every stop hits")+' &middot; cap '+cap+'R</div></div>' +
         (function(){
           // The other side of open heat. Heat is what an ordinary day costs if every stop hits;
           // this is what an ordinary day moves when nothing goes wrong: each position's share of
@@ -4471,7 +4536,7 @@ function renderBook(open){
             if(t.aptr>0) dollars += val*t.aptr/100; else missing++;
           });
           const pct = eq>0 ? dollars/eq*100 : 0;
-          return '<div class="metric"><div class="k">Weighted APTR</div>' +
+          return '<div class="metric v-ps-aptr"><div class="k">Weighted APTR</div>' +
             '<div class="v">'+pct.toFixed(2)+'%</div><div class="r">&asymp; '+fmt$(dollars)+
             ' of ordinary daily movement' +
             (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without APTR</span>" : "") +
@@ -4484,7 +4549,7 @@ function renderBook(open){
           // protect them.
           const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
           const R  = scope().length===1 ? rUnitOf(scope()[0]) : null;
-          return '<div class="metric"><div class="k">AUM</div>' +
+          return '<div class="metric v-ps-aum"><div class="k">AUM</div>' +
             '<div class="v">'+fmt$(eq)+'</div>' +
             '<div class="r">'+(R!=null
               ? '1R = '+fmt$(R)+VBAR+settingsFor(acctInView()).rPct+'% of AUM'
@@ -4503,7 +4568,7 @@ function renderBook(open){
           const pct = eq>0 ? val/eq*100 : 0;
           const bpPct = bp>0 ? val/bp*100 : 0;
           const col = bpPct>=100 ? "var(--red)" : (bpPct>=80 ? "var(--amber)" : "");
-          return '<div class="metric"><div class="k">Allocation</div>' +
+          return '<div class="metric v-ps-alloc"><div class="k">Allocation</div>' +
             '<div class="v"'+(col?' style="color:'+col+'"':'')+'>'+pct.toFixed(1)+'%</div>' +
             '<div class="r">'+fmt$(val)+' deployed'+VBAR+fmt$(Math.max(0,bp-val))+' buying power free'+
             (bp>eq ? ' at '+(bp/eq).toFixed(1)+'&times;' : '')+'</div></div>';
@@ -4513,14 +4578,14 @@ function renderBook(open){
           // what it is as a share of the book and the R figure carries the cap.
           const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
           const pct = eq>0 ? heat$/eq*100 : 0;
-          return '<div class="metric"><div class="k">Cash at risk</div>' +
+          return '<div class="metric v-ps-car"><div class="k">Cash at risk</div>' +
             '<div class="v">'+fmt$(heat$)+'</div>' +
             '<div class="r">'+pct.toFixed(2)+'% of equity if every stop hits</div></div>';
         })() +
         taxTileHtml(accts) +
-        '<div class="metric"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
-        '<div class="metric"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
-'<div class="metric"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
+        '<div class="metric v-ps-open"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
+        '<div class="metric v-ps-pl"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
+'<div class="metric v-ps-stale"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
       '</div>';
   return heat;
 }
@@ -4531,6 +4596,7 @@ function renderBook(open){
 // the reason render() no longer touches all nine charts and the whole closed table on every click.
 function render(){
   const tab = tabOf();
+  applyShow();
   renderTabs();
   renderTabStrip();
   renderSettings();
@@ -4615,6 +4681,12 @@ function chartTrades(){
 /* ========================= bindings ========================= */
 function bindSettings(){
   bindSetFields();
+  $("showList").addEventListener("change", e=>{
+    const k = e.target && e.target.dataset && e.target.dataset.show;
+    if(!k) return;
+    if(e.target.checked) delete root.ui.hidden[k]; else root.ui.hidden[k] = true;
+    save(); applyShow();
+  });
   // Switching the estimate on goes through the disclaimer until it has been accepted once.
   $("s_taxOn").addEventListener("change", e=>{
     const pf = root.portfolios[acctInView()];

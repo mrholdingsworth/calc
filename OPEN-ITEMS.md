@@ -324,6 +324,15 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-27 — v2.0-dev, what each panel shows (V2-PLAN 24)
+
+- **Settings › Show on screen:** a checkbox per part, panel by panel, 66 in all. Each part is
+  tagged `v-<key>` where it is rendered (or named by a selector in `SHOWABLE`), and `applyShow()`
+  writes one style rule per hidden key -- no renderer branches on it, so a panel and its setting
+  cannot drift. Only hidden keys are stored, so a part added later shows by default.
+- **Regression:** the `panels` case sweeps every `SHOWABLE` entry on live fixture data -- matches
+  something, visible when on, hidden when off. A dropped tag fails by name. 234/234.
+
 ### 2026-10-27 — v2.0-dev, initial capital, estimated tax, buying power, the name
 
 - **The book is worked out from records** (V2-PLAN 20): initial capital plus every movement plus

@@ -310,6 +310,11 @@ These supersede anything above that disagrees, including the outline's II.A.3.v 
     Red not-advice dialog on first switch-on; acceptance stored with its time and a check code.
 22. **Buying power used:** cost for a cash account, the mark for a margin account.
 23. **Name: RCalculator.** Masthead, title and backup filename. The repo and URL stay `calc`.
+24. **What each panel shows (II.A.1.v)**, all seven proposals approved: Portfolio rows, expanded
+    row and summary; Closed Trades columns; Statistics tiles and charts; New Trade's optional
+    sections; Fast calc's allocation-and-risk line. 66 parts, all shown by default, set in
+    Settings › Show on screen. Page-wide (`root.ui.hidden`), not per account. A position's
+    identity, shares, prices acted on and actions are never hideable.
 
 Still open by Steve's choice: unrealised gains in the summary. Kept for now: fuzziness 10%, open
 heat in R.
