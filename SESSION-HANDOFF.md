@@ -18,7 +18,8 @@ own key is empty, and on demand from Data › Re-import from v1; it never writes
 ## Read in this order
 
 1. `OPEN-ITEMS.md` — To do, Ruled out, then Decided/done newest-first. Reasons, not just changes.
-2. `V2-PLAN.md` — the **"Settled 2026-10-26"** section first: it records Steve's answers and
+2. `V2-PLAN.md` — the **"Settled 2026-10-26"** and **"2026-10-27"** sections first (decisions
+   1–24): they record Steve's answers and
    supersedes anything earlier in the file that disagrees, including the outline document.
 3. This file.
 4. `WEAKNESSES.md` (the register) and `REVIEW-2026-10-26.md` only when you need the history of a
