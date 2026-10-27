@@ -324,6 +324,20 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-27 — v2.0-dev, Settings laid out as a list
+
+- **Why it looked scattered, measured:** every section reused v1.3's nine-column Desk grid, so a
+  setting's width depended on its position rather than its content — Max allocation got 74px and a
+  three-line label, lot size a four-line one — and switches landed in different columns, sometimes
+  different rows, from the values they govern. Sizing and risk held 17 unrelated controls.
+- **Now:** one setting per row, name left and control right, switch on the same row as its value
+  (greyed while off), units in a fixed column so every input in a box ends on one line. Grouped as
+  Accounts (this account's own: book at cost, margin, lot rounding), Sizing, Risk warnings
+  (heat, cold streak, noise check and its two APTR levels), Positions, Statistics definitions,
+  Display, then Setups and loss tags. Two columns at desktop width, one on a phone, where a row too
+  wide for its name drops its controls underneath. A scope line says whether the settings are one
+  account's or a whole group's. On/off are checkboxes. Every control id is unchanged.
+
 ### 2026-10-27 — v2.0-dev, review against the brief (V2-PLAN decisions 13–18)
 
 - **New Trade warns on typed shares** outside the tier's fuzziness (either way) or the allocation

@@ -100,8 +100,30 @@ button.stopwarn{color:var(--amber);border-color:var(--amber);background:var(--am
              white-space:normal;box-shadow:0 8px 22px rgba(0,0,0,.5)}
 .info.lt::after{left:auto;right:-2px}
 .info:hover::after{display:block}
-.setgrp{border-top:1px solid var(--line);margin-top:16px;padding-top:14px}
-.setgrp:first-of-type{border-top:none;margin-top:0;padding-top:0}
+/* ---- the settings list ----
+   One setting per row, its name left and its control right, grouped into small boxes that flow in
+   two columns once there is room. A switch shares a row with the value it governs. */
+.setbox{background:var(--panel2);border:1px solid var(--line);padding:11px 14px 6px;margin-bottom:14px}
+.setbox .head{margin-bottom:4px}
+.setcols{columns:2 380px;column-gap:14px}
+.setcols .setbox{break-inside:avoid}
+/* Wraps only when the controls cannot fit beside the name -- three tier fields on a phone -- and
+   the controls then sit under it, still right-aligned. */
+.srow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;min-height:38px;padding:3px 0;border-top:1px solid var(--line)}
+.setbox .head + .srow, #acctOwn .srow:first-child{border-top:none}
+.srow>label{flex:1 1 150px;min-width:0;margin:0;font-size:13px;font-weight:500;color:var(--sub);
+            text-transform:none;letter-spacing:0}
+.srow.sub>label{padding-left:16px;color:var(--mut)}
+.sctl{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto}
+.sctl input[type=number]{width:70px;text-align:right}
+.sctl select{width:auto}
+.sctl input[type=checkbox]{width:auto;margin:0 4px 0 0;accent-color:var(--blue);cursor:pointer}
+.sctl input:disabled{opacity:.4}
+/* A fixed-width unit, and the same space reserved where there is none, so the inputs in a box end
+   on one vertical line whatever their unit says. */
+.sctl>.suffix:last-child{min-width:38px}
+.sctl>input[type=checkbox]:last-child{margin-right:0}
+.sctl:not(:has(>.suffix:last-child)){padding-right:44px}
 html{scroll-behavior:smooth}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 a{color:var(--blue)}
@@ -262,7 +284,7 @@ details[open] summary::before{content:"\25BE  "}
    by size: a card, a metric, a modal, a banner and a chip of data are all surfaces, while buttons,
    inputs and the status pills (long/short/tier/house) are controls and labels. Declared in one
    place and last in the sheet, so a radius cannot drift back in from an earlier rule. */
-.card,.metric,.calbox,.fastcalc,.modalcard,.banner,.rung,.scroll{border-radius:0}
+.card,.metric,.calbox,.fastcalc,.modalcard,.banner,.rung,.scroll,.setbox{border-radius:0}
 .pill,button,input,select,textarea,.devbadge,.gbox{border-radius:var(--r,8px)}
 .pill,.devbadge{--r:999px}
 /* The group box wraps buttons rather than content -- it is a control grouping, not a surface, so
@@ -472,94 +494,100 @@ button.small{--r:7px}
 
 <section class="tabpane" id="pane-settings">
   <div class="card">
-    <div class="panehead"><h2>Settings</h2></div>
+    <div class="panehead"><h2>Settings</h2><span class="muted" id="setScope"></span></div>
 
-    <div class="setgrp">
+    <!-- One setting per row: its name on the left, its control on the right, and a switch on the
+         same row as the value it governs. Grouped by what a setting is about, two columns wide where
+         there is room. The ids are the ones SET_FIELDS and bindSettings already know. -->
+    <div class="setbox full">
       <div class="head">Accounts</div>
-      <div id="acctAdmin" style="margin-bottom:14px"></div>
-      <div class="fields deskrow">
-        <div id="aumCell"><label for="aum">Book at cost<span class="info" data-tip="Cash plus what was paid for open positions. AUM is this with every open position valued at its stop instead. Moves on its own as trades realise; Deposit and Withdraw record money arriving or leaving.">i</span></label><input id="aum" type="text" inputmode="decimal"></div>
-        <div id="marginCell"><label for="marginOn">Margin<span class="info" data-tip="Buying power as a multiple of equity. Off means cash: you can hold only what you can pay for. On, enter any rate your broker gives you.">i</span></label>
-          <div class="ctlrow">
-            <label class="inchk" for="marginOn"><input type="checkbox" id="marginOn">on</label>
-            <input id="marginX" type="number" step="0.1" min="1" placeholder="2">
-            <span class="suffix">&times;</span>
-          </div></div>
+      <div id="acctAdmin"></div>
+      <div id="acctOwn" style="margin-top:10px">
+        <div class="srow"><label for="aum">Book at cost<span class="info" data-tip="Cash plus what was paid for open positions. AUM is this with every open position valued at its stop instead. Moves on its own as trades realise; Deposit and Withdraw record money arriving or leaving.">i</span></label>
+          <div class="sctl"><input id="aum" type="text" inputmode="decimal" style="width:140px"></div></div>
+        <div class="srow"><label for="marginOn">Margin<span class="info" data-tip="Buying power as a multiple of equity. Off means cash: you can hold only what you can pay for. On, enter any rate your broker gives you.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="marginOn"><input id="marginX" type="number" step="0.1" min="1" placeholder="2"><span class="suffix">&times;</span></div></div>
+        <div class="srow"><label for="s_lotOn">Lot rounding, to the nearest multiple of<span class="info" data-tip="Per account. Suggested share counts move in steps of this many shares. Shares you type are left as typed.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_lotOn"><input id="s_lotRound" type="number" step="1" min="1"><span class="suffix">sh</span></div></div>
       </div>
       <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
     </div>
 
-    <div class="setgrp">
-      <div class="head">Sizing and risk</div>
-      <div class="fields deskrow">
-        <div><label for="rpct">R as % of portfolio<span class="info" data-tip="One R, as a percentage of equity. Every trade is sized and measured in multiples of it.">i</span></label><input id="rpct" type="number" step="0.05" min="0.01"></div>
-        <div><label for="t0">Tier A+ (R)<span class="info" data-tip="Risk multiple for tier A+. At 1R a trade in this tier risks one full R.">i</span></label><input id="t0" type="number" step="0.25" min="0.05"></div>
-        <div><label for="t1">Tier A (R)<span class="info" data-tip="Risk multiple for tier A.">i</span></label><input id="t1" type="number" step="0.25" min="0.05"></div>
-        <div><label for="t2">Tier B (R)<span class="info" data-tip="Risk multiple for tier B. At 0.25R a trade in this tier risks a quarter of one R.">i</span></label><input id="t2" type="number" step="0.25" min="0.05"></div>
-        <div><label for="s_heatOn">Max open heat<span class="info lt" data-tip="Whether to watch the total at risk across all open positions. It flags and never blocks.">i</span></label>
-          <select id="s_heatOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="heatcap">&mdash; cap (R)<span class="info lt" data-tip="Flag once open heat passes this many R.">i</span></label><input id="heatcap" type="number" step="0.5" min="0.5"></div>
-        <div><label for="s_coldOn">Cold-streak brake<span class="info lt" data-tip="Whether to watch the running total of your last five closed trades.">i</span></label>
-          <select id="s_coldOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="coldr">&mdash; threshold (R / last 5)<span class="info lt" data-tip="Flag once those five sum to worse than minus this many R.">i</span></label><input id="coldr" type="number" step="0.5" min="0.5"></div>
+    <div class="setcols">
+      <div class="setbox">
+        <div class="head">Sizing</div>
+        <div class="srow"><label for="rpct">R as % of AUM<span class="info" data-tip="One R, as a percentage of AUM. Every trade is sized and measured in multiples of it.">i</span></label>
+          <div class="sctl"><input id="rpct" type="number" step="0.05" min="0.01"><span class="suffix">%</span></div></div>
+        <div class="srow"><label for="t0">Tiers<span class="info" data-tip="The risk multiple for each tier. At 1R a trade risks one full R; at 0.25R, a quarter of one.">i</span></label>
+          <div class="sctl"><span class="suffix">A+</span><input id="t0" type="number" step="0.25" min="0.05"><span class="suffix">A</span><input id="t1" type="number" step="0.25" min="0.05"><span class="suffix">B</span><input id="t2" type="number" step="0.25" min="0.05"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_fuzz">Fuzziness<span class="info" data-tip="How far past the risk budget or max allocation a suggested size may go to reach the next whole share or lot.">i</span></label>
+          <div class="sctl"><input id="s_fuzz" type="number" step="1" min="0"><span class="suffix">%</span></div></div>
+        <div class="srow"><label for="s_maxAllocOn">Max allocation<span class="info" data-tip="Caps suggested sizes at this share of AUM.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_maxAllocOn"><input id="s_maxAlloc" type="number" step="1" min="1"><span class="suffix">%</span></div></div>
+        <div class="srow"><label for="s_minAllocOn">Min allocation<span class="info" data-tip="Marks a suggested size below this share of AUM as under the minimum.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_minAllocOn"><input id="s_minAlloc" type="number" step="0.5" min="0.1"><span class="suffix">%</span></div></div>
+        <div class="srow"><label for="s_shortGuard">Unstopped short<span class="info" data-tip="What a short position with shares no stop covers does to new trades in that account. Block refuses new trades there until a stop covers it; Warn only flags it.">i</span></label>
+          <div class="sctl"><select id="s_shortGuard"><option value="block">Block new trades</option><option value="warn">Warn only</option></select></div></div>
       </div>
-      <div class="fields deskrow" style="margin-top:10px">
-        <div><label for="s_targetsOn">Targets<span class="info" data-tip="Whether the internal target ladder appears on positions and on New Trade.">i</span></label>
-          <select id="s_targetsOn"><option value="1">Show</option><option value="0">Hide</option></select></div>
-        <div><label for="s_target0">Target 1 (R)<span class="info" data-tip="First target, as a multiple of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label><input id="s_target0" type="number" step="0.25" min="0.25"></div>
-        <div><label for="s_target1">Target 2 (R)<span class="info" data-tip="Second target, measured the same way.">i</span></label><input id="s_target1" type="number" step="0.25" min="0.25"></div>
-        <div><label for="s_fuzz">Fuzziness %<span class="info" data-tip="How far past the risk budget or max allocation a suggested size may go to reach the next whole share or lot.">i</span></label><input id="s_fuzz" type="number" step="1" min="0"></div>
-        <div><label for="s_noiseOn">Noise check<span class="info" data-tip="Compares the stop distance with the stock's APTR and colours it against the tight and noise-floor levels under Statistics and definitions.">i</span></label>
-          <select id="s_noiseOn"><option value="0">Off</option><option value="1">On</option></select></div>
-        <div><label for="s_maxAllocOn">Max allocation<span class="info" data-tip="Whether suggested sizes are capped at a share of AUM.">i</span></label>
-          <select id="s_maxAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_maxAlloc">&mdash; cap (% of equity)<span class="info" data-tip="Largest position value a suggested size may reach, as a percentage of AUM.">i</span></label><input id="s_maxAlloc" type="number" step="1" min="1"></div>
-        <div><label for="s_minAllocOn">Min allocation<span class="info lt" data-tip="Whether a suggested size below a share of AUM is marked as under the minimum.">i</span></label>
-          <select id="s_minAllocOn"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_minAlloc">&mdash; floor (% of equity)<span class="info lt" data-tip="Position value below which a suggested size is marked under the minimum, as a percentage of AUM.">i</span></label><input id="s_minAlloc" type="number" step="0.5" min="0.1"></div>
-        <div><label for="s_shortGuard">Unstopped short<span class="info lt" data-tip="What a short position with shares no stop covers does to new trades in that account. Block refuses new trades there until a stop covers it; Warn only flags it.">i</span></label>
-          <select id="s_shortGuard"><option value="block">Block new trades</option><option value="warn">Warn only</option></select></div>
+
+      <div class="setbox">
+        <div class="head">Risk warnings</div>
+        <div class="srow"><label for="s_heatOn">Max open heat<span class="info" data-tip="Flags once open heat passes this many R. Never blocks.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_heatOn"><input id="heatcap" type="number" step="0.5" min="0.5"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_coldOn">Cold-streak brake<span class="info" data-tip="Flags once the last five closed trades in an account sum to worse than minus this many R.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_coldOn"><input id="coldr" type="number" step="0.5" min="0.5"><span class="suffix">R / 5</span></div></div>
+        <div class="srow"><label for="s_noiseOn">Noise check<span class="info" data-tip="Compares the stop distance with the stock's APTR and colours it against the two levels below.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_noiseOn"></div></div>
+        <div class="srow sub"><label for="s_aptrTight">Tight below<span class="info" data-tip="Stop distance, in average true ranges, below which the check shows red.">i</span></label>
+          <div class="sctl"><input id="s_aptrTight" type="number" step="0.1" min="0.1"><span class="suffix">APTR</span></div></div>
+        <div class="srow sub"><label for="s_aptrFloor">Noise floor<span class="info" data-tip="Below this the check shows amber; above it, green.">i</span></label>
+          <div class="sctl"><input id="s_aptrFloor" type="number" step="0.1" min="0.1"><span class="suffix">APTR</span></div></div>
+      </div>
+
+      <div class="setbox">
+        <div class="head">Positions</div>
+        <div class="srow"><label for="s_targetsOn">Targets<span class="info" data-tip="The internal target ladder on positions: multiples of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_targetsOn"><input id="s_target0" type="number" step="0.25" min="0.25"><input id="s_target1" type="number" step="0.25" min="0.25"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_stopCount">Stops loaded<span class="info" data-tip="How many stop rows an open position's Stop button opens with: its current stops first, then blank rows. Blank rows are ignored when saved.">i</span></label>
+          <div class="sctl"><input id="s_stopCount" type="number" step="1" min="1" max="5"></div></div>
+      </div>
+
+      <div class="setbox">
+        <div class="head">Statistics definitions</div>
+        <div class="srow"><label for="s_scratchLo">Scratch band<span class="info" data-tip="A result between these two edges counts as neither a win nor a loss.">i</span></label>
+          <div class="sctl"><input id="s_scratchLo" type="number" step="0.01"><span class="suffix">to</span><input id="s_scratchHi" type="number" step="0.01"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_winR">Decisive win<span class="info" data-tip="A closed trade at or above this many R counts as decisive.">i</span></label>
+          <div class="sctl"><input id="s_winR" type="number" step="0.25" min="0.25"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_lossDisc">Loss discipline<span class="info" data-tip="A loss held at or inside this many R of the risk it was opened with counts as disciplined. Measured in internal R, so size does not flatter it.">i</span></label>
+          <div class="sctl"><input id="s_lossDisc" type="number" step="0.1" min="0.1"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_breachR">Stop breach<span class="info" data-tip="Internal R below which a stop-out is marked as a breach on the closed-trades table.">i</span></label>
+          <div class="sctl"><input id="s_breachR" type="number" step="0.05"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_reviewDays">Review due<span class="info" data-tip="Days after a trade closes before its review is flagged as due.">i</span></label>
+          <div class="sctl"><input id="s_reviewDays" type="number" step="1" min="1"><span class="suffix">days</span></div></div>
+      </div>
+
+      <div class="setbox">
+        <div class="head">Display</div>
+        <div class="srow"><label for="s_hideValues">Hide values and gains<span class="info" data-tip="Blanks every money figure on screen. R multiples, prices and share counts stay visible.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_hideValues"></div></div>
+        <div class="srow"><label for="s_colourGrade">Gain/loss colour<span class="info" data-tip="Green and red for results, gray inside the scratch band.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_colourGrade"></div></div>
       </div>
     </div>
 
-    <div class="setgrp">
-      <div class="head">Statistics and definitions</div>
-      <div class="fields deskrow">
-        <div><label for="s_scratchLo">Scratch from (R)<span class="info" data-tip="Lower edge of the scratch band. A result between the two edges counts as neither a win nor a loss.">i</span></label><input id="s_scratchLo" type="number" step="0.01"></div>
-        <div><label for="s_scratchHi">Scratch to (R)<span class="info" data-tip="Upper edge of the scratch band.">i</span></label><input id="s_scratchHi" type="number" step="0.01"></div>
-        <div><label for="s_winR">Decisive win (R)<span class="info" data-tip="A closed trade at or above this many R counts as decisive.">i</span></label><input id="s_winR" type="number" step="0.25" min="0.25"></div>
-        <div><label for="s_lossDisc">Loss discipline (R)<span class="info" data-tip="A loss held at or inside this many R of the risk it was opened with counts as disciplined. Measured in internal R, so size does not flatter it.">i</span></label><input id="s_lossDisc" type="number" step="0.1" min="0.1"></div>
-        <div><label for="s_breachR">Stop breach (R)<span class="info lt" data-tip="Internal R below which a stop-out is marked as a breach on the closed-trades table.">i</span></label><input id="s_breachR" type="number" step="0.05"></div>
-        <div><label for="s_reviewDays">Review due (days)<span class="info lt" data-tip="Days after a trade closes before its review is flagged as due.">i</span></label><input id="s_reviewDays" type="number" step="1" min="1"></div>
-        <div><label for="s_aptrTight">APTR &mdash; tight<span class="info lt" data-tip="Stop distance, in average true ranges, below which the volatility check shows red.">i</span></label><input id="s_aptrTight" type="number" step="0.1" min="0.1"></div>
-        <div><label for="s_aptrFloor">APTR &mdash; noise floor<span class="info lt" data-tip="And below which it shows amber. Above it, green.">i</span></label><input id="s_aptrFloor" type="number" step="0.1" min="0.1"></div>
-      </div>
-      <div class="split" style="margin-top:10px">
+    <div class="setbox full">
+      <div class="head">Setups and loss tags</div>
+      <div class="split">
         <div><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Setups offered on New Trade and in each trade's gear. A setup you remove stays on the trades carrying it, marked retired.">i</span></label>
-          <textarea id="s_setups" style="min-height:62px"></textarea></div>
+          <textarea id="s_setups" style="min-height:96px"></textarea></div>
         <div><label for="s_lossTags">Loss tags &mdash; one per line<span class="info lt" data-tip="Reasons offered when tagging a loss, one per line. A tag you remove stays on the trades already carrying it, marked retired.">i</span></label>
           <div id="builtinTagList" style="margin-bottom:6px"></div>
-          <textarea id="s_lossTags" style="min-height:62px"></textarea></div>
-      </div>
-      <div class="fields deskrow" style="margin-top:10px">
-        <div><label for="s_tagNoise">Noise stopouts<span class="info" data-tip="Adds a fixed &quot;Stopped by noise&quot; loss tag and a statistic counting the share of tagged losses carrying it.">i</span></label>
-          <select id="s_tagNoise"><option value="0">Off</option><option value="1">On</option></select></div>
-        <div><label for="s_tagViolation">Rule violations<span class="info" data-tip="Adds a fixed &quot;Rule violation&quot; loss tag and a statistic counting the losses carrying it.">i</span></label>
-          <select id="s_tagViolation"><option value="0">Off</option><option value="1">On</option></select></div>
-      </div>
-    </div>
-
-    <div class="setgrp">
-      <div class="head">General and display</div>
-      <div class="fields deskrow">
-        <div><label for="s_hideValues">Hide values and gains<span class="info" data-tip="Blank every money figure on screen. R multiples, prices and share counts stay visible.">i</span></label>
-          <select id="s_hideValues"><option value="0">Show</option><option value="1">Hide</option></select></div>
-        <div><label for="s_colourGrade">Gain/loss colour<span class="info" data-tip="Colour positive and negative figures green and red.">i</span></label>
-          <select id="s_colourGrade"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_stopCount">Stops loaded<span class="info" data-tip="How many stop rows an open position's Stop button opens with: its current stops first, then blank rows. Blank rows are ignored when saved.">i</span></label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
-        <div id="lotOnCell"><label for="s_lotOn">Lot rounding<span class="info lt" data-tip="Per account. Suggested share counts move in steps of this many shares. Shares you type are left as typed.">i</span></label>
-          <select id="s_lotOn"><option value="0">Off</option><option value="1">On</option></select></div>
-        <div id="lotRoundCell"><label for="s_lotRound">&mdash; to the nearest multiple of:<span class="info lt" data-tip="The lot size: suggested sizes move in steps of this many shares.">i</span></label><input id="s_lotRound" type="number" step="1" min="1"></div>
+          <textarea id="s_lossTags" style="min-height:62px"></textarea>
+          <div class="srow" style="margin-top:4px"><label for="s_tagNoise">Built-in: Stopped by noise<span class="info" data-tip="A fixed loss tag, always offered while on, and a statistic counting the share of tagged losses carrying it.">i</span></label>
+            <div class="sctl"><input type="checkbox" id="s_tagNoise"></div></div>
+          <div class="srow"><label for="s_tagViolation">Built-in: Rule violation<span class="info lt" data-tip="A fixed loss tag, always offered while on, and a statistic counting the losses carrying it.">i</span></label>
+            <div class="sctl"><input type="checkbox" id="s_tagViolation"></div></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1757,7 +1785,7 @@ const SET_FIELDS = [
   ["s_lossTags",  "defs", "lossTags",   "tags"],
   ["s_tagNoise",  "defs", "builtins.noise",     "bool"],
   ["s_tagViolation","defs","builtins.violation","bool"],
-  ["s_hideValues","page", "hideValues", "boolInv"],
+  ["s_hideValues","page", "hideValues", "bool"],
   ["s_colourGrade","page","colourGrade","bool"],
   ["s_stopCount", "page", "stopCount",  "num"],
   ["s_lotRound",  "acct", "lotRound",   "num"]
@@ -1792,8 +1820,8 @@ function renderSetFields(){
     const el = $(id);
     if(!el) return;
     const v = setGet(scope, key);
-    if(kind==="bool")      el.value = v ? "1" : "0";
-    else if(kind==="boolInv") el.value = v ? "1" : "0";
+    if(el.type==="checkbox") el.checked = !!v;
+    else if(kind==="bool")    el.value = v ? "1" : "0";
     else if(kind==="lines")   el.value = (v||[]).join("\n");
     else if(kind==="tags")    el.value = (v||[]).map(o=>o.t).join("\n");
     else el.value = (v==null ? "" : v);
@@ -1804,7 +1832,7 @@ function bindSetFields(){
     const el = $(id);
     if(!el) return;
     el.addEventListener("change", ()=>{
-      if(kind==="bool" || kind==="boolInv") setPut(scope, key, el.value==="1");
+      if(kind==="bool") setPut(scope, key, el.type==="checkbox" ? el.checked : el.value==="1");
       else if(kind==="str") setPut(scope, key, el.value);
       else if(kind==="lines")
         setPut(scope, key, el.value.split("\n").map(s=>s.trim()).filter(Boolean));
@@ -1840,12 +1868,17 @@ function renderSettings(){
 
   // Equity is per account, so the single AUM field has no meaning for a whole group — the members
   // list below takes its place.
-  $("aumCell").style.display = g ? "none" : "";
-  $("marginCell").style.display = g ? "none" : "";
-  // Lot rounding is per account, so with a whole group open it is set per member in the table
-  // below; the single field would otherwise write to whichever member happened to be first.
-  $("lotOnCell").style.display = g ? "none" : "";
-  $("lotRoundCell").style.display = g ? "none" : "";
+  // Book at cost, margin and lot rounding belong to one account, so with a whole group open they
+  // are set per member in the table below; single fields would write to whichever member was first.
+  $("acctOwn").style.display = g ? "none" : "";
+  $("setScope").textContent = g
+    ? "Group " + g + " — sizing, risk and position settings apply to all " + groupMembers(g).length + " accounts"
+    : (groupOf(acctInView()) ? acctInView() + " — sizing, risk and position settings come from group " + groupOf(acctInView())
+                             : acctInView());
+  // A value whose switch is off is shown, but greyed and not editable, so it reads as unused.
+  [["s_maxAllocOn",["s_maxAlloc"]], ["s_minAllocOn",["s_minAlloc"]], ["s_heatOn",["heatcap"]],
+   ["s_coldOn",["coldr"]], ["s_noiseOn",["s_aptrTight","s_aptrFloor"]], ["s_targetsOn",["s_target0","s_target1"]],
+   ["s_lotOn",["s_lotRound"]]].forEach(([sw, vals])=>vals.forEach(id=>{ $(id).disabled = !$(sw).checked; }));
   if(!g){
     const pf = root.portfolios[acctInView()];
     $("aum").value = fmt$(state.settings.aum);
