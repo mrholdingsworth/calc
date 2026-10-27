@@ -28,7 +28,8 @@ The brief itself is outside the repo: `C:\Users\steve\Downloads\Position Size Ca
 Ideas.docx` (the I/II/III/IV outline) and `psc-v2-conversation.txt`. Where the outline and a settled
 decision disagree, the settled decision wins — Steve made it later.
 
-`_parked/` holds removed v1 features. `_dev/compare.js` is the v1.3-equivalence harness.
+`_parked/` holds removed v1 features. `_dev/compare.js` is the v1.3-equivalence harness and
+`_dev/v2-checks.js` the v2 regression checks — see Working conventions.
 
 ## Deploy loop
 
@@ -125,5 +126,9 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
 
 - **Measure, don't eyeball.** Compare against a hand-computed figure and state the comparison.
 - **Reproduce a reported bug before theorising.**
-- **The harness only covers maths v1.3 also has.** v2-only logic (sizing, AUM, split stops, gear
-  edits, groups) has no automated test; check it by hand in the pane.
+- **Two harnesses, both in `_dev/`, both run from a gitignored probe copy** (build command in each
+  file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
+  does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
+  the migrations — 57 hand-computed cases; `runChecks()` returns `{passed, failed}`. **Run
+  `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
+  make it fail once on purpose before trusting a clean run.

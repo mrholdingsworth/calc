@@ -324,6 +324,17 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-27 — v2 regression checks
+
+- **`_dev/v2-checks.js`**: 57 hand-computed cases over everything v2 added — AUM at the stop, split
+  stops, the sizing rule, lot rounding, the Send hand-off, gear date and status rules, the closed-
+  trade gear, group sizing and per-account warnings, group split stops, the short block, manual
+  marks, and the schema 1→4 migration. Replaces save() and confirm() while it runs and restores the
+  real book after, so it cannot write. 57/57 on 901dad1.
+- **Shown to fail:** one cent added to `riskAtStop` fails all nine AUM and stop cases; a no-op
+  `syncStatus` fails both status cases; the old nearest-share rule fails the two cases where it
+  differs from rounding up within fuzziness.
+
 ### 2026-10-26 — v2.0-dev, group popups and cleanup
 
 - **Group Buy, Sell and Stop match the single dialogs.** Percent of each leg, with a live preview per
