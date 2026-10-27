@@ -324,6 +324,28 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-27 — v2.0-dev, review against the brief (V2-PLAN decisions 13–18)
+
+- **New Trade warns on typed shares** outside the tier's fuzziness (either way) or the allocation
+  limits (I.B.2). Missed by the predecessor and by the takeover review alike.
+- **Plan fields and an optional Notes field on New Trade.** Notes is the one `t.notes` field from
+  entry through the position to the closed trade, where its box is now labelled Notes.
+- **Built-in loss tags, toggled:** Stopped by noise and Rule violation, each with its statistic
+  tile. On, the tag is always offered and locked; off, tag and tile go. Decided once per book —
+  on for any built-in already in use. v1's "Thesis broken", on 17 of Steve's trades, comes back as
+  an ordinary tag rather than reading as retired.
+- **Loss discipline colour removed**, by Steve: no percentage is known to be acceptable.
+- **Binary gain/loss colour, gray inside the scratch band**, on every figure of one trade's result.
+- **Popups say average until the position has been added to or trimmed, then break-even.**
+- **Hover explainers everywhere:** (i) bubbles in Settings and New Trade; a mouseover on the label
+  itself, from one `TIPS` table, in the position list, closed trades, statistics, audit and dialogs.
+- **"Stops loaded"** (default 1) now does something: an open position's Stop button opens with its
+  stops plus blank rows up to the setting. Before, it only applied to a position with no stop,
+  which New Trade cannot create.
+- **Open, by Steve's choice:** unrealised gains in the Portfolio summary. **Kept for now:** 10%
+  fuzziness default, open heat in R.
+- `v2-checks.js` grows to 85 cases; the new ones shown to fail on a deliberately broken copy.
+
 ### 2026-10-27 — v2 regression checks
 
 - **`_dev/v2-checks.js`**: 57 hand-computed cases over everything v2 added — AUM at the stop, split

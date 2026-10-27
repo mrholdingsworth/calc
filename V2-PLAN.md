@@ -287,6 +287,23 @@ These supersede anything above that disagrees, including the outline's II.A.3.v 
     group's expansion. It edits setup, tier, APTR now and at entry, ticker, AUM and 1R at open, loss
     tag, plan, notes, and every transaction.
 
+### Settled 2026-10-27, review against the brief
+
+13. **New Trade warns when typed shares leave the parameters** — risk outside the tier's fuzziness
+    either way, allocation over max or under min. Flags, never blocks.
+14. **Plan fields and Notes are optional on New Trade.** Notes is one field from entry to close.
+15. **Noise stopouts and rule violations are toggled built-ins.** On: the tag is always offered,
+    locked, and its tile shows. Off: both hidden. No colour thresholds on either.
+16. **Loss discipline has no colour.** No percentage is known to be acceptable.
+17. **Gain/loss colour is binary, gray inside the scratch band.**
+18. **Popups:** average for an untouched position, break-even once added to or trimmed.
+19. **"Stops loaded", default 1, affects only an open position's Stop button:** its current stops
+    first, then blank rows up to the setting. Blank rows are dropped on save. Group stops and the
+    edit dialogs ignore it.
+
+Still open by Steve's choice: unrealised gains in the summary. Kept for now: fuzziness 10%, open
+heat in R.
+
 ### Still open
 
 - **The sizing pipeline**, to be designed together before any building starts. See phase 6 for the

@@ -270,6 +270,114 @@ const CASES = {
     check("next trim folds in only itself (25 x 6)", pf.settings.aum, 100150);
   },
 
+  /* New Trade warns when typed shares leave the tier's fuzziness or the allocation limits. */
+  ntWarnings(){
+    book([], {maxAllocOn:true, maxAlloc:25, minAllocOn:true, minAlloc:2});
+    root.tab = "new"; render();
+    const warn = q => { setNT("X", "50", "48", q); newTradeCal(); return $("nt_warn").innerText; };
+    // Tier A budget $500 at $2 a share: 250 shares is exactly 0.50R and 12.5% allocation.
+    check("in range, no warning", warn("250"), "");
+    check("400 sh = 0.80R", warn("400"), "Risk 0.80R against the 0.5R tier, outside 10%");
+    check("600 sh = 1.20R and 30%", warn("600").split("\n"), ["Risk 1.20R against the 0.5R tier, outside 10%", "Allocation 30.0% over the 25% max"]);
+    check("10 sh = 0.02R and 0.5%", warn("10").split("\n"), ["Risk 0.02R against the 0.5R tier, outside 10%", "Allocation 0.5% under the 2% min"]);   // 10 x $50 = $500 of $100,000
+    check("270 sh = 0.54R, inside 10%", warn("270"), "");
+  },
+
+  /* Plan fields and notes from New Trade land on the trade. */
+  ntPlanNotes(){
+    const pf = book(); root.tab = "new"; render();
+    setNT("PLN", "50", "48", "10");
+    $("nt_cut").value = "loses 20d"; $("nt_wait").value = "holds 50d"; $("nt_exit").value = "trail 10d"; $("nt_notes").value = "earnings Thu";
+    openTrade();
+    const t = pf.trades[0];
+    check("plan written", t.plan, {cutIf:"loses 20d", waitIf:"holds 50d", exit:"trail 10d"});
+    check("notes written", t.notes, "earnings Thu");
+    check("form cleared", [$("nt_cut").value, $("nt_notes").value], ["", ""]);
+  },
+
+  /* Built-in loss tags: on by use, locked into the list, wired to their tiles. */
+  builtinTags(){
+    book();
+    check("fresh book: violation on, noise off", root.defs.builtins, {noise:false, violation:true});
+    check("offered tags", lossTags().map(o=>o.v), ["violation"]);
+    // A book that already used the noise tag on a trade gets it switched on.
+    const c = trade({status:"closed", closedAt:T0()+2*D, last:48, lossTag:"noise",
+      events:[ev("entry",{qty:100, price:50, stop:48}, 0), ev("close",{qty:100, price:48}, 2)]});
+    root = { v:4, active:"Main", order:["Main"], groups:{}, defs:{lossTags:[{v:"violation", t:"Rule Violation"}, {v:"late", t:"Late entry"}]},
+             portfolios:{ Main:{ cashFlows:[], settings:defaults().settings, trades:[c] } } };
+    normalize();
+    check("noise on because used", root.defs.builtins.noise, true);
+    // v1's third tag, in use but never stored, comes back as an ordinary tag rather than retired.
+    const inv = trade({status:"closed", closedAt:T0()+2*D, last:48, lossTag:"invalidation",
+      events:[ev("entry",{qty:100, price:50, stop:48}, 0), ev("close",{qty:100, price:48}, 2)]});
+    root = { v:1, active:"Main", order:["Main"], groups:{}, portfolios:{ Main:{ cashFlows:[], settings:defaults().settings, trades:[inv] } } };
+    normalize();
+    check("Thesis broken restored", lossTags().map(o=>o.t), ["Rule violation", "Thesis broken"]);
+    root = { v:4, active:"Main", order:["Main"], groups:{}, defs:{lossTags:[{v:"violation", t:"Rule Violation"}, {v:"late", t:"Late entry"}]},
+             portfolios:{ Main:{ cashFlows:[], settings:defaults().settings, trades:[c] } } };
+    normalize();
+    check("built-in absorbed from the user list", root.defs.lossTags.map(o=>o.v), ["late"]);
+    check("offered: built-ins then user's", lossTags().map(o=>o.v), ["noise","violation","late"]);
+    // A typed tag that slugs to a built-in key gets its own key instead.
+    root.tab = "settings"; render();
+    $("s_lossTags").value = "Late entry\nNoise"; $("s_lossTags").dispatchEvent(new Event("change"));
+    check("typed Noise kept separate", root.defs.lossTags.map(o=>o.v), ["late","noise-own"]);
+    root.tab = "tally"; render();
+    const tiles = [...$("stats").querySelectorAll(".metric .k")].map(k=>k.textContent);
+    check("both tiles shown", ["Noise stopouts","Rule violations"].every(k=>tiles.indexOf(k)>=0), true);
+    root.defs.builtins.noise = false; render();
+    check("noise tile hidden when off", [...$("stats").querySelectorAll(".metric .k")].some(k=>k.textContent==="Noise stopouts"), false);
+  },
+
+  /* Binary colour, gray inside the scratch band (-0.05R to +0.10R by default). */
+  colours(){
+    book();
+    check("scratch is gray", [clsR(0.05), clsR(-0.04), clsR(0.10)], ["flat","flat","flat"]);
+    check("outside is green or red", [clsR(0.5), clsR(-0.5), clsR(0.11)], ["pos","neg","pos"]);
+    root.ui.colourGrade = false;
+    check("colour off is plain", clsR(0.5), "");
+    root.ui.colourGrade = true;
+  },
+
+  /* Average until the position has been added to or trimmed, break-even after. */
+  avgVsBe(){
+    const t = trade({events:[ev("entry",{qty:10, price:10, stop:9})]});
+    book([t]);
+    let d = derive(t);
+    check("untouched says average", avgOrBe(t, d), "average <b>$10.00</b>");
+    check("buy 10 at $20 previews break-even $15", /break-even <b>\$15\.00<\/b>/.test(addNote(t, d, 20, 10, "Trading")), true);
+    t.events.push(ev("trim", {qty:5, price:12}, 1)); d = derive(t);
+    // 5 left at avg 10 with $10 banked: break-even 10 - 10/5 = 8
+    check("trimmed says break-even", avgOrBe(t, d), "break-even <b>$8.00</b>");
+  },
+
+  /* Labels in the dense places carry their explainer as a mouseover. */
+  tips(){
+    const t = trade({events:[ev("entry",{qty:100, price:50, stop:48})]});
+    book([t]); root.tab = "portfolio"; render();
+    const th = [...document.querySelectorAll("#openTrades th")].find(x=>x.textContent==="Cash at risk");
+    check("column header has its explainer", !!(th && th.title && th.classList.contains("tipped")), true);
+  },
+
+  /* "Stops loaded" pads a position's Stop button with blank rows, and nothing else. */
+  stopsLoaded(){
+    const t = trade({events:[ev("entry",{qty:100, price:50, stop:48})]});
+    book([t]); render();
+    check("default is 1", root.ui.stopCount, 1);
+    root.ui.stopCount = 3;
+    stopUI(t.id);
+    const rows = readStopRows();
+    check("3 rows, current stop first", rows, [{q:"", p:"48"}, {q:"", p:""}, {q:"", p:""}]);
+    submitModal();
+    check("blank rows dropped on save", derive(t).stops, [{qty:null, price:48}]);
+    // The group Stop button ignores it.
+    group([["A", 100000, [trade({gid:"gs", events:[ev("entry",{qty:100, price:50, stop:null})]})]]]);
+    root.ui.stopCount = 3;
+    gStopUI("gs");
+    check("group stop ignores it", readStopRows().length, 1);
+    closeModal();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();

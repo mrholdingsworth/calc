@@ -124,7 +124,9 @@ h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 .head{font-size:10.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
 .muted{color:var(--mut);font-size:12px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
-.pos{color:var(--green)} .neg{color:var(--red)}
+.pos{color:var(--green)} .neg{color:var(--red)} .flat{color:var(--mut)}
+/* A label carrying its explainer as a mouseover: a faint dotted underline says there is one. */
+.tipped{cursor:help;text-decoration:underline dotted var(--line2);text-underline-offset:3px}
 label,.lbl{display:block;font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px}
 input,select,textarea{background:var(--panel2);border:1px solid var(--line2);color:var(--tx);border-radius:8px;
   padding:7px 10px;font:inherit;font-size:13px;width:100%;outline:none}
@@ -296,9 +298,9 @@ button.small{--r:7px}
          height that does not need to exist. -->
     <div class="head" style="margin-bottom:8px">Fast calc</div>
     <div class="row" style="align-items:flex-end">
-      <div style="max-width:112px"><label for="fc_price">Price</label>
+      <div style="max-width:112px"><label for="fc_price" class="tipped" title="Expected entry price.">Price</label>
         <input id="fc_price" type="number" step="any" placeholder="entry"></div>
-      <div style="max-width:112px"><label for="fc_stop">Stop</label>
+      <div style="max-width:112px"><label for="fc_stop" class="tipped" title="Planned stop. Below the price is a long, above it a short.">Stop</label>
         <input id="fc_stop" type="number" step="any" placeholder="invalidation"></div>
       <button class="small" id="fc_clear" title="Clear">&#10005;</button>
       <div id="fc_ans" style="margin-left:auto"></div>
@@ -351,10 +353,10 @@ button.small{--r:7px}
        answer instead, where they are plainly optional but still reachable without leaving the
        panel. Both are editable afterwards from the position's gear. -->
   <div class="fields oneline">
-    <div><label for="nt_tk">Ticker</label><input id="nt_tk" type="text" placeholder="xxx"></div>
-    <div><label for="nt_entry">Fill price</label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
-    <div><label for="nt_stop">Stop</label><input id="nt_stop" type="number" step="any" placeholder="152"></div>
-    <div><label for="nt_qty">Shares</label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
+    <div><label for="nt_tk">Ticker<span class="info" data-tip="The symbol traded.">i</span></label><input id="nt_tk" type="text" placeholder="xxx"></div>
+    <div><label for="nt_entry">Fill price<span class="info" data-tip="The price the order filled at.">i</span></label><input id="nt_entry" type="number" step="any" placeholder="160"></div>
+    <div><label for="nt_stop">Stop<span class="info" data-tip="The stop at entry. Below the fill is a long, above it a short; the distance sets the risk per share.">i</span></label><input id="nt_stop" type="number" step="any" placeholder="152"></div>
+    <div><label for="nt_qty">Shares<span class="info lt" data-tip="Shares filled. Left blank, the trade opens at the size the selected tier suggests.">i</span></label><input id="nt_qty" type="number" step="any" placeholder="from R"></div>
   </div>
   <div class="fcrange" id="nt_range" style="margin-top:10px"></div>
 
@@ -366,17 +368,28 @@ button.small{--r:7px}
   </div>
 
   <div class="fields" style="margin-top:12px;grid-template-columns:minmax(160px,260px) 120px">
-    <div><label for="nt_setup">Setup <span class="muted" style="text-transform:none;letter-spacing:0">optional</span></label>
+    <div><label for="nt_setup">Setup <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="The setup this trade is filed under, from the list in Settings.">i</span></label>
       <select id="nt_setup"></select></div>
-    <div><label for="nt_aptr">APTR % <span class="muted" style="text-transform:none;letter-spacing:0">optional</span></label>
+    <div><label for="nt_aptr">APTR % <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="Average true range as a percentage of price: how far the stock moves on an ordinary day.">i</span></label>
       <input id="nt_aptr" type="number" step="0.1" placeholder="8.5"></div>
   </div>
+  <!-- Optional, never required to open: the plan and a note, written now if there is time and
+       otherwise from the position's gear. The note carries through to the position and the
+       closed trade, where it is the same field. -->
+  <div class="split split3" style="margin-top:10px">
+    <div><label for="nt_cut">If Y &rarr; cut <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="The condition that ends the trade early.">i</span></label><input id="nt_cut" type="text"></div>
+    <div><label for="nt_wait">If Z &rarr; wait <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="The condition under which the trade is held through noise.">i</span></label><input id="nt_wait" type="text"></div>
+    <div><label for="nt_exit">Exit plan <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info lt" data-tip="How the trade is meant to be closed.">i</span></label><input id="nt_exit" type="text"></div>
+  </div>
+  <div style="margin-top:10px"><label for="nt_notes">Notes <span class="muted" style="text-transform:none;letter-spacing:0">optional</span><span class="info" data-tip="Free text that stays with the trade: shown on the open position and on the closed trade, and editable from the gear.">i</span></label>
+    <textarea id="nt_notes" style="min-height:52px"></textarea></div>
 
   <div class="row" style="margin-top:13px;align-items:center">
     <button class="primary" id="nt_open">Open trade</button>
     <button class="small" id="nt_clear" title="Clear the whole form" style="margin-left:auto">&#10005;</button>
   </div>
   <div class="err" id="nt_err"></div>
+  <div id="nt_warn" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
   <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
   <div id="nt_heat" style="display:none;color:var(--red);font-size:12.5px;margin-top:5px"></div>
   </div>
@@ -525,7 +538,14 @@ button.small{--r:7px}
         <div><label for="s_setups">Setups &mdash; one per line<span class="info" data-tip="Setups offered on New Trade and in each trade's gear. A setup you remove stays on the trades carrying it, marked retired.">i</span></label>
           <textarea id="s_setups" style="min-height:62px"></textarea></div>
         <div><label for="s_lossTags">Loss tags &mdash; one per line<span class="info lt" data-tip="Reasons offered when tagging a loss, one per line. A tag you remove stays on the trades already carrying it, marked retired.">i</span></label>
+          <div id="builtinTagList" style="margin-bottom:6px"></div>
           <textarea id="s_lossTags" style="min-height:62px"></textarea></div>
+      </div>
+      <div class="fields deskrow" style="margin-top:10px">
+        <div><label for="s_tagNoise">Noise stopouts<span class="info" data-tip="Adds a fixed &quot;Stopped by noise&quot; loss tag and a statistic counting the share of tagged losses carrying it.">i</span></label>
+          <select id="s_tagNoise"><option value="0">Off</option><option value="1">On</option></select></div>
+        <div><label for="s_tagViolation">Rule violations<span class="info" data-tip="Adds a fixed &quot;Rule violation&quot; loss tag and a statistic counting the losses carrying it.">i</span></label>
+          <select id="s_tagViolation"><option value="0">Off</option><option value="1">On</option></select></div>
       </div>
     </div>
 
@@ -536,10 +556,10 @@ button.small{--r:7px}
           <select id="s_hideValues"><option value="0">Show</option><option value="1">Hide</option></select></div>
         <div><label for="s_colourGrade">Gain/loss colour<span class="info" data-tip="Colour positive and negative figures green and red.">i</span></label>
           <select id="s_colourGrade"><option value="1">On</option><option value="0">Off</option></select></div>
-        <div><label for="s_stopCount">Stops loaded per trade<span class="info" data-tip="How many stop rows a newly opened position starts with.">i</span></label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
+        <div><label for="s_stopCount">Stops loaded<span class="info" data-tip="How many stop rows an open position's Stop button opens with: its current stops first, then blank rows. Blank rows are ignored when saved.">i</span></label><input id="s_stopCount" type="number" step="1" min="1" max="5"></div>
         <div id="lotOnCell"><label for="s_lotOn">Lot rounding<span class="info lt" data-tip="Per account. Suggested share counts move in steps of this many shares. Shares you type are left as typed.">i</span></label>
           <select id="s_lotOn"><option value="0">Off</option><option value="1">On</option></select></div>
-        <div id="lotRoundCell"><label for="s_lotRound">&mdash; to the nearest multiple of:</label><input id="s_lotRound" type="number" step="1" min="1"></div>
+        <div id="lotRoundCell"><label for="s_lotRound">&mdash; to the nearest multiple of:<span class="info lt" data-tip="The lot size: suggested sizes move in steps of this many shares.">i</span></label><input id="s_lotRound" type="number" step="1" min="1"></div>
       </div>
     </div>
   </div>
@@ -612,11 +632,14 @@ const DEFS_DEFAULT = {
   scratchLo:-0.05, scratchHi:0.10, winR:1,
   reviewDays:30, breachR:-1.25, lossDisc:1.2,
   aptrTight:1, aptrFloor:1.5,
-  // One tag, because the other two were a taxonomy the app had no business asserting. Add your own
-  // in Settings; a tag you later remove stays on the trades carrying it, marked retired.
-  lossTags:[ { v:"violation", t:"Rule Violation" } ],
+  // The user's own tags. A tag removed later stays on the trades carrying it, marked retired.
+  lossTags:[],
+  // Two tags the app can count, because a statistic is wired to each. Switched on in Settings, the
+  // tag is always offered (and cannot be edited away) and its tile shows; switched off, both go.
+  builtins:{ noise:false, violation:true },
   setups:[]
 };
+const BUILTIN_TAGS = [ { v:"noise", t:"Stopped by noise" }, { v:"violation", t:"Rule violation" } ];
 const setupList = () => defs().setups || [];
 // How a trade's setup reads anywhere it is shown: on the list, Legacy (typed freehand before the
 // list existed), or retired (on the list once, removed since).
@@ -631,7 +654,11 @@ const setupKey = t => t.legacySetup ? "Legacy" : (String(t.concept||"").trim() |
 // Defensive: normalize() fills root.defs, but these are read from functions that can run before it.
 const defs = () => (root && root.defs) || DEFS_DEFAULT;
 const isScratch = rm => rm >= defs().scratchLo && rm <= defs().scratchHi;
-const lossTags = () => defs().lossTags || DEFS_DEFAULT.lossTags;
+// Every tag offered: the built-ins switched on, then the user's own.
+const lossTags = () => {
+  const b = defs().builtins || DEFS_DEFAULT.builtins;
+  return BUILTIN_TAGS.filter(o=>b[o.v]).concat((defs().lossTags || []).filter(o=>!BUILTIN_TAGS.some(x=>x.v===o.v)));
+};
 
 /* ---- page preferences ----
    About the person and the screen, never about a book. On root for the reason register #1 records:
@@ -923,14 +950,26 @@ function normalize(){
   if(!root.defs || typeof root.defs !== "object") root.defs = {};
   Object.keys(DEFS_DEFAULT).forEach(k=>{ if(root.defs[k]==null) root.defs[k] = DEFS_DEFAULT[k]; });
   root.defs.setups = (Array.isArray(root.defs.setups) ? root.defs.setups : []).slice();   // never the shared default
-  if(!Array.isArray(root.defs.lossTags) || !root.defs.lossTags.length)
-    root.defs.lossTags = DEFS_DEFAULT.lossTags.map(o=>({v:o.v, t:o.t}));
-  // A book carrying the old three untouched never chose them, so it takes the new default. A list
-  // that was edited is a decision and is left exactly alone. Trades tagged with a dropped key keep
-  // showing it, marked retired, so nothing is lost either way.
-  else if(root.defs.lossTags.length===3 &&
-          ["invalidation","noise","violation"].every((v,i)=>root.defs.lossTags[i].v===v))
-    root.defs.lossTags = DEFS_DEFAULT.lossTags.map(o=>({v:o.v, t:o.t}));
+  if(!Array.isArray(root.defs.lossTags)) root.defs.lossTags = [];
+  // The v1 three, stored untouched, were never chosen: "Thesis broken" leaves the list (trades
+  // carrying it show it as retired), and the other two are built-ins now.
+  if(root.defs.lossTags.length===3 &&
+     ["invalidation","noise","violation"].every((v,i)=>root.defs.lossTags[i].v===v))
+    root.defs.lossTags = root.defs.lossTags.filter(o=>o.v!=="invalidation");
+  // Built-ins are decided once per book: on by default for violation, and on for any built-in the
+  // book already uses -- in its tag list or on a trade -- so no tag in use turns up retired.
+  if(!root.defs.builtins || typeof root.defs.builtins !== "object" || root.defs.builtins === DEFS_DEFAULT.builtins){
+    const used = new Set(root.defs.lossTags.map(o=>o.v));
+    Object.values(root.portfolios).forEach(pf=>pf.trades.forEach(t=>{ if(t.lossTag) used.add(t.lossTag); }));
+    root.defs.builtins = {};
+    BUILTIN_TAGS.forEach(o=>{ root.defs.builtins[o.v] = DEFS_DEFAULT.builtins[o.v] || used.has(o.v); });
+    // v1 never stored its list, so its third tag, still on trades, would read as retired. It comes
+    // back as an ordinary tag -- the user's to rename or remove.
+    if(used.has("invalidation") && !root.defs.lossTags.some(o=>o.v==="invalidation"))
+      root.defs.lossTags.unshift({v:"invalidation", t:"Thesis broken"});
+  }
+  // A built-in's key in the user's own list would be a second, editable copy of it.
+  root.defs.lossTags = root.defs.lossTags.filter(o=>!BUILTIN_TAGS.some(x=>x.v===o.v));
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
 
@@ -1020,6 +1059,10 @@ const fmtP = v => (v<0?"-":"") + "$" + Math.abs(Number(v)).toLocaleString(undefi
 // Colour grading is a preference, so the class is decided in one place rather than at the thirty
 // sites that ask for it.
 const cls  = v => !ui().colourGrade ? "" : (v>1e-4 ? "pos" : (v<-1e-4 ? "neg" : ""));
+// For a trade's result, judged by its account R: gray inside the scratch band, where it counts as
+// neither a win nor a loss, green or red outside it. Every figure of one result takes this class,
+// so a scratch's dollars and percentages read gray alongside its R.
+const clsR = r => !ui().colourGrade ? "" : (r!=null && isScratch(r) ? "flat" : cls(r));
 // Hiding values blanks money, never R. The whole system is denominated in R, so a book you cannot
 // read in R is a book you cannot work from -- the dollars are what you might not want on screen.
 // The characters themselves, not an entity: masked figures also land in input values and
@@ -1032,6 +1075,133 @@ const $ = id => document.getElementById(id);
 // into &#39;, the parser turns that back into an apostrophe before JS ever sees the attribute, and
 // the handler is a syntax error. Escaping for JS first survives that round trip.
 const jsq = s => esc(String(s==null?"":s).replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
+
+/* ---- hover explainers on labels ----
+   What a figure is, never what to do with it. Settings and New Trade carry the (i) bubble; the
+   dense places -- the position list, the closed table, the statistics, the dialogs -- have no room
+   for one, so the label itself carries the explainer as a mouseover, keyed here by its visible
+   text. One table, so a figure means the same thing wherever its label appears. */
+const TIPS = {
+  "% equity": "Realised P/L as a percentage of AUM when the trade opened.",
+  "1R": "One R in dollars: the account's risk unit.",
+  "1R at open ($)": "One R in dollars when this trade opened. Every R multiple on it is measured against this.",
+  "A+": "One R times this tier's multiple, in dollars.", "A": "One R times this tier's multiple, in dollars.",
+  "B": "One R times this tier's multiple, in dollars.",
+  "APTR % at entry": "APTR when the trade opened.",
+  "APTR % now": "The stock's current APTR: average true range as a percentage of price.",
+  "AUM": "Cash plus every open position valued at its stop. Sizing is a percentage of this.",
+  "AUM at open": "AUM when this trade opened.",
+  "Account": "The account this row belongs to.",
+  "Accounts": "Accounts that took this trade.",
+  "Allocation": "Position value at the mark as a percentage of AUM.",
+  "Amount": "Dollars moved.",
+  "Average price": "The average cost per share to set.",
+  "Avg": "Average cost of the shares held.",
+  "Avg after": "Average cost after this transaction.",
+  "Avg days held": "Mean calendar days held, winners and losers.",
+  "Avg win | avg loss": "Mean account R of winning trades and of losing trades.",
+  "BP free": "Buying power not used by open positions.",
+  "Book P/L (mark)": "Realised plus unrealised P/L on open positions, at the mark.",
+  "By setup": "Closed trades grouped by setup; freehand text from before the list counts as Legacy.",
+  "By tier": "Closed trades grouped by tier.",
+  "Cash at risk": "What a stop-out loses from here, net of profit already banked. Unstopped long shares count at a $0 stop.",
+  "Closed trades": "Closed trades in this account, and how many were scratches.",
+  "Cost": "Shares times price.",
+  "Cumulative P/L over time": "Realised P/L summed by close date.",
+  "Cumulative P/L over trades": "Realised P/L summed trade by trade, in close order.",
+  "Cumulative R over trades": "Account R summed trade by trade, in close order.",
+  "Daily vol": "APTR: the stock's average true range as a percentage of price.",
+  "Date": "When it happened.",
+  "Days": "Calendar days held; a same-day trade counts as one.",
+  "Detail": "Shares and price, or the stops set.",
+  "Entry": "Entry price, shares, and allocation at open.",
+  "Equity": "AUM this account sizes from.",
+  "Equity P/L": "Realised plus unrealised P/L as a percentage of AUM at open.",
+  "Equity after": "Book at cost after this movement.",
+  "Equity curve over time": "Starting AUM plus realised P/L, by close date.",
+  "Event": "The kind of transaction.",
+  "Exit plan": "How the trade is meant to be closed.",
+  "Expectancy": "Mean account R per closed trade.",
+  "Fill": "The price this account filled at; blank uses the entry above.",
+  "Group totals": "Account R summed across the group's accounts.",
+  "If Y → cut": "The condition that ends the trade early.",
+  "If Z → wait": "The condition under which the trade is held through noise.",
+  "Initial R": "Risk at entry in account R, and the stop distance per share.",
+  "Initial stop": "Stop at entry, its width per share and as a percentage of price.",
+  "Last": "Last mark, and the position's value at it.",
+  "Live marks — Finnhub key": "A free Finnhub API key. With one, Update marks pulls prices; without, it opens a window to enter them.",
+  "Long | short": "Expectancy of long trades and of short trades.",
+  "Loss audit": "Why the loss happened, from the loss tags.",
+  "Loss discipline": "Share of losses held at or under the loss-discipline limit, in internal R.",
+  "Loss tag": "Why the loss happened, from the loss tags.",
+  "Max drawdown (R)": "Largest fall from a peak on the cumulative R curve.",
+  "Mean R": "Account R averaged across the group's accounts.",
+  "Movement": "Deposit or withdrawal.",
+  "Note": "A label for this movement.", "Note (optional)": "A label for this movement.",
+  "Notes": "Free text that stays with the trade from entry to close.",
+  "Noise stopouts": "Share of tagged losses tagged Stopped by noise.",
+  "Open heat": "Cash at risk in R. In a group, the heaviest account.",
+  "Open trades": "Open positions. House money: the stops lock in a gain on the whole trade.",
+  "P/L": "Realised plus unrealised, in dollars and account R.",
+  "P/L % of starting equity, over time": "Cumulative realised P/L as a percentage of AUM when the first trade opened.",
+  "P/L per trade, in order closed": "Realised P/L of each closed trade.",
+  "Percent of each leg": "A percentage of what each account holds, since the accounts hold different sizes.",
+  "Percent of each leg at price — blank covers the rest": "Each stop as a percentage of every account's position.",
+  "Planned at entry": "Trades opened under the old checklist with every box ticked.",
+  "Pos after": "Shares held after this transaction.",
+  "Position": "Ticker and side.",
+  "Position P/L %": "Realised P/L over the capital put into the position.",
+  "Price": "Price per share.",
+  "R account": "Realised P/L over the account's R unit at open. Every statistic uses this.",
+  "R internal": "Realised P/L over what the position was built to lose, whatever its tier.",
+  "R multiples — losses left, gains right": "How many closed trades landed in each whole-R band.",
+  "R per day held": "Total account R over total days held.",
+  "R/day": "Account R divided by days held.",
+  "Realized": "Profit or loss banked by trims and closes.",
+  "Realized R": "Realised P/L to this point, in account R.",
+  "Risk": "One R times the tier: the dollars this account's size is budgeted to lose.",
+  "Rule violations": "Losses tagged Rule violation.",
+  "Setup": "The setup the trade is filed under.",
+  "Shares": "Share count.",
+  "Shares at price — blank covers the whole position": "Each stop as a share count and a price.",
+  "Side": "Long or short.",
+  "Stale marks": "Positions last marked more than 24 hours ago.",
+  "Stop": "Current stop, or how many split stops; b/e is the price at which the whole trade nets zero.",
+  "Stop at entry": "The stop set when the trade opened.",
+  "Tagged losses": "Losses carrying a tag, and the count per tag.",
+  "Take": "Whether this account takes the trade. Stays as set for later trades.",
+  "Ticker": "The symbol traded.",
+  "Tier": "The size class the trade was taken at.",
+  "Total R": "Account R summed over every closed trade.",
+  "Unrealized": "Open profit or loss at the mark, and as a percentage of the position.",
+  "Weighted APTR": "Each position's share of AUM times its APTR, summed: how far the book moves on an ordinary day.",
+  "Win %": "Share of trades closing above zero.",
+  "Win rate": "How often a closed trade won, three ways, each stricter than the last.",
+  "Name": "Account or group name.", "Type": "Account or group.",
+  "Group": "The group this account belongs to, if any; changing it moves the account.",
+  "Trades": "Trades recorded in this account, and how many are open.",
+  "Transactions": "Every transaction on this trade. Editing one recalculates everything after it.",
+  "n": "Number of closed trades.",
+  "raw | ex-scratch | ≥": "Above zero, above the scratch band, and at or past the decisive-win level, each over every closed trade."
+};
+// Labels whose text carries a number that changes, matched on how they start.
+const TIP_PREFIX = [
+  ["30-day review", "A look back a month after the close."],
+  ["Sequence", "What the whole trade ends at if every stop hits."],
+  ["raw | ex-scratch | ≥", TIPS["raw | ex-scratch | ≥"]],
+  ["Cost at ", "Cost of the marked tier's shares."],
+  ["A+ ·", "Shares this tier takes in each account."], ["A ·", "Shares this tier takes in each account."],
+  ["B ·", "Shares this tier takes in each account."]
+];
+function applyTips(scope){
+  (scope || document).querySelectorAll("th, .metric .k, label, .lbl").forEach(el=>{
+    if(el.title || el.querySelector(".info")) return;
+    if(el.classList.contains("lbl") && el.closest("#pane-charts")) return;   // section headings
+    const t = el.textContent.trim();
+    const tip = TIPS[t] || (TIP_PREFIX.find(([p])=>t.startsWith(p)) || [])[1];
+    if(tip){ el.title = tip; el.classList.add("tipped"); }
+  });
+}
 
 /* ========================= core math ========================= */
 // 1R in dollars, right now, from live AUM.
@@ -1500,6 +1670,7 @@ function openModal(title, body, okLabel, onOk, onInput){
     '<button class="primary" id="m_ok">' + okLabel + '</button></div>';
   modalOk = onOk; modalInput = onInput || null;
   $("modal").style.display = "flex";
+  applyTips($("modalBody"));
   $("m_ok").onclick = submitModal;
   // A property, not addEventListener: #modalBody outlives every dialog, so a listener added per open
   // piles up and keeps calling modalInput after a dialog without one has nulled it.
@@ -1584,6 +1755,8 @@ const SET_FIELDS = [
   ["s_aptrTight", "defs", "aptrTight",  "num"],
   ["s_aptrFloor", "defs", "aptrFloor",  "num"],
   ["s_lossTags",  "defs", "lossTags",   "tags"],
+  ["s_tagNoise",  "defs", "builtins.noise",     "bool"],
+  ["s_tagViolation","defs","builtins.violation","bool"],
   ["s_hideValues","page", "hideValues", "boolInv"],
   ["s_colourGrade","page","colourGrade","bool"],
   ["s_stopCount", "page", "stopCount",  "num"],
@@ -1604,14 +1777,15 @@ function setGet(scope, key){
   const o = setTarget(scope);
   if(key.indexOf(".")<0) return o[key];
   const [k,i] = key.split(".");
-  return (o[k]||[])[+i];
+  return (o[k]||{})[/^\d+$/.test(i) ? +i : i];
 }
 function setPut(scope, key, v){
   const o = setTarget(scope);
   if(key.indexOf(".")<0){ o[key] = v; return; }
   const [k,i] = key.split(".");
-  if(!Array.isArray(o[k])) o[k] = [];
-  o[k][+i] = v;
+  const idx = /^\d+$/.test(i);                  // targets.0 is an array slot, builtins.noise a key
+  if(!o[k] || typeof o[k] !== "object") o[k] = idx ? [] : {};
+  o[k][idx ? +i : i] = v;
 }
 function renderSetFields(){
   SET_FIELDS.forEach(([id,scope,key,kind])=>{
@@ -1638,7 +1812,10 @@ function bindSetFields(){
         const prev = setGet(scope, key) || [];
         setPut(scope, key, el.value.split("\n").map(s=>s.trim()).filter(Boolean).map(t=>{
           const hit = prev.find(o=>o.t===t);            // unchanged text keeps its key
-          return hit ? {v:hit.v, t} : {v:slug(t), t};
+          if(hit) return {v:hit.v, t};
+          // A typed tag must never take a built-in's key, or it would vanish into the built-in.
+          const v = slug(t);
+          return {v: BUILTIN_TAGS.some(x=>x.v===v) ? v+"-own" : v, t};
         }));
       } else {
         const n = parseFloat(el.value);
@@ -1652,6 +1829,9 @@ function bindSetFields(){
 
 function renderSettings(){
   renderSetFields();
+  // The built-ins switched on, shown locked above the editable list.
+  const bl = BUILTIN_TAGS.filter(o=>(defs().builtins||{})[o.v]);
+  $("builtinTagList").innerHTML = bl.map(o=>'<span class="pill tier" title="Built in; switched off below, not edited here">&#128274; '+esc(o.t)+'</span>').join(" ");
   renderAccountAdmin();
   renderSetupOptions();
   const g = inGroup() ? root.active : null;
@@ -1919,6 +2099,7 @@ function renderFastCalc(){
     (cols.some(c=>c.walls.length)
       ? '<div class="fcsub" style="color:var(--amber)">Held back by ' +
         [...new Set(cols.flatMap(c=>c.walls))].join(" and ") + '.</div>' : "");
+  applyTips(det);
   more.style.display = "";
 }
 
@@ -1954,6 +2135,7 @@ window.openCash = (acct, kind) => {
   $("cashAmt").addEventListener("keydown", e=>{ if(e.key==="Enter" && !$("cashGo").disabled) applyCash(acct, kind); });
   previewCash(acct, kind);
   $("modal").style.display = "flex";
+  applyTips($("modalBody"));
   setTimeout(()=>$("cashAmt").focus(), 30);
 };
 
@@ -2117,6 +2299,7 @@ window.ntPickTier = (i, q) => {
 };
 
 function newTradeCal(){
+  $("nt_warn").innerHTML = ""; $("nt_warn").style.display = "none";
   if(inGroup()) return renderGroupNewTrade();
   renderNtRange();
   const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
@@ -2185,6 +2368,19 @@ function newTradeCal(){
     $("nt_vol").innerHTML = settingsFor(acct).noiseOn && !(aptr>0)
       ? '<span class="muted">APTR % not set.</span>' : "";
   }
+  // A size outside the account's own parameters: risk past the tier's fuzziness in either
+  // direction, or allocation past max or under min by more than fuzziness. The figure and the
+  // limit, nothing else -- it flags and does not block.
+  const rule = settingsFor(acct), fz = Math.max(0, rule.fuzz||0)/100, rTaken = R>0 ? q*den/R : 0;
+  const warns = [];
+  if(mult>0 && Math.abs(rTaken - mult) > mult*fz + 1e-9)
+    warns.push("Risk "+rTaken.toFixed(2)+"R against the "+mult+"R tier, outside "+(fz*100)+"%");
+  if(rule.maxAllocOn && eq>0 && q*P > rule.maxAlloc/100*eq*(1+fz) + 1e-9)
+    warns.push("Allocation "+(q*P/eq*100).toFixed(1)+"% over the "+rule.maxAlloc+"% max");
+  if(rule.minAllocOn && eq>0 && q*P < rule.minAlloc/100*eq*(1-fz) - 1e-9)
+    warns.push("Allocation "+(q*P/eq*100).toFixed(1)+"% under the "+rule.minAlloc+"% min");
+  $("nt_warn").innerHTML = warns.join("<br>");
+  $("nt_warn").style.display = warns.length ? "" : "none";
   const blk = shortBlock(acct);
   if(blk) $("nt_err").textContent = "Blocked: "+fmtQ(blk)+" short share"+(blk===1?"":"s")+" in this account have no stop.";
   return q;
@@ -2237,6 +2433,9 @@ function updateWash(){
   el.style.display = msg ? "" : "none";
 }
 
+// The optional plan fields from New Trade, in the shape the gear writes.
+const ntPlan = () => ({ cutIf:mv("nt_cut").trim(), waitIf:mv("nt_wait").trim(), exit:mv("nt_exit").trim() });
+
 function openTrade(){
   if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
@@ -2257,7 +2456,7 @@ function openTrade(){
     // aptr is live and editable; aptrAtOpen is the volatility actually signed up for.
     aptrAtOpen: (!isNaN(aptr)&&aptr>0) ? aptr : null,
     rUnit: rUnitNow(), aumAtOpen: aumOf(acctInView()), status:"open", last:P,
-    plan: {},                        // filled in later, from the position's gear
+    plan: ntPlan(), notes: mv("nt_notes").trim(),   // optional; the gear edits both later
     checks: [],
     events: [{type:"entry", qty:q, price:P, stop:S, ts:Date.now()}],
     createdAt: Date.now(), lastMarkTs: Date.now()
@@ -2271,7 +2470,8 @@ function openTrade(){
 // Back to a blank trade: fields, plan, pre-trade checks, any per-account fills, and the sizing box.
 // One function so the Clear button and both open paths can never leave different things behind.
 window.clearNewTrade = (focus) => {
-  ["nt_tk","nt_entry","nt_stop","nt_qty","nt_aptr"].forEach(id=>{ $(id).value = ""; });
+  ["nt_tk","nt_entry","nt_stop","nt_qty","nt_aptr","nt_cut","nt_wait","nt_exit","nt_notes"].forEach(id=>{ $(id).value = ""; });
+  $("nt_warn").innerHTML = ""; $("nt_warn").style.display = "none";
   if($("nt_setup")) $("nt_setup").value = "";
   clearFills();
   $("nt_err").textContent = "";
@@ -2376,7 +2576,7 @@ function positionRow(t, acct, showAcct){
         (f.unguarded ? '<div class="sub" style="color:var(--amber)">'+fmtQ(cov.under)+' unprotected</div>' : "")+'</td>' +
       '<td class="num">'+(f.unbounded ? '<span style="color:var(--amber)">no stop</span>'
         : f.house ? "&mdash;" : f.heatR.toFixed(2)+"R")+'</td>' +
-      '<td class="num '+cls(d.realized+f.openPL)+'">'+fmt$(d.realized+f.openPL)+
+      '<td class="num '+clsR(f.totR)+'">'+fmt$(d.realized+f.openPL)+
         '<div class="sub">'+fmtR(f.totR)+'</div></td>' +
       '<td class="acts">' +
         '<button class="small" onclick="buyUI(\''+t.id+'\')" title="Add shares">Buy</button>' +
@@ -2443,7 +2643,8 @@ function positionRow(t, acct, showAcct){
         t.plan && t.plan.exit   ? "<b>exit</b> "+esc(t.plan.exit)      : null
       ].filter(Boolean);
       return bits.length ? '<div class="calsub" style="margin-top:8px">'+bits.join(" &nbsp;&middot;&nbsp; ")+'</div>' : "";
-    })();
+    })() +
+    (t.notes ? '<div class="calsub" style="margin-top:6px;white-space:pre-wrap"><b>notes</b> '+esc(t.notes)+'</div>' : "");
 
   return '<tbody class="open">'+row+'<tr class="drow"><td colspan="'+cols+'">'+detail+'</td></tr></tbody>';
 }
@@ -2487,6 +2688,7 @@ function renderPortfolio(){
     '<th class="num">Initial R</th><th class="num">Cash at risk</th><th class="num">Open heat</th>' +
     '<th class="num">P/L</th><th></th>' +
     '</tr></thead>' + body.join("") + '</table>';
+  applyTips(box);                     // toggling a row repaints this without a full render
 }
 
 function groupHeaderRow(gid, run, showAcct){
@@ -2589,11 +2791,17 @@ window.setQty = n => {
 // Break-even is the average only while nothing has been realised. Once a trim has banked something,
 // the price that makes the whole sequence net zero is lower than the average by what it banked, and
 // that is the number that actually matters. Both are shown when they differ.
+// Average for a position nothing has been added to or trimmed from; once something has, the
+// figure that matters is the whole trade's break-even, and the label says so. A buy preview is an
+// add by definition, so it always reads break-even: 10 at $10 then 10 at $20 is break-even $15.
+const touched = t => t.events.some(e=>e.type==="add" || e.type==="trim");
+const avgOrBe = (t, d) => touched(t)
+  ? "break-even <b>"+fmtP(beStop(t, d))+"</b>" : "average <b>"+fmtP(d.avg)+"</b>";
+
 function addNote(t, d, P, q, acct){
   const Q2 = d.Q + q, avg2 = (d.avg*d.Q + P*q)/Q2;
   const be2 = Q2>0 ? avg2 - t.side*d.realized/Q2 : null;
-  const bits = [fmtQ(Q2)+" shares &middot; average <b>"+fmtP(avg2)+"</b>"];
-  if(Math.abs(be2-avg2) > 1e-9) bits.push("break-even <b>"+fmtP(be2)+"</b>");
+  const bits = [fmtQ(Q2)+" shares &middot; break-even <b>"+fmtP(be2)+"</b>"];
   const cost = q*P, free = bpFree(acct);
   bits.push("cost "+fmt$(cost));
   if(cost > free) bits.push('<span style="color:var(--amber)">'+fmt$(cost-free)+" beyond free buying power</span>");
@@ -2654,7 +2862,7 @@ function stopNote(){
   if(!stops.length || !(d.Q>0)){ el.innerHTML = ""; return; }
   const probe = {Q:d.Q, avg:d.avg, stops};
   const cov = coverage(probe), risk = riskAtStop(t, probe), seq = risk - d.realized;
-  const bits = [];
+  const bits = [avgOrBe(t, d)];
   bits.push(cov.under>0
       ? '<span style="color:var(--amber)">'+fmtQ(cov.under)+" of "+fmtQ(d.Q)+" shares uncovered</span>"
       : cov.over>0
@@ -2674,9 +2882,11 @@ window.stopUI = id => {
   if(!t) return;
   const d = derive(t);
   stopCtx = {t, d};
-  const start = d.stops.length
-    ? d.stops.map(s=>({q: s.qty==null ? "" : String(s.qty), p:String(s.price)}))
-    : Array.from({length: Math.max(1, ui().stopCount||1)}, ()=>({q:"",p:""}));
+  // The position's own rungs first, then blank rows up to "Stops loaded" -- for someone who splits
+  // the same way every time. A blank row is dropped on save, so opening this changes nothing.
+  const start = d.stops.map(s=>({q: s.qty==null ? "" : String(s.qty), p:String(s.price)}));
+  const want = Math.max(1, Math.floor(ui().stopCount) || 1);
+  while(start.length < want) start.push({q:"", p:""});
   openModal("Stops &mdash; " + esc(t.ticker) +
       ' <span class="muted" style="text-transform:none;letter-spacing:0">'+fmtQ(d.Q)+' shares</span>',
     '<div class="lbl">Shares at price &mdash; blank covers the whole position</div>' +
@@ -2832,7 +3042,7 @@ window.overrideUI = id => {
   const d = derive(t);
   openModal("Override " + esc(t.ticker),
     '<div class="row">' +
-      '<div style="flex:1"><label for="m_aq">Position</label>' +
+      '<div style="flex:1"><label for="m_aq">Shares</label>' +
         '<input id="m_aq" type="number" step="any" placeholder="'+fmtQ(d.Q)+' sh"></div>' +
       '<div style="flex:1"><label for="m_aa">Average price</label>' +
         '<input id="m_aa" type="number" step="any" placeholder="'+fmtP(d.avg)+'"></div>' +
@@ -2879,7 +3089,7 @@ window.editEvent = (id, i) => {
   if(type==="entry" || type==="add")      body += num("Shares","m_q",e.qty) + num("Price","m_p",e.price);
   else if(type==="trim" || type==="close") body += num("Shares","m_q",e.qty) + num("Price","m_p",e.price);
   else if(type==="budget")                 body += num("Risk budget (R)","m_m",e.mult,"0.25");
-  else if(type==="adjust")                 body += num("Position","m_q",e.qty) + num("Average price","m_p",e.price);
+  else if(type==="adjust")                 body += num("Shares","m_q",e.qty) + num("Average price","m_p",e.price);
   body += '</div>';
   if(type==="entry") body += '<div class="row" style="margin-top:8px">' + num("Stop at entry","m_s",e.stop) + '</div>';
   if(type==="stop")  body += '<div class="lbl" style="margin-top:10px">Shares at price &mdash; blank covers the whole position</div>' +
@@ -3246,21 +3456,21 @@ function renderClosed(){
     return "<tr"+(due?" class='reviewdue'":"")+">" +
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
-        (t.notes?" <span class='muted' title='Has a post-trade note'>&#9998;</span>":"")+"</td>" +
+        (t.notes?" <span class='muted' title='Has notes'>&#9998;</span>":"")+"</td>" +
       "<td>"+(t.side>0?"L":"S")+"</td><td>"+TIERS[t.tier]+"</td><td"+(t.legacySetup?" class='legacy'":"")+">"+setupHtml(t)+"</td>" +
       "<td class='num'>"+fmt$(t.rUnit)+"</td>" +
       // The pill goes to the LEFT of the figure. In a right-aligned column anything trailing the
       // number pushes it off the edge the other rows line up on, so the one row carrying a flag is
       // the one row whose value you cannot scan against the rest.
-      "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":
+      "<td class='num "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":
         (S.rmInt<defs().breachR?"<span class='pill short' style='font-size:10px;padding:1px 7px;margin-right:6px' title='Lost well beyond the stop it was opened with'>breach</span>":"")+
         fmtR(S.rmInt))+"</td>" +
-      "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
-      "<td class='num "+cls(d.realized)+"'>"+fmt$(d.realized)+"</td>" +
+      "<td class='num "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
+      "<td class='num "+clsR(rm)+"'>"+fmt$(d.realized)+"</td>" +
       "<td class='num'>"+S.days+"</td>" +
-      "<td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
-      "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
-      "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
+      "<td class='num "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
+      "<td class='num "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
+      "<td class='num "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
       "<td>"+tagSel+"</td>" +
       "<td class='num' style='white-space:nowrap'>" +
         "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
@@ -3273,9 +3483,9 @@ function renderClosed(){
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='err' id='daterr_"+t.id+"'></div>" +
       "<div class='split' style='margin-top:12px'>" +
-        "<div><div class='lbl'>Re-trade review</div>" +
+        "<div><div class='lbl'>Notes</div>" +
         "<textarea id='note_"+t.id+"' style='min-height:88px'>"+esc(t.notes||"")+"</textarea>" +
-        "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save review</button>" +
+        "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save notes</button>" +
         "<span class='muted' id='notest_"+t.id+"'></span></div></div>" +
         "<div><div class='lbl'>30-day review " +
           (due ? "<span style='color:var(--gold)'>&mdash; due now</span>"
@@ -3344,6 +3554,12 @@ function statsHtml(A){
     '<div class="metric"><div class="k">Avg win '+VBAR+' avg loss</div><div class="v">'+(A.wn?fmtR(A.wr/A.wn).replace("+",""):"&mdash;")+VBAR+(A.ln?fmtR(A.lr/A.ln):"&mdash;")+'</div><div class="r">'+(payoff!=null?"payoff "+payoff.toFixed(1)+":1":"")+" &middot; best "+(A.rms.length?fmtR(Math.max.apply(null,A.rms)):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Loss discipline</div><div class="v">'+(disc==null?"&mdash;":disc+"%")+'</div><div class="r">losses at or under '+defs().lossDisc+'R internal &middot; worst '+(A.worst<0?fmtR(A.worst):"&mdash;")+'</div></div>' +
     '<div class="metric"><div class="k">Tagged losses</div><div class="v">'+(A.ln ? A.tagged+" of "+A.ln : "&mdash;")+'</div><div class="r">'+(tagLine||"&mdash;")+'</div></div>' +
+    // The two built-ins, each only while it is switched on. Neutral: no share of noise stopouts or
+    // count of violations is right or wrong in itself.
+    ((defs().builtins||{}).noise
+      ? '<div class="metric"><div class="k">Noise stopouts</div><div class="v">'+(A.tagged ? Math.round(100*(A.tags.noise||0)/A.tagged)+"%" : "&mdash;")+'</div><div class="r">'+(A.tags.noise||0)+' of '+A.tagged+' tagged losses</div></div>' : "") +
+    ((defs().builtins||{}).violation
+      ? '<div class="metric"><div class="k">Rule violations</div><div class="v">'+(A.tags.violation||0)+'</div><div class="r">of '+A.ln+' losses</div></div>' : "") +
     // "Planned at entry" measured compliance with a checklist that no longer exists. Kept while any
     // trade in the set still carries one, so historical books keep the figure; gone once they are
     // all trades opened without it, rather than reporting a number that falls for no reason.
@@ -3391,12 +3607,12 @@ function renderGroupClosed(){
       legs.map(x=>{
         const S = stats(x.t), rm = S.rm;
         return "<tr><td>"+esc(x.acct)+"</td><td class='num'>"+fmt$(x.t.rUnit)+"</td>" +
-          "<td class='num "+cls(S.d.realized)+"'>"+fmt$(S.d.realized)+"</td>" +
-          "<td class='num "+cls(S.rmInt)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
-          "<td class='num "+cls(rm)+"'>"+fmtR(rm)+"</td>" +
-          "<td class='num'>"+S.days+"</td><td class='num "+cls(S.rPerDay)+"'>"+fmtR(S.rPerDay)+"</td>" +
-          "<td class='num "+cls(S.posPct)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
-          "<td class='num "+cls(S.roe)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
+          "<td class='num "+clsR(rm)+"'>"+fmt$(S.d.realized)+"</td>" +
+          "<td class='num "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
+          "<td class='num "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
+          "<td class='num'>"+S.days+"</td><td class='num "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
+          "<td class='num "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":S.posPct.toFixed(2)+"%")+"</td>" +
+          "<td class='num "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":S.roe.toFixed(2)+"%")+"</td>" +
           "<td>"+lossTagSelect(x.t)+"</td>" +
           "<td class='num' style='white-space:nowrap'><button class='small' title='Details, history and corrections' onclick=\"gearUI('"+x.t.id+"')\">&#9881;</button> " +
             "<button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
@@ -3406,8 +3622,8 @@ function renderGroupClosed(){
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
       "<td>"+(f.side>0?"L":"S")+"</td><td>"+TIERS[f.tier]+"</td><td"+(f.legacySetup?" class='legacy'":"")+">"+setupHtml(f)+"</td>" +
       "<td class='num'>"+legs.length+"</td>" +
-      "<td class='num "+cls(realized)+"'>"+fmt$(realized)+"</td>" +
-      "<td class='num "+cls(rMean)+"'>"+fmtR(rMean)+"</td>" +
+      "<td class='num "+clsR(rMean)+"'>"+fmt$(realized)+"</td>" +
+      "<td class='num "+clsR(rMean)+"'>"+fmtR(rMean)+"</td>" +
       "<td class='num'>"+days+"</td>" +
       "<td class='num'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">&#10005;</button></td></tr>" +
       "<tr id='log_"+k+"' style='display:none'>"+detail.slice(4);
@@ -3644,6 +3860,7 @@ function renderGroupNewTrade(){
         "<td class='num' id='galloc_"+i+"'></td></tr>";
     }).join("") + "</table></div>";
   paintGroupCalc(rows, P, S, side, ti);
+  applyTips($("nt_calbox"));
   return rows;
 }
 
@@ -3738,7 +3955,7 @@ function openGroupTrade(){
       aptr: (!isNaN(gaptr)&&gaptr>0) ? gaptr : null,
       aptrAtOpen: (!isNaN(gaptr)&&gaptr>0) ? gaptr : null,
       rUnit: r.R, aumAtOpen: r.aum, status:"open", last:r.px,
-      plan: {}, checks: [],          // added later from each leg's gear
+      plan: ntPlan(), notes: mv("nt_notes").trim(), checks: [],   // every leg starts with the same plan
       events: [{type:"entry", qty:r.q, price:r.px, stop:S, ts:now}],
       createdAt: now, lastMarkTs: now
     });
@@ -3871,7 +4088,7 @@ window.gStopUI = gid => {
   // Start from the first leg's rungs, read back as percentages of that leg.
   const start = d0.stops.length
     ? d0.stops.map(s=>({q: s.qty==null ? "" : String(Math.round(s.qty/d0.Q*1000)/10), p:String(s.price)}))
-    : Array.from({length: Math.max(1, ui().stopCount||1)}, ()=>({q:"",p:""}));
+    : [{q:"",p:""}];                       // "Stops loaded" is for a single position's Stop button only
   openModal("Stops &mdash; " + esc(first.ticker) +
       ' <span class="muted" style="text-transform:none;letter-spacing:0">across ' + legs.length + ' accounts</span>',
     '<div class="lbl">Percent of each leg at price &mdash; blank covers the rest</div>' +
@@ -3897,7 +4114,7 @@ window.gStopUI = gid => {
       el.innerHTML = '<table style="margin-top:8px">' + legsOf(gid).map(x=>{
         const d = derive(x.t), probe = {Q:d.Q, avg:d.avg, stops:legStops(d.Q, rows)};
         const cov = coverage(probe), seq = riskAtStop(x.t, probe) - d.realized;
-        return '<tr><td>'+esc(x.acct)+'</td><td>' +
+        return '<tr><td>'+esc(x.acct)+'</td><td>'+avgOrBe(x.t, d)+'</td><td>' +
           (cov.under>0 ? '<span style="color:var(--amber)">'+fmtQ(cov.under)+" of "+fmtQ(d.Q)+" uncovered</span>"
            : cov.over>0 ? '<span style="color:var(--amber)">covers '+fmtQ(cov.covered)+" against "+fmtQ(d.Q)+"</span>"
            : "covers all "+fmtQ(d.Q)) + '</td><td class="num">' +
@@ -4096,6 +4313,7 @@ function render(){
 
   const os = $("openSummary");
   if(os) os.textContent = open.length ? open.length+" open" : "none open";
+  applyTips();
 }
 
 /* ========================= audit ledger =========================

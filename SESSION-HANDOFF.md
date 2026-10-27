@@ -99,6 +99,11 @@ scratch band). `root.ui` — about the page. `GROUP_KEYS` — method, owned by a
 group is open would write to its first member; those are hidden there and set per member in the
 members table instead.
 
+**A figure means one thing everywhere.** Hover explainers come from the one `TIPS` table, keyed by
+label text; a new label wants an entry there, and a label reused for a different figure is a bug.
+The page script has no build step to catch a syntax slip, and the pane's console stays silent when
+the script fails to load — `runChecks` being undefined is the symptom.
+
 **Money has two scales.** `fmt$` cents for every aggregate, `fmtP` up to four decimals per share.
 `mask()` returns real characters, not an entity, because masked values reach inputs.
 
@@ -129,6 +134,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
 - **Two harnesses, both in `_dev/`, both run from a gitignored probe copy** (build command in each
   file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
-  the migrations — 57 hand-computed cases; `runChecks()` returns `{passed, failed}`. **Run
+  the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded — 85 hand-computed cases; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.
