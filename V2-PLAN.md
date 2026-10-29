@@ -337,16 +337,26 @@ These supersede anything above that disagrees, including the outline's II.A.3.v 
 Still open by Steve's choice: unrealised gains in the summary. Kept for now: fuzziness 10%, open
 heat in R.
 
-### Still open
+### Still open (2026-10-29)
 
-- **The sizing pipeline**, to be designed together before any building starts. See phase 6 for the
-  settled inputs it begins from.
-- **`bpUsed` marks at `t.last`** — the one place the tape still reaches a cost-based number. Cost is
-  right for a cash account; a margin account's maintenance requirement genuinely is marked, so it
-  may have to follow `marginX` rather than be one rule (from decision 2).
-- From the document's own list: initial stop as a sizing-basis option, thinkorswim CSV details, the
-  APTR/Loss audit test-case review. The tier-selector question is closed by decision 12, the
-  Closed Trades / Statistics / 30-day review pass by 25-30.
+- **Audit: the thinkorswim CSV import (II.B).** Waiting on an activity export. Settle from the file:
+  how a row matches a transaction, broker-split partial fills, one account per file or several,
+  and whether a broker trade missing from the app is flagged or offered for creation.
+- **ADR audit and Loss audit revisit (II.B.4).** In v2 these are the APTR noise check (red under
+  `aptrTight` 1.0, amber under `aptrFloor` 1.5 — the memoir's numbers) and the loss tags. Waiting
+  on Steve's test-case review; what he wants changed is not yet known.
+- **Unrealised gains in the Portfolio summary (I.C.2.i).** Steve undecided. Today it appears only
+  inside Book P/L (mark).
+- **Tuning, kept for now:** fuzziness 10%, open heat in R. Then cutover (phase 11), last.
+
+Closed since this list was first written: the sizing pipeline (decisions 1, 4 and 12 — one sizer,
+`tierSize`); `bpUsed` (22 — cost for cash, mark for margin); initial stop as a sizing basis
+(rejected with net liq and trade price under 1–2: size from AUM at the current stop); the
+tier-selector question (12); the Closed Trades / Statistics / 30-day review pass (25–30).
+
+Built on a reading Steve has not yet confirmed: the pre-trade checkboxes are removed, as the later
+outline says (III.B), rather than moved into the gear as the un-outlined ideas document had it.
+Old trades keep `t.checks`.
 
 ---
 

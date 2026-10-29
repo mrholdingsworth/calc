@@ -4,61 +4,6 @@ Running list. Newest at the top of each section.
 
 ## To do
 
-- **Size off protected equity, not realised-only.** Proposed 2026-10-21: credit the gains already
-  locked in by open stops toward sizing, rather than waiting for the close.
-
-  **This is already the design, one scope down.** `maxAdd` credits locked gains in full — measured on
-  a 1000-share long at avg 100: stop 96 gives 0 shares, stop 104 gives 750, stop 108 gives 4,250,
-  while `rUnit` stays at $1,000 throughout because equity is realised-only. So the reflexivity
-  objection ("tightening a stop raises your own budget") does not apply: the app already works that
-  way inside a sequence and frames it as the point. The question is only whether the sequence
-  boundary is the right place to stop.
-
-  **The strongest argument is one Steve did not make.** Realised-only is not the conservative basis,
-  it is the blind one. Holding a loser stopped $4,000 below average, realised equity reads $100,000
-  while the floor if that stop hits is $96,000 — over-sized against the floor, not under. Three
-  bases, and the middle one is the only one that is a real number about the present:
-
-  | basis | equity | character |
-  |---|---|---|
-  | closed (today) | realised only | ignores open positions in both directions |
-  | **protected** | realised + Σ(−riskAtStop) | the floor if every stop hit now |
-  | marked | realised + full unrealised | what a broker uses for margin |
-
-  **The blocker is double-counting, not gap risk.** If a position's locked gain raises the book R
-  *and* finances adds in its own sequence, one dollar does two jobs. Not a toggle: the fix is to
-  compute the R unit from protected equity **excluding the position being added to**, leaving the
-  sequence math intact. Easy enough — the positions are already iterated.
-
-  **Settled 2026-10-21 — all three objections answered, so this is unblocked:**
-  - **Symmetric.** A new trade lowering the floor for the next one is accepted and wanted. His
-    reasoning: drawdown is held low enough by the rest of the system that one trade cannot move
-    sizing much, and he moves stops up quickly, so the dip is short-lived by construction.
-  - **Correlated gap risk accepted**, on the grounds that the heat cap already limits how many
-    positions can be open at once, which is the exposure that makes a correlated gap dangerous.
-  - **No tension with the cost-based rule — that framing was wrong.** `riskAtStop` reads `avg`,
-    `stop` and `Q`; `t.last` does not appear in it. Protected equity is *mark-independent*: price can
-    run and it does not move, only a stop move or a size change moves it. So this is not "a subset of
-    unrealised". The actual principle, and a cleaner one than cost-based:
-
-    > **Equity responds to decisions, never to the tape.** Closes, trims, stop moves, cash in and out.
-
-    Protected equity satisfies that rule rather than bending it.
-
-  Still to handle when building:
-  - **`bpUsed` is the one place the tape still leaks in** — it marks positions at `t.last`, so a
-    winner consumes more buying power as it rises with nothing having been decided. Under the
-    principle above it arguably belongs at cost (`avg * Q`). Note the wrinkle: cost is right for a
-    cash account, where you own what you paid for, while maintenance requirements on a margin account
-    genuinely are marked. May need to follow `marginX` rather than being one rule.
-  - ~~Double-counting~~ — **dissolved by removing adds in 1.2.** Nothing else spends a locked gain
-    now, so protected equity can feed the R unit directly with no exclusion rule. That was the only
-    real work in this item; what is left is the setting and the `bpUsed` question above.
-  - **Positions with no stop** contribute nothing protected and should bar the basis outright rather
-    than silently counting as zero.
-  - Ship as a setting, default `closed`, reversible on a live book. History is safe either way:
-    trades lock `rUnit` and `aumAtOpen` at entry, so no past R multiple moves.
-
 - **Top themes — a scanning notebook.** What you spot while scanning: a narrative or group that is
   moving, written down fast and kept in front of you when you size. Manually entered and tracked;
   nothing derived from the trade history.
@@ -260,15 +205,6 @@ Running list. Newest at the top of each section.
 *From the pre-1.0 review, 2026-09-01. Everything else on that list was fixed; these were deferred
 deliberately.*
 
-- **`deleteTrade` deletes from `state`, not from the trade's own account.** `getTrade`/`acctOf`
-  search every portfolio, but the delete filters `state.trades`. Not reachable today — group cards
-  use `gDelete`, and `tradeCard` only renders in account mode — so it is latent, not live. One line:
-  filter `root.portfolios[acctOf(id)].trades` instead. Do it before adding any new delete call site.
-
-- **Shares (override) is silently ignored in group mode.** The field renders and accepts input;
-  `openGroupTrade` never reads it. Either hide it when a group is active or honour it as a per
-  account override. Low urgency — sizing in a group is the whole point of the R fan-out.
-
 - **Recomputation cost.** `derive()` replays the full event log and is called from ~26 sites;
   `bpFree → bpUsed → derive` runs for every open trade, per member, on every keystroke in New Trade.
   A memo keyed on `t.events.length` plus the last event's timestamp would kill most of it.
@@ -277,24 +213,6 @@ deliberately.*
   its textareas, all nine SVG charts. Fine at a few dozen trades; the fix when it matters is to
   split render into per-section renderers and call only what changed.
 
-- **Section collapse state is stored per account — decide whether it should be.** Reported
-  2026-09-01 as "switching accounts minimised the Desk, once, then never again". Not a startup or
-  restart bug; it reproduces every time. `collapsed:{desk,new,open,tally,charts,data}` lives on
-  `pf.settings` (see `defaults()`), and `renderSections()` reads it off `state`, which is whichever
-  account is in view. So an account carrying `desk:true` from some earlier session folds the Desk the
-  moment you switch to it. Expanding it writes `false` and saves, which is why it never recurred.
-
-  Same root cause, still live: in a group `state` is the *first member*, so collapsing a section
-  while a group is open silently writes onto that one account's settings.
-
-  Collapse is a preference about the page, not a property of a book. Proposed fix: move `collapsed`
-  to `root`, migrate on load by taking the active account's existing map and dropping the per
-  portfolio copies. Small change, but it rewrites stored data, so worth doing deliberately with an
-  export taken first.
-
-- **Name the thing.** The masthead is a plain placeholder for now. Needs a real name, at which
-  point the masthead, the `<title>` and (if you want them to match) the repo/URL change together.
-  The in-app "Cal" references are already gone.
 - **Rules panel — rebuild around your own system.** The paraphrased seven-part "bible" was pulled
   out of the page. The original markup is parked in `_parked/bible.html` so nothing is lost.
   Re-add later, rewritten to your own rules rather than the memoir's.
@@ -323,6 +241,23 @@ deliberately.*
   accounting stays with the broker's 1099-B.
 
 ## Decided / done
+
+### 2026-10-29 — backlog entries v2 closed
+
+Moved out of To do; the full reasoning for each is in git history and where noted.
+
+- **Size off protected equity** — done as the v2 sizing basis: AUM = cash + stop × shares
+  (V2-PLAN 1–2). Unstopped long shares count at a $0 stop rather than barring the basis; an
+  unstopped short blocks or warns (V2-PLAN 8). The principle it produced, *equity responds to
+  decisions, never to the tape*, is an invariant in SESSION-HANDOFF.md. Its `bpUsed` follow-up is
+  V2-PLAN 22: cost for a cash account, the mark for margin.
+- **`deleteTrade` deleted from `state`** — fixed in v2: it filters the trade's own account
+  (`acctOf`), and now runs from the gear.
+- **Shares (override) ignored in group mode** — the field is disabled in a group and reads
+  "per account"; each account is sized separately.
+- **Section collapse stored per account** — moot: sections became tabs, and page preferences live
+  on `root.ui`.
+- **Name the thing** — RCalculator (V2-PLAN 23). The repo and URL stay `calc`.
 
 ### 2026-10-28 — v2.0-dev, Closed Trades / Statistics / 30-day review pass (V2-PLAN 25-30)
 
