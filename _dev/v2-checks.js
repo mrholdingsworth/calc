@@ -579,6 +579,55 @@ const CASES = {
     check("duplicate P/L charts gone", [$("plTrades"), $("plTime")], [null, null]);
   },
 
+  /* Unrealized gains are opt-in; the noise check is gone; anything outside fuzziness is amber. */
+  unrealNoiseFuzz(){
+    // 100 @ 50, marked at 53: $300 open.
+    const t = trade({aptr:3, last:53, events:[ev("entry",{qty:100, price:50, stop:48})]});
+    book([t]); root.tab = "portfolio"; render();
+    const tile = () => [...document.querySelectorAll("#pane-portfolio .metric")].find(m=>m.querySelector(".k").textContent==="Unrealized gains");
+    check("unrealized off by default", [root.ui.unrealOn, !!tile()], [false, false]);
+    root.tab = "settings"; render();
+    $("s_unrealOn").checked = true; $("s_unrealOn").dispatchEvent(new Event("change"));
+    root.tab = "portfolio"; render();
+    check("switched on in Settings", [root.ui.unrealOn, tile() && tile().querySelector(".v").textContent], [true, fmt$(300)]);
+
+    check("noise check gone", [$("s_noiseOn"), $("s_aptrFloor"), typeof aptrAudit], [null, null, "undefined"]);
+    root.defs.aptrFloor = 1.5; root.portfolios.Trading.settings.noiseOn = true; normalize();
+    check("its settings dropped on load", [root.defs.aptrFloor === undefined, root.portfolios.Trading.settings.noiseOn === undefined], [true, true]);
+    rowOpen[t.id] = true; render();
+    check("daily vol states the movement only", document.querySelector(".v-pd-vol .v").textContent, "3%");
+    rowOpen = {};
+
+    // Tier A is $500 at $2 a share: 250 shares is on budget, 300 is 0.60R, 20% over.
+    book([], {minAllocOn:true, minAlloc:2}); root.tab = "new"; render();
+    const nt = q => { setNT("X", "50", "48", q); newTradeCal(); };
+    const riskTile = () => [...$("nt_calsub").querySelectorAll(".metric")].find(m=>m.querySelector(".k").textContent==="Risk taken").querySelector(".v");
+    const isAmber = el => /--amber/.test(el.getAttribute("style")||"");
+    nt("250");
+    check("on budget: not amber", [isAmber(riskTile()), isAmber($("nt_calans").querySelector("b"))], [false, false]);
+    nt("300");
+    check("outside fuzziness: amber", [isAmber(riskTile()), isAmber($("nt_calans").querySelector("b")), $("nt_warn").getAttribute("style").indexOf("--amber")>=0], [true, true, true]);
+    // 10 x $50 is 0.5% of $100,000, under the 2% minimum.
+    nt("10");
+    const cost = [...$("nt_calsub").querySelectorAll(".metric")].find(m=>m.querySelector(".k").textContent==="Cost").querySelector(".v");
+    check("under the minimum: cost amber", isAmber(cost), true);
+
+    // Fast calc: B is 125 shares, $6,250, 6.25% -- under a 7% minimum by more than fuzziness.
+    book([], {minAllocOn:true, minAlloc:7}); root.tab = "new"; render();
+    $("fc_price").value = "50"; $("fc_stop").value = "48"; renderFastCalc();
+    const cellB = $("fc_ans").querySelector('.fccell[data-tier="2"] .n');
+    check("under-min size amber", [cellB.textContent, /--amber/.test(cellB.getAttribute("style"))], ["125", true]);
+    clearFields();
+
+    // A group member under its minimum is named, in amber.
+    group([["Trading", 100000], ["Small", 37100]], {minAllocOn:true, minAlloc:40});
+    root.tab = "new"; render();
+    setNT("GRP", "50", "48", ""); renderGroupNewTrade();
+    const line = [...$("nt_vol").querySelectorAll("span")].find(sp=>sp.textContent.startsWith("Under the minimum allocation"));
+    check("group under-min line", !!line && /--amber/.test(line.getAttribute("style")) && line.textContent.indexOf("Trading")>=0, true);
+    clearFields();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();

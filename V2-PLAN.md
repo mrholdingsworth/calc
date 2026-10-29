@@ -337,22 +337,31 @@ These supersede anything above that disagrees, including the outline's II.A.3.v 
 Still open by Steve's choice: unrealised gains in the summary. Kept for now: fuzziness 10%, open
 heat in R.
 
+### Settled 2026-10-29
+
+31. **Unrealised gains are a setting, off by default** (Settings › General and display, `root.ui.
+    unrealOn`). On, the Portfolio summary shows open P/L at the last mark. It replaces the Book P/L
+    (mark) tile, which was realised-plus-open and on for everyone. Position rows keep their P/L.
+32. **The noise check is removed** — v1's ADR audit, which judged the stop against APTR (red under
+    1.0, amber under 1.5). Steve does not want it. APTR stays as a figure: Weighted APTR and Daily
+    vol. **Loss review stays**: every losing closed trade carries the "why" picker from the loss
+    tags, and Statistics counts them.
+33. **Fuzziness stays 10%, and every flag it drives is amber**: New Trade's typed size outside the
+    tier (the R figure, Risk taken, the warning line), allocation over max or under min (Cost too),
+    under-minimum sizes in the Fast calc and New Trade ranges, and a group member under its minimum.
+
 ### Still open (2026-10-29)
 
 - **Audit: the thinkorswim CSV import (II.B).** Waiting on an activity export. Settle from the file:
   how a row matches a transaction, broker-split partial fills, one account per file or several,
   and whether a broker trade missing from the app is flagged or offered for creation.
-- **ADR audit and Loss audit revisit (II.B.4).** In v2 these are the APTR noise check (red under
-  `aptrTight` 1.0, amber under `aptrFloor` 1.5 — the memoir's numbers) and the loss tags. Waiting
-  on Steve's test-case review; what he wants changed is not yet known.
-- **Unrealised gains in the Portfolio summary (I.C.2.i).** Steve undecided. Today it appears only
-  inside Book P/L (mark).
-- **Tuning, kept for now:** fuzziness 10%, open heat in R. Then cutover (phase 11), last.
+- **Tuning, kept for now:** open heat in R. Then cutover (phase 11), last.
 
 Closed since this list was first written: the sizing pipeline (decisions 1, 4 and 12 — one sizer,
 `tierSize`); `bpUsed` (22 — cost for cash, mark for margin); initial stop as a sizing basis
 (rejected with net liq and trade price under 1–2: size from AUM at the current stop); the
-tier-selector question (12); the Closed Trades / Statistics / 30-day review pass (25–30).
+tier-selector question (12); the Closed Trades / Statistics / 30-day review pass (25–30);
+unrealised gains (31); the ADR and Loss audit revisit (32); fuzziness (33).
 
 Built on a reading Steve has not yet confirmed: the pre-trade checkboxes are removed, as the later
 outline says (III.B), rather than moved into the gear as the un-outlined ideas document had it.

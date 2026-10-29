@@ -223,6 +223,9 @@ deliberately.*
 
 ## Ruled out
 
+- **Noise check (v1's ADR audit) — removed 2026-10-29.** It judged a stop against APTR (red under
+  1.0, amber under 1.5, the memoir's levels). Not something Steve uses. The "Extension check" idea
+  in To do mentions it only as a contrast.
 - **Max stop width — not wanted (2026-10-26).** Min allocation, a percentage of equity, covers it: a
   stop wide enough to matter at a fixed R makes the position too small, and that is what gets
   flagged. Do not re-propose without a case min allocation misses.
@@ -241,6 +244,17 @@ deliberately.*
   accounting stays with the broker's 1099-B.
 
 ## Decided / done
+
+### 2026-10-29 — v2.0-dev, unrealised gains, the noise check, fuzziness (V2-PLAN 31-33)
+
+- **Unrealized gains:** a switch in Settings › General and display, off by default; on, the
+  Portfolio summary shows open P/L at the last mark ($6.96 on the 2026-10-22 export). It replaces
+  Book P/L (mark).
+- **Noise check removed** with its three settings, which are dropped on load. Daily vol now states
+  the movement only. **Loss review unchanged and checked:** all 26 losses in the export carry the
+  picker, no winner does, and a tag reaches Tagged losses (5 of the 26 are still untagged).
+- **Amber on everything fuzziness flags**, figure and line alike, single account and group.
+- `v2-checks.js`: `unrealNoiseFuzz`, 276/276; four deliberate breaks each caught.
 
 ### 2026-10-29 — backlog entries v2 closed
 

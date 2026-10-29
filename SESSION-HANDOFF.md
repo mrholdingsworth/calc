@@ -18,8 +18,8 @@ own key is empty, and on demand from Data › Re-import from v1; it never writes
 ## Read in this order
 
 1. `OPEN-ITEMS.md` — To do, Ruled out, then Decided/done newest-first. Reasons, not just changes.
-2. `V2-PLAN.md` — the **"Settled 2026-10-26"**, **"2026-10-27"** and **"2026-10-28"** sections
-   first (decisions 1–30): they record Steve's answers and
+2. `V2-PLAN.md` — the **"Settled 2026-10-26"**, **"2026-10-27"** and **"2026-10-28"** and **"2026-10-29"**
+   sections first (decisions 1–33): they record Steve's answers and
    supersede anything earlier in the file that disagrees, including the outline document.
 3. This file.
 4. `WEAKNESSES.md` (the register) and `REVIEW-2026-10-26.md` only when you need the history of a
@@ -133,9 +133,7 @@ telling the user what to do.
 ## Waiting on Steve, not on work
 
 - **Audit CSV** (II.B) — waiting on a thinkorswim activity export.
-- **Unrealised gains in the Portfolio summary** — Steve undecided.
-- Later, by Steve's order: the ADR and Loss audit revisit, then cutover once everything else is
-  done. (The Closed Trades / Statistics / 30-day review pass is done: V2-PLAN 25–30.)
+- Cutover, once everything else is done. Open heat in R may still be tuned.
 
 ## Working conventions
 
@@ -151,6 +149,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
   file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, and a sweep of every show/hide item — 268 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, and a sweep of every show/hide item — 276 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.

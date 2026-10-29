@@ -537,12 +537,6 @@ button.small{--r:7px}
           <div class="sctl"><input type="checkbox" id="s_heatOn"><input id="heatcap" type="number" step="0.5" min="0.5"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_coldOn">Cold-streak brake<span class="info" data-tip="Flags once the last five closed trades in an account sum to worse than minus this many R.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_coldOn"><input id="coldr" type="number" step="0.5" min="0.5"><span class="suffix">R / 5</span></div></div>
-        <div class="srow"><label for="s_noiseOn">Noise check<span class="info" data-tip="Compares the stop distance with the stock's APTR and colours it against the two levels below.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_noiseOn"></div></div>
-        <div class="srow sub"><label for="s_aptrTight">Tight below<span class="info" data-tip="Stop distance, in average true ranges, below which the check shows red.">i</span></label>
-          <div class="sctl"><input id="s_aptrTight" type="number" step="0.1" min="0.1"><span class="suffix">APTR</span></div></div>
-        <div class="srow sub"><label for="s_aptrFloor">Noise floor<span class="info" data-tip="Below this the check shows amber; above it, green.">i</span></label>
-          <div class="sctl"><input id="s_aptrFloor" type="number" step="0.1" min="0.1"><span class="suffix">APTR</span></div></div>
       </div>
 
       <div class="setbox">
@@ -571,6 +565,8 @@ button.small{--r:7px}
           <div class="sctl"><input type="checkbox" id="s_hideValues"></div></div>
         <div class="srow"><label for="s_colourGrade">Gain/loss colour<span class="info" data-tip="Green and red for results, gray inside the scratch band.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_colourGrade"></div></div>
+        <div class="srow"><label for="s_unrealOn">Unrealized gains<span class="info" data-tip="Adds open P/L at the last mark to the Portfolio summary. Off by default.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_unrealOn"></div></div>
       </div>
     </div>
 
@@ -663,7 +659,7 @@ const VBAR = '<span class="vbar">|</span>';
 const DEFS_DEFAULT = {
   scratchLo:-0.05, scratchHi:0.10, winR:1,
   breachR:-1.25, lossDisc:1.2,
-  aptrTight:1, aptrFloor:1.5,
+
   // The user's own tags. A tag removed later stays on the trades carrying it, marked retired.
   lossTags:[],
   // Two tags the app can count, because a statistic is wired to each. Switched on in Settings, the
@@ -699,7 +695,7 @@ const lossTags = () => {
    About the person and the screen, never about a book. On root for the reason register #1 records:
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
-const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all" };
+const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false };
 
 /* ---- what each panel shows ----
    Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
@@ -714,7 +710,7 @@ const SHOWABLE = [
     ["pd-vol","Daily vol"],["pd-targets","Targets"],["pd-plan","Plan"],["pd-notes","Notes"]]],
   ["Portfolio summary", [["ps-heat","Open heat"],["ps-aptr","Weighted APTR"],["ps-aum","AUM"],
     ["ps-alloc","Allocation"],["ps-car","Cash at risk"],["ps-tax","Est. tax"],["ps-open","Open trades"],
-    ["ps-pl","Book P/L"],["ps-stale","Stale marks"]]],
+["ps-stale","Stale marks"]]],
   ["Closed Trades", [["ct-side","Side"],["ct-tier","Tier"],["ct-setup","Setup"],["ct-opened","Opened"],
     ["ct-closed","Closed"],["ct-days","Days"],["ct-entry","Avg entry"],["ct-exit","Avg exit"],["ct-1r","1R"],
     ["ct-rint","R internal"],["ct-racct","R account"],["ct-real","Realized"],
@@ -762,7 +758,7 @@ function defaults(){
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
                       targetsOn:true, targets:[1,2],
                       fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2,
-                      noiseOn:false, shortGuard:"block",
+                      shortGuard:"block",
                       taxOn:false, taxST:22, taxLT:15 }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
@@ -771,7 +767,7 @@ function defaults(){
 // shortGuard: what an unstopped short does to new trades in its account -- "block" or "warn".
 const GROUP_KEYS = ["rPct","tiers","heatCap","coldR","heatOn","coldOn",
                     "targetsOn","targets",
-                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc","noiseOn","shortGuard"];
+                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc","shortGuard"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
   GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
@@ -1119,6 +1115,10 @@ function normalize(){
   // A built-in's key in the user's own list would be a second, editable copy of it.
   root.defs.lossTags = root.defs.lossTags.filter(o=>!BUILTIN_TAGS.some(x=>x.v===o.v));
   delete root.defs.reviewDays;          // was a setting; the review is a fixed 30 days now
+  // The noise check (v1's ADR audit) is gone, and its settings with it.
+  delete root.defs.aptrTight; delete root.defs.aptrFloor;
+  Object.values(root.portfolios||{}).forEach(pf=>{ if(pf.settings) delete pf.settings.noiseOn; });
+  Object.values(root.groups||{}).forEach(G=>{ if(G && G.settings) delete G.settings.noiseOn; });
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
   root.ui.hidden = Object.assign({}, root.ui.hidden);     // never the shared default object
@@ -1251,7 +1251,7 @@ const TIPS = {
   "Avg days held": "Mean calendar days held, winners and losers.",
   "Avg win | avg loss": "Mean account R of winning trades and of losing trades.",
   "BP free": "Buying power not used by open positions.",
-  "Book P/L (mark)": "Realised plus unrealised P/L on open positions, at the mark.",
+  "Unrealized gains": "Open profit or loss across every open position, at the last mark.",
   "By setup": "Closed trades grouped by setup; freehand text from before the list counts as Legacy under its own name.",
   "By tier": "Closed trades grouped by tier.",
   "Cash at risk": "What a stop-out loses from here, net of profit already banked. Unstopped long shares count at a $0 stop.",
@@ -1513,15 +1513,6 @@ function ladder(side, entryPx, riskPS, last, mults){
 
 function ladderHtml(rungs){
   return rungs.map(r=>'<span class="rung'+(r.hit?" hit":"")+'">+'+r.k+'R <b>'+fmtP(r.price)+'</b></span>').join("");
-}
-
-// The pre-trade volatility audit: how many normal days sit between entry and the stop.
-function aptrAudit(price, aptrPct, stopDist){
-  if(!(aptrPct>0) || !(stopDist>0)) return null;
-  const aptrD = price*aptrPct/100;
-  const aptrs = stopDist/aptrD;
-  return { aptrD, aptrs, pctOfGap: aptrD/stopDist*100,
-           color: aptrs<defs().aptrTight ? "var(--red)" : (aptrs<defs().aptrFloor ? "var(--amber)" : "var(--green)") };
 }
 
 /* ========================= tiny SVG charts ========================= */
@@ -1894,7 +1885,6 @@ const SET_FIELDS = [
   ["s_shortGuard","rule", "shortGuard", "str"],
   ["s_lotOn",     "acct", "lotOn",      "bool"],
   ["s_fuzz",      "rule", "fuzz",       "num"],
-  ["s_noiseOn",   "rule", "noiseOn",    "bool"],
   ["s_maxAllocOn","rule", "maxAllocOn", "bool"],
   ["s_maxAlloc",  "rule", "maxAlloc",   "num"],
   ["s_minAllocOn","rule", "minAllocOn", "bool"],
@@ -1904,13 +1894,12 @@ const SET_FIELDS = [
   ["s_winR",      "defs", "winR",       "num"],
   ["s_lossDisc",  "defs", "lossDisc",   "num"],
   ["s_breachR",   "defs", "breachR",    "num"],
-  ["s_aptrTight", "defs", "aptrTight",  "num"],
-  ["s_aptrFloor", "defs", "aptrFloor",  "num"],
   ["s_lossTags",  "defs", "lossTags",   "tags"],
   ["s_tagNoise",  "defs", "builtins.noise",     "bool"],
   ["s_tagViolation","defs","builtins.violation","bool"],
   ["s_hideValues","page", "hideValues", "bool"],
   ["s_colourGrade","page","colourGrade","bool"],
+  ["s_unrealOn",  "page", "unrealOn",   "bool"],
   ["s_stopCount", "page", "stopCount",  "num"],
   ["s_lotRound",  "acct", "lotRound",   "num"],
   ["s_taxST",     "acct", "taxST",      "num"],
@@ -2014,7 +2003,7 @@ function renderSettings(){
                              : acctInView());
   // A value whose switch is off is shown, but greyed and not editable, so it reads as unused.
   [["s_maxAllocOn",["s_maxAlloc"]], ["s_minAllocOn",["s_minAlloc"]], ["s_heatOn",["heatcap"]],
-   ["s_coldOn",["coldr"]], ["s_noiseOn",["s_aptrTight","s_aptrFloor"]], ["s_targetsOn",["s_target0","s_target1"]],
+   ["s_coldOn",["coldr"]], ["s_targetsOn",["s_target0","s_target1"]],
    ["s_lotOn",["s_lotRound"]], ["s_taxOn",["s_taxST","s_taxLT"]]].forEach(([sw, vals])=>vals.forEach(id=>{ $(id).disabled = !$(sw).checked; }));
   if(!g){
     const pf = root.portfolios[acctInView()];
@@ -2231,7 +2220,7 @@ function renderFastCalc(){
 
   const cell = c => {
     const on = c.i===std;
-    const col = c.walls.length ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
+    const col = (c.walls.length || c.under) ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
     return '<button class="fccell'+(on?" on":"")+'" data-tier="'+c.i+'" onclick="setFcTier('+c.i+')" title="'+
       (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+
       (c.under ? " · under the minimum allocation" : "")+'">' +
@@ -2489,7 +2478,7 @@ function renderNtRange(){
     // Marked when it is the tier the trade will be filed under AND the size matches it, so the
     // highlight tells the truth after the count is edited by hand.
     const on = c.i===cur && (isNaN(typed) || typed===c.q);
-    const colour = c.walls.length ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
+    const colour = (c.walls.length || c.under) ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
     return '<button class="fccell'+(on?" on":"")+'" onclick="ntPickTier('+c.i+','+c.q+')" title="'+
       (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+'">' +
       '<span class="n" style="color:'+colour+'">'+fmtQ(c.q)+'</span>' +
@@ -2541,12 +2530,21 @@ function newTradeCal(){
   const capped = q*P > free;
 
   const eq = aumOf(acct);
+  // A size outside the account's own parameters: risk past the tier's fuzziness in either
+  // direction, or allocation past max or under min by more than fuzziness. The figure and the
+  // limit, nothing else -- it flags and does not block. Worked out first so the figures it is
+  // about can carry the same amber as the line that explains them.
+  const rule = settingsFor(acct), fz = Math.max(0, rule.fuzz||0)/100, rTaken = R>0 ? q*den/R : 0;
+  const riskOff = mult>0 && Math.abs(rTaken - mult) > mult*fz + 1e-9;
+  const allocOver = !!(rule.maxAllocOn && eq>0 && q*P > rule.maxAlloc/100*eq*(1+fz) + 1e-9);
+  const allocUnder = !!(rule.minAllocOn && eq>0 && q*P < rule.minAlloc/100*eq*(1-fz) - 1e-9);
+  const amber = on => on ? ' style="color:var(--amber)"' : '';
   $("nt_calbox").style.display = "block";
   $("nt_calans").innerHTML = sidePill(side) + fmtQ(q) + " shares" +
-    ' <span style="color:var(--sub);font-size:13px">risking <b style="color:var(--gold)">' +
+    ' <span style="color:var(--sub);font-size:13px">risking <b style="color:'+(riskOff?"var(--amber)":"var(--gold)")+'">' +
       (q*den/R).toFixed(2) + 'R</b></span>' +
     (capped ? ' <span style="color:var(--amber);font-size:13px;font-weight:600">— beyond free buying power</span>' : "") +
-    (eq>0 ? '<div class="fccell-line">'+(q*P/eq*100).toFixed(1)+'% alloc'+VBAR+
+    (eq>0 ? '<div class="fccell-line"><span'+amber(allocOver||allocUnder)+'>'+(q*P/eq*100).toFixed(1)+'% alloc</span>'+VBAR+
             (q*den/eq*100).toFixed(2)+'% risk</div>' : "");
   // Four labelled numbers rather than a sentence to parse. The capped case is the one thing that
   // genuinely needs a line of prose, because the remedy is not obvious from the figures.
@@ -2554,39 +2552,22 @@ function newTradeCal(){
     '<div class="statrow" style="margin-top:8px">' +
       '<div class="metric"><div class="k">Risk '+VBAR+' share</div><div class="v">'+fmtP(den)+'</div>' +
         '<div class="r">'+mult+'R = '+fmt$(b)+'</div></div>' +
-      '<div class="metric"><div class="k">Cost</div><div class="v">'+fmt$(q*P)+'</div>' +
+      '<div class="metric"><div class="k">Cost</div><div class="v"'+amber(allocOver||allocUnder)+'>'+fmt$(q*P)+'</div>' +
         '<div class="r">'+(eq>0 ? (q*P/eq*100).toFixed(1)+'% of AUM' : "")+'</div></div>' +
       '<div class="metric"><div class="k">BP free</div>' +
-        '<div class="v"'+(capped?' style="color:var(--amber)"':'')+'>'+fmt$(free)+'</div>' +
+        '<div class="v"'+amber(capped)+'>'+fmt$(free)+'</div>' +
         '<div class="r">of '+fmt$(buyingPower(acct))+(marginXOf(acct)===1?" cash":" at "+marginXOf(acct)+"&times;")+'</div></div>' +
-      '<div class="metric"><div class="k">Risk taken</div><div class="v">'+(q*den/R).toFixed(2)+'R</div>' +
+      '<div class="metric"><div class="k">Risk taken</div><div class="v"'+amber(riskOff)+'>'+(q*den/R).toFixed(2)+'R</div>' +
         '<div class="r">tier '+TIERS[ti]+' is '+mult+'R &middot; '+fmtQ(qR)+' sh</div></div>' +
     '</div>';
 
-
-  // The noise check measures the stop against normal daily movement and calls it too tight. That
-  // is a method, not arithmetic, so it ships off and says nothing until it is switched on.
-  const aptr = parseFloat($("nt_aptr").value);
-  const a = settingsFor(acct).noiseOn ? aptrAudit(P, aptr, den) : null;
-  if(a){
-    let html = '<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+' APTRs to stop</span>';
-    if(a.aptrs<defs().aptrFloor) html += ' &middot; at '+defs().aptrFloor+': stop <b>'+fmtP(P - side*defs().aptrFloor*a.aptrD)+
-      '</b>, <b>'+fmtQ(Math.floor(b/(defs().aptrFloor*a.aptrD)))+'</b> shares.';
-    $("nt_vol").innerHTML = html;
-  } else {
-    $("nt_vol").innerHTML = settingsFor(acct).noiseOn && !(aptr>0)
-      ? '<span class="muted">APTR % not set.</span>' : "";
-  }
-  // A size outside the account's own parameters: risk past the tier's fuzziness in either
-  // direction, or allocation past max or under min by more than fuzziness. The figure and the
-  // limit, nothing else -- it flags and does not block.
-  const rule = settingsFor(acct), fz = Math.max(0, rule.fuzz||0)/100, rTaken = R>0 ? q*den/R : 0;
+  $("nt_vol").innerHTML = "";
   const warns = [];
-  if(mult>0 && Math.abs(rTaken - mult) > mult*fz + 1e-9)
+  if(riskOff)
     warns.push("Risk "+rTaken.toFixed(2)+"R against the "+mult+"R tier, outside "+(fz*100)+"%");
-  if(rule.maxAllocOn && eq>0 && q*P > rule.maxAlloc/100*eq*(1+fz) + 1e-9)
+  if(allocOver)
     warns.push("Allocation "+(q*P/eq*100).toFixed(1)+"% over the "+rule.maxAlloc+"% max");
-  if(rule.minAllocOn && eq>0 && q*P < rule.minAlloc/100*eq*(1-fz) - 1e-9)
+  if(allocUnder)
     warns.push("Allocation "+(q*P/eq*100).toFixed(1)+"% under the "+rule.minAlloc+"% min");
   $("nt_warn").innerHTML = warns.join("<br>");
   $("nt_warn").style.display = warns.length ? "" : "none";
@@ -2809,17 +2790,9 @@ function positionRow(t, acct, showAcct){
   const tile = (k,v,sub,colour) => '<div class="metric v-pd-'+PD[k]+'"><div class="k">'+k+'</div><div class="v"'+
     (colour?' style="color:'+colour+'"':'')+'>'+v+'</div>'+(sub?'<div class="r">'+sub+'</div>':'')+'</div>';
 
-  const noiseOn = settingsFor(acct).noiseOn;
-  let aptr = tile("Daily vol","&mdash;","no APTR set","var(--mut)");
-  if(!noiseOn && t.aptr>0){
-    // Switched off, the tile reports the movement and passes no judgement on the stop.
-    aptr = tile("Daily vol", t.aptr+"%", fmtP(t.last*t.aptr/100)+" on an ordinary day");
-  } else
-  if(t.aptr && d.stop!=null && d.Q>0){
-    const a = aptrAudit(t.last, t.aptr, t.side*(t.last-d.stop));
-    aptr = a ? tile("Daily vol", a.aptrs.toFixed(1)+" APTRs", "to stop &middot; "+t.aptr+"% now", a.color)
-             : tile("Daily vol","stop breached","","var(--red)");
-  }
+  // The movement only. Judging the stop against it was v1's ADR audit, removed by Steve.
+  const aptr = t.aptr>0 ? tile("Daily vol", t.aptr+"%", fmtP(t.last*t.aptr/100)+" on an ordinary day")
+                        : tile("Daily vol","&mdash;","no APTR set","var(--mut)");
 
   // Tier, R unit and setup live here rather than under the ticker. A second line inside the row's
   // own cell changed the row's height on expand, which shunted every figure beside it -- the open
@@ -3989,7 +3962,7 @@ function groupSizeRows(P, S, side, ti){
     const free = bpFree(m);
     const aum = aumOf(m);
     const blocked = shortBlock(m);
-    return { m, px, den, R, mult, budget, q, qR, free, capped:z.walls.length>0, walls:z.walls, cost:q*px, aum,
+    return { m, px, den, R, mult, budget, q, qR, free, capped:z.walls.length>0, walls:z.walls, under:z.under, cost:q*px, aum,
              alloc: aum>0 ? q*px/aum*100 : 0, blocked,
              on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 || blocked>0 };
   });
@@ -4095,17 +4068,16 @@ function paintGroupCalc(rows, P, S, side, ti){
   const skipped = rows.filter(r=>r.on && r.skipped && !r.blocked);
   const blockedRows = rows.filter(r=>r.on && r.blocked);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
-  const aptr = parseFloat($("nt_aptr").value);
-  const a = settingsFor(acctInView()).noiseOn ? aptrAudit(P, aptr, den0) : null;
+  const underRows = rows.filter(r=>r.on && !r.skipped && r.under);
   const lines = [];
-  if(a) lines.push('<span style="color:'+a.color+';font-weight:600">'+a.aptrs.toFixed(1)+" APTRs to stop</span>");
-  else if(settingsFor(acctInView()).noiseOn && !(aptr>0)) lines.push('<span class="muted">APTR % not set.</span>');
   // A warning, not a veto: it is almost always a typo, but the fill is yours to state.
   if(badRows.length) lines.push('<span style="color:var(--amber)">Fill past the stop: '+
     badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+"</span>");
   if(skipped.length) lines.push('<span style="color:var(--amber)">0 shares, not opened: '+skipped.map(r=>esc(r.m)).join(", ")+"</span>");
   if(blockedRows.length) lines.push('<span style="color:var(--red)">Blocked, unstopped short: '+
     blockedRows.map(r=>esc(r.m)+" ("+fmtQ(r.blocked)+" sh)").join(", ")+"</span>");
+  if(underRows.length) lines.push('<span style="color:var(--amber)">Under the minimum allocation: '+
+    underRows.map(r=>esc(r.m)+" ("+r.alloc.toFixed(1)+"%)").join(", ")+"</span>");
   if(cappedRows.length) lines.push('<span style="color:var(--amber)">Held back: '+
     cappedRows.map(r=>esc(r.m)+" ("+fmtQ(r.q)+" of "+fmtQ(r.qR)+", "+r.walls.join(" and ")+")").join(", ")+"</span>");
   $("nt_vol").innerHTML = lines.join("<br>");
@@ -4466,7 +4438,9 @@ function renderBook(open){
   });
   const heat$ = heat.reduce((s,h)=>s+Math.max(0,h.seq), 0);
   const houseN = heat.filter(h=>h.house).length;
-  const totPL = heat.reduce((s,h)=>s+h.d.realized+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
+  // Open P/L at the mark. Off unless switched on (ui.unrealOn): a gain on screen is the one the
+  // trader starts protecting, which is why net liq and value at risk are gone too.
+  const unreal = heat.reduce((s,h)=>s+h.t.side*(h.t.last-h.d.avg)*h.d.Q, 0);
   const stale = heat.filter(h=>isStale(h.t)).length;
   const S0 = settingsFor(acctInView());
   const cap = S0.heatCap;
@@ -4572,7 +4546,7 @@ function renderBook(open){
         })() +
         taxTileHtml(accts) +
         '<div class="metric v-ps-open"><div class="k">Open trades</div><div class="v">'+open.length+'</div><div class="r">'+houseN+' at house money &middot; '+(open.length-houseN)+' at risk</div></div>' +
-        '<div class="metric v-ps-pl"><div class="k">Book P/L (mark)</div><div class="v '+cls(totPL)+'">'+fmt$(totPL)+'</div><div class="r">realized + open</div></div>' +
+        (ui().unrealOn ? '<div class="metric"><div class="k">Unrealized gains</div><div class="v '+cls(unreal)+'">'+fmt$(unreal)+'</div><div class="r">open positions at the last mark</div></div>' : '') +
 '<div class="metric v-ps-stale"><div class="k">Stale marks</div><div class="v" style="color:'+(stale?"var(--amber)":"var(--green)")+'">'+(stale||"none")+'</div><div class="r">'+(stale?"last priced over "+STALE_HOURS+"h ago":"all priced within "+STALE_HOURS+"h")+'</div></div>' +
       '</div>';
   return heat;
