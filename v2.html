@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Defence in depth. Inline script and handlers are how this file is built, so they stay allowed;
+     what this takes away is anywhere to send data. Even an injection that ran could reach only
+     Finnhub -- no images, frames, forms or fetches to anyone else. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://finnhub.io; base-uri 'none'; form-action 'none'">
 <title>RCalculator 2.0-dev</title>
 <meta name="description" content="Position sizing and trade management denominated in R. Development build of version 2.">
 <meta name="color-scheme" content="dark">
@@ -295,14 +299,16 @@ details[open] summary::before{content:"\25BE  "}
    it follows the buttons inside it. */
 .gbox{--r:13px}
 button.small{--r:7px}
+/* Read by screen readers, not drawn. */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 </style>
 </head>
 <body>
 <div class="modal" id="modal">
-  <div class="modalcard">
+  <div class="modalcard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="row" style="align-items:flex-start;margin-bottom:12px;flex-wrap:nowrap">
       <div class="head" id="modalTitle" style="margin-bottom:0"></div>
-      <button class="small" style="margin-left:auto" title="Close" onclick="closeModal()">&#10005;</button>
+      <button class="small" style="margin-left:auto" title="Close" aria-label="Close" onclick="closeModal()">&#10005;</button>
     </div>
     <div id="modalBody"></div>
   </div>
@@ -314,7 +320,7 @@ button.small{--r:7px}
   <!-- One row, not two. The masthead and the account strip were 47px and 28px of separate chrome
        above a block that is pinned on every tab, and measuring it is what made that obvious. -->
   <div class="mast" style="align-items:flex-start;gap:12px">
-    <div class="logo"><span class="gold">R</span>Calculator<span class="devbadge">2.0-dev</span></div>
+    <div class="logo" role="heading" aria-level="1"><span class="gold">R</span>Calculator<span class="devbadge">2.0-dev</span></div>
     <div class="clock" id="clock" aria-live="off" style="margin-left:auto"></div>
   </div>
   <div class="tabs" id="tabs" style="margin:6px 0 0"></div>
@@ -362,7 +368,7 @@ button.small{--r:7px}
       </span>
     </div>
     <div id="bookBar"></div>
-    <div class="hint" id="refreshStatus"></div>
+    <div class="hint" id="refreshStatus" aria-live="polite"></div>
     <div class="scroll" id="openTrades" style="margin-top:12px"></div>
     <div id="cashBox"></div>
   </div>
@@ -414,10 +420,10 @@ button.small{--r:7px}
     <button class="primary" id="nt_open">Open trade</button>
     <button class="small" id="nt_clear" title="Clear the whole form" style="margin-left:auto">&#10005;</button>
   </div>
-  <div class="err" id="nt_err"></div>
-  <div id="nt_warn" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
-  <div id="nt_wash" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
-  <div id="nt_heat" style="display:none;color:var(--red);font-size:12.5px;margin-top:5px"></div>
+  <div class="err" id="nt_err" aria-live="polite"></div>
+  <div id="nt_warn" aria-live="polite" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
+  <div id="nt_wash" aria-live="polite" style="display:none;color:var(--amber);font-size:12.5px;margin-top:5px"></div>
+  <div id="nt_heat" aria-live="polite" style="display:none;color:var(--red);font-size:12.5px;margin-top:5px"></div>
   </div>
 </section>
 
@@ -505,11 +511,11 @@ button.small{--r:7px}
         <div class="srow"><label>Book at cost<span class="info" data-tip="Cash plus what was paid for open positions, worked out from initial capital and every movement since. AUM is this with every open position valued at its stop.">i</span></label>
           <div class="sctl"><span id="bookCost" style="font-family:var(--mono);font-size:13px"></span></div></div>
         <div class="srow"><label for="marginOn">Margin<span class="info" data-tip="Buying power as a multiple of equity. Off means cash: you can hold only what you can pay for. On, enter any rate your broker gives you.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="marginOn"><input id="marginX" type="number" step="0.1" min="1" placeholder="2"><span class="suffix">&times;</span></div></div>
+          <div class="sctl"><input type="checkbox" id="marginOn"><input id="marginX" aria-label="Margin rate, times equity" type="number" step="0.1" min="1" placeholder="2"><span class="suffix">&times;</span></div></div>
         <div class="srow"><label for="s_lotOn">Lot rounding, to the nearest multiple of<span class="info" data-tip="Per account. Suggested share counts move in steps of this many shares. Shares you type are left as typed.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_lotOn"><input id="s_lotRound" type="number" step="1" min="1"><span class="suffix">sh</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_lotOn"><input id="s_lotRound" aria-label="Lot size, shares" type="number" step="1" min="1"><span class="suffix">sh</span></div></div>
         <div class="srow"><label for="s_taxOn">Estimated tax, short-term and long-term rate<span class="info" data-tip="An estimate of tax on this calendar year's realised gains, shown on the Portfolio. Short-term applies to lots held a year or less and to shorts; long-term to long lots held longer. Not tax advice.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_taxOn"><input id="s_taxST" type="number" step="0.5" min="0"><input id="s_taxLT" type="number" step="0.5" min="0"><span class="suffix">%</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_taxOn"><input id="s_taxST" aria-label="Short-term tax rate, percent" type="number" step="0.5" min="0"><input id="s_taxLT" aria-label="Long-term tax rate, percent" type="number" step="0.5" min="0"><span class="suffix">%</span></div></div>
       </div>
       <div class="scroll" id="groupEquity" style="display:none;margin-top:12px"></div>
     </div>
@@ -520,13 +526,13 @@ button.small{--r:7px}
         <div class="srow"><label for="rpct">R as % of AUM<span class="info" data-tip="One R, as a percentage of AUM. Every trade is sized and measured in multiples of it.">i</span></label>
           <div class="sctl"><input id="rpct" type="number" step="0.05" min="0.01"><span class="suffix">%</span></div></div>
         <div class="srow"><label for="t0">Tiers<span class="info" data-tip="The risk multiple for each tier. At 1R a trade risks one full R; at 0.25R, a quarter of one.">i</span></label>
-          <div class="sctl"><span class="suffix">A+</span><input id="t0" type="number" step="0.25" min="0.05"><span class="suffix">A</span><input id="t1" type="number" step="0.25" min="0.05"><span class="suffix">B</span><input id="t2" type="number" step="0.25" min="0.05"><span class="suffix">R</span></div></div>
+          <div class="sctl"><span class="suffix">A+</span><input id="t0" aria-label="A+ tier, R" type="number" step="0.25" min="0.05"><span class="suffix">A</span><input id="t1" aria-label="A tier, R" type="number" step="0.25" min="0.05"><span class="suffix">B</span><input id="t2" aria-label="B tier, R" type="number" step="0.25" min="0.05"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_fuzz">Fuzziness<span class="info" data-tip="How far past the risk budget or max allocation a suggested size may go to reach the next whole share or lot.">i</span></label>
           <div class="sctl"><input id="s_fuzz" type="number" step="1" min="0"><span class="suffix">%</span></div></div>
         <div class="srow"><label for="s_maxAllocOn">Max allocation<span class="info" data-tip="Caps suggested sizes at this share of AUM.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_maxAllocOn"><input id="s_maxAlloc" type="number" step="1" min="1"><span class="suffix">%</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_maxAllocOn"><input id="s_maxAlloc" aria-label="Max allocation, percent of AUM" type="number" step="1" min="1"><span class="suffix">%</span></div></div>
         <div class="srow"><label for="s_minAllocOn">Min allocation<span class="info" data-tip="Marks a suggested size below this share of AUM as under the minimum.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_minAllocOn"><input id="s_minAlloc" type="number" step="0.5" min="0.1"><span class="suffix">%</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_minAllocOn"><input id="s_minAlloc" aria-label="Min allocation, percent of AUM" type="number" step="0.5" min="0.1"><span class="suffix">%</span></div></div>
         <div class="srow"><label for="s_shortGuard">Unstopped short<span class="info" data-tip="What a short position with shares no stop covers does to new trades in that account. Block refuses new trades there until a stop covers it; Warn only flags it.">i</span></label>
           <div class="sctl"><select id="s_shortGuard"><option value="block">Block new trades</option><option value="warn">Warn only</option></select></div></div>
       </div>
@@ -534,15 +540,15 @@ button.small{--r:7px}
       <div class="setbox">
         <div class="head">Risk warnings</div>
         <div class="srow"><label for="s_heatOn">Max open heat<span class="info" data-tip="Flags once open heat passes this many R. Never blocks.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_heatOn"><input id="heatcap" type="number" step="0.5" min="0.5"><span class="suffix">R</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_heatOn"><input id="heatcap" aria-label="Max open heat, R" type="number" step="0.5" min="0.5"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_coldOn">Cold-streak brake<span class="info" data-tip="Flags once the last five closed trades in an account sum to worse than minus this many R.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_coldOn"><input id="coldr" type="number" step="0.5" min="0.5"><span class="suffix">R / 5</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_coldOn"><input id="coldr" aria-label="Cold-streak brake, R over five trades" type="number" step="0.5" min="0.5"><span class="suffix">R / 5</span></div></div>
       </div>
 
       <div class="setbox">
         <div class="head">Positions</div>
         <div class="srow"><label for="s_targetsOn">Targets<span class="info" data-tip="The internal target ladder on positions: multiples of the risk per share accepted at entry. A $10 entry stopped at $9.75 puts 1R at $10.25.">i</span></label>
-          <div class="sctl"><input type="checkbox" id="s_targetsOn"><input id="s_target0" type="number" step="0.25" min="0.25"><input id="s_target1" type="number" step="0.25" min="0.25"><span class="suffix">R</span></div></div>
+          <div class="sctl"><input type="checkbox" id="s_targetsOn"><input id="s_target0" aria-label="First target, R" type="number" step="0.25" min="0.25"><input id="s_target1" aria-label="Second target, R" type="number" step="0.25" min="0.25"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_stopCount">Stops loaded<span class="info" data-tip="How many stop rows an open position's Stop button opens with: its current stops first, then blank rows. Blank rows are ignored when saved.">i</span></label>
           <div class="sctl"><input id="s_stopCount" type="number" step="1" min="1" max="5"></div></div>
       </div>
@@ -550,7 +556,7 @@ button.small{--r:7px}
       <div class="setbox">
         <div class="head">Statistics definitions</div>
         <div class="srow"><label for="s_scratchLo">Scratch band<span class="info" data-tip="A result between these two edges counts as neither a win nor a loss.">i</span></label>
-          <div class="sctl"><input id="s_scratchLo" type="number" step="0.01"><span class="suffix">to</span><input id="s_scratchHi" type="number" step="0.01"><span class="suffix">R</span></div></div>
+          <div class="sctl"><input id="s_scratchLo" aria-label="Scratch band lower edge, R" type="number" step="0.01"><span class="suffix">to</span><input id="s_scratchHi" aria-label="Scratch band upper edge, R" type="number" step="0.01"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_winR">Decisive win<span class="info" data-tip="A closed trade at or above this many R counts as decisive.">i</span></label>
           <div class="sctl"><input id="s_winR" type="number" step="0.25" min="0.25"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_lossDisc">Loss discipline<span class="info" data-tip="A loss held at or inside this many R of the risk it was opened with counts as disciplined. Measured in internal R, so size does not flatter it.">i</span></label>
@@ -609,8 +615,8 @@ button.small{--r:7px}
       <div style="min-width:230px"><label for="fhkey">Live marks &mdash; Finnhub key</label><input id="fhkey" type="text" placeholder="free key from finnhub.io"></div>
       <button class="small" onclick="reimportV1()" title="Re-read the v1 book and replace this one">Re-import from v1</button>
     </div>
-    <textarea id="io" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON."></textarea>
-    <div class="err" id="io_err"></div>
+    <textarea id="io" aria-label="Book as JSON" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON."></textarea>
+    <div class="err" id="io_err" aria-live="polite"></div>
   </div>
 </section>
 
@@ -1029,6 +1035,21 @@ function migrate4(){
   root.v = 4;
 }
 
+// Trade and group IDs are written into inline handlers -- onclick="gearUI('<id>')" -- unescaped,
+// because the app only ever makes them from digits. A book from anywhere else could carry one
+// that closes the quote and runs code on the click. So any ID that is not plain letters, digits,
+// - or _ is replaced on load; a gid is replaced the same way on every leg, so the legs stay one trade.
+const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const freshId = () => Date.now()+""+Math.floor(Math.random()*1e6);
+function cleanIds(){
+  const gids = {};
+  Object.values(root.portfolios||{}).forEach(pf=>(Array.isArray(pf && pf.trades) ? pf.trades : []).forEach(t=>{
+    if(!SAFE_ID.test(String(t.id))) t.id = freshId();
+    else t.id = String(t.id);
+    if(t.gid!=null && !SAFE_ID.test(String(t.gid))) t.gid = gids[t.gid] || (gids[t.gid] = "g"+freshId());
+  }));
+}
+
 function normalize(){
   // A book with no stamp predates versioning, which makes it schema 1 -- NOT whatever SCHEMA
   // happens to be now. Stamping it as current was harmless while there was nothing to migrate;
@@ -1042,6 +1063,7 @@ function normalize(){
   if(!Array.isArray(root.order)) root.order = Object.keys(root.portfolios);
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
   root.order = root.order.filter(n=>root.portfolios[n]);
+  cleanIds();
   const d = defaults().settings;
   Object.values(root.portfolios).forEach(pf=>{
     if(!pf.settings) pf.settings = defaults().settings;
@@ -1092,7 +1114,12 @@ function normalize(){
   // Additive, with defaults, so no SCHEMA bump — same rule cashFlows followed in v1.1. Which also
   // means the v1.3 equivalence harness keeps working across this whole change.
   if(!root.defs || typeof root.defs !== "object") root.defs = {};
-  Object.keys(DEFS_DEFAULT).forEach(k=>{ if(root.defs[k]==null) root.defs[k] = DEFS_DEFAULT[k]; });
+  // Whether this book has chosen its built-ins yet -- asked before the defaults fill the gap.
+  const ownBuiltins = !!(root.defs.builtins && typeof root.defs.builtins === "object" && root.defs.builtins !== DEFS_DEFAULT.builtins);
+  // A copy, never the default itself: the lists are edited in place below (Thesis broken is
+  // unshifted onto lossTags), and a shared array carried that edit into every book made afterwards.
+  Object.keys(DEFS_DEFAULT).forEach(k=>{ if(root.defs[k]==null){ const v = DEFS_DEFAULT[k];
+    root.defs[k] = (v && typeof v === "object") ? JSON.parse(JSON.stringify(v)) : v; } });
   root.defs.setups = (Array.isArray(root.defs.setups) ? root.defs.setups : []).slice();   // never the shared default
   if(!Array.isArray(root.defs.lossTags)) root.defs.lossTags = [];
   // The v1 three, stored untouched, were never chosen: "Thesis broken" leaves the list (trades
@@ -1102,7 +1129,7 @@ function normalize(){
     root.defs.lossTags = root.defs.lossTags.filter(o=>o.v!=="invalidation");
   // Built-ins are decided once per book: on by default for violation, and on for any built-in the
   // book already uses -- in its tag list or on a trade -- so no tag in use turns up retired.
-  if(!root.defs.builtins || typeof root.defs.builtins !== "object" || root.defs.builtins === DEFS_DEFAULT.builtins){
+  if(!ownBuiltins){
     const used = new Set(root.defs.lossTags.map(o=>o.v));
     Object.values(root.portfolios).forEach(pf=>pf.trades.forEach(t=>{ if(t.lossTag) used.add(t.lossTag); }));
     root.defs.builtins = {};
@@ -1180,9 +1207,12 @@ function renderSaveAlert(){
       : "");
 }
 window.dismissMigration = () => { migratedFrom = null; renderSaveAlert(); };
+// The book as a file: everything except the Finnhub key, which is a credential, not data, and would
+// otherwise travel with every backup anyone is sent. Importing a file without one keeps the key here.
+const bookJson = () => JSON.stringify(Object.assign({}, root, {finnhub:""}), null, 1);
 // Deliberately does not touch localStorage: this runs precisely when localStorage is refusing.
 window.rescueBook = () => {
-  $("io").value = JSON.stringify(root,null,1);
+  $("io").value = bookJson();
   openData();
   $("io").select();
   $("io_err").className = "okmsg";
@@ -1220,6 +1250,9 @@ const clsR = r => !ui().colourGrade ? "" : (r!=null && isScratch(r) ? "flat" : c
 const mask = s => ui().hideValues ? "···" : s;
 const esc  = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const $ = id => document.getElementById(id);
+// Every number read from a field goes through this. parseFloat accepts "1e400" as Infinity, which
+// passes every "> 0" check and then turns the book into NaN; finite or nothing.
+const pnum = v => { const x = parseFloat(v); return Number.isFinite(x) ? x : NaN; };
 // A name going into an inline handler is JS source inside an HTML attribute, so it needs escaping
 // twice, in that order. esc() alone is not enough and is in fact the trap: it turns an apostrophe
 // into &#39;, the parser turns that back into an apostrophe before JS ever sees the attribute, and
@@ -1353,6 +1386,40 @@ function applyTips(scope){
     const t = el.textContent.trim();
     const tip = TIPS[t] || (TIP_PREFIX.find(([p])=>t.startsWith(p)) || [])[1];
     if(tip){ el.title = tip; el.classList.add("tipped"); }
+  });
+  applyA11y(scope);
+}
+
+/* ---- the same explainers, for a screen reader ----
+   A title is a mouse affordance and the (i) bubble a CSS one; neither reaches a screen reader
+   reliably, and the bubble's letter was being read as part of every label ("Fuzziness i"). Each
+   explainer becomes the description of the thing it explains, through one hidden node per distinct
+   text. A button drawn as a symbol takes its title as its name: ✕ is otherwise read as "times". */
+const tipIds = new Map();
+function tipId(text){
+  let id = tipIds.get(text);
+  if(id && document.getElementById(id)) return id;
+  let box = $("srTips");
+  if(!box){ box = document.createElement("div"); box.id = "srTips"; box.hidden = true; document.body.appendChild(box); }
+  id = "srtip" + (tipIds.size + 1);
+  const n = document.createElement("span"); n.id = id; n.textContent = text; box.appendChild(n);
+  tipIds.set(text, id);
+  return id;
+}
+function applyA11y(scope){
+  const at = scope || document;
+  at.querySelectorAll("button[title]").forEach(b=>{
+    if(!/[A-Za-z0-9]/.test(b.textContent)) b.setAttribute("aria-label", b.title);
+  });
+  at.querySelectorAll(".info").forEach(i=>{
+    i.setAttribute("aria-hidden", "true");
+    const lab = i.closest("label"), ctl = lab && lab.htmlFor && $(lab.htmlFor);
+    if(ctl && i.dataset.tip) ctl.setAttribute("aria-describedby", tipId(i.dataset.tip));
+  });
+  at.querySelectorAll(".tipped").forEach(el=>{
+    if(!el.title) return;
+    const ctl = el.tagName==="LABEL" && el.htmlFor && $(el.htmlFor);
+    (ctl || el).setAttribute("aria-describedby", tipId(el.title));
   });
 }
 
@@ -1795,20 +1862,27 @@ window.renameEntry = (n) => {
 };
 
 window.closeModal = () => {
+  const wasOpen = $("modal").style.display === "flex";
   $("modal").style.display = "none";
   modalOk = null; modalInput = null;
   $("modalBody").oninput = null;
+  // Back to whatever opened it, so a keyboard or screen-reader user is not dropped at the top.
+  const back = modalReturn; modalReturn = null;
+  if(wasOpen && back && document.contains(back)) back.focus();
 };
 
 /* ---- generic modal, borrowed from Wheeler ----
    The onInput hook is the reason: the Buy and Sell popups have to recompute the trade's new overall
    break-even as you type, and a modal that only reports on submit cannot do that. onOk returns an
    error string to keep the dialog open, or null to close, save and render. */
-let modalOk = null, modalInput = null;
+let modalOk = null, modalInput = null, modalReturn = null;
 const mv = id => $(id) ? $(id).value : "";
 function openModal(title, body, okLabel, onOk, onInput){
+  // Remember the opener once: the gear reopens itself after a correction, and focus should still
+  // go back to the row's button, not to a button inside the dialog that no longer exists.
+  if($("modal").style.display !== "flex") modalReturn = document.activeElement;
   $("modalTitle").innerHTML = title;
-  $("modalBody").innerHTML = body + '<div id="m_note" class="calsub"></div><div class="err" id="m_err"></div>' +
+  $("modalBody").innerHTML = body + '<div id="m_note" class="calsub"></div><div class="err" id="m_err" role="alert"></div>' +
     '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
     '<button onclick="closeModal()">Cancel</button>' +
     '<button class="primary" id="m_ok">' + okLabel + '</button></div>';
@@ -1961,7 +2035,7 @@ function bindSetFields(){
           return {v: BUILTIN_TAGS.some(x=>x.v===v) ? v+"-own" : v, t};
         }));
       } else {
-        const n = parseFloat(el.value);
+        const n = pnum(el.value);
         if(isNaN(n)) return;
         setPut(scope, key, n);
       }
@@ -2123,8 +2197,8 @@ window.fcToNewTrade = () => {
 // alike — the stop already carries the direction, so asking for it separately only creates a way
 // for the two to disagree.
 const sideFrom = (P, S) => (isNaN(P) || isNaN(S) || P===S) ? 0 : (S < P ? 1 : -1);
-function fcSide(){ return sideFrom(parseFloat($("fc_price").value), parseFloat($("fc_stop").value)); }
-function ntSide(){ return sideFrom(parseFloat($("nt_entry").value), parseFloat($("nt_stop").value)); }
+function fcSide(){ return sideFrom(pnum($("fc_price").value), pnum($("fc_stop").value)); }
+function ntSide(){ return sideFrom(pnum($("nt_entry").value), pnum($("nt_stop").value)); }
 // The tier a trade opens under is whichever the calculator is standing on. It is a classification,
 // so it is correctable in the gear afterwards like the setup is -- it never had to be chosen before
 // the fill.
@@ -2193,7 +2267,7 @@ function renderFastCalc(){
   const accts = g ? groupMembers(root.active) : [acctInView()].filter(Boolean);
   const tiers = g ? root.groups[root.active].settings.tiers : settingsFor(acctInView()).tiers;
 
-  const P = parseFloat($("fc_price").value), S = parseFloat($("fc_stop").value);
+  const P = pnum($("fc_price").value), S = pnum($("fc_stop").value);
   const out = $("fc_ans"), more = $("fc_more"), det = $("fc_detail");
   const plain = html => { out.innerHTML = html; more.style.display = "none"; det.innerHTML = ""; };
   if(isNaN(P) || isNaN(S)){ plain(""); return; }
@@ -2221,7 +2295,7 @@ function renderFastCalc(){
   const cell = c => {
     const on = c.i===std;
     const col = (c.walls.length || c.under) ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
-    return '<button class="fccell'+(on?" on":"")+'" data-tier="'+c.i+'" onclick="setFcTier('+c.i+')" title="'+
+    return '<button class="fccell'+(on?" on":"")+'" aria-pressed="'+(on?"true":"false")+'" data-tier="'+c.i+'" onclick="setFcTier('+c.i+')" title="'+
       (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+
       (c.under ? " · under the minimum allocation" : "")+'">' +
       '<span class="n" style="color:'+col+'">'+fmtQ(c.q)+'</span>' +
@@ -2275,7 +2349,7 @@ function renderFastCalc(){
 // money earned, and the cents a broker's rounding leaves are an adjustment with a date and a note
 // rather than a silent edit to a balance.
 const cashFlows = acct => { const pf = root.portfolios[acct]; return (pf && pf.cashFlows) || []; };
-const cashAmount = () => parseFloat(String($("cashAmt").value).replace(/[^0-9.]/g,""));
+const cashAmount = () => pnum(String($("cashAmt").value).replace(/[^0-9.]/g,""));
 
 window.openCash = (acct, kind) => {
   const pf = root.portfolios[acct];
@@ -2347,7 +2421,7 @@ window.applyCash = (acct, kind) => {
    other movement. */
 function openAdjust(acct){
   const adjBy = () => {
-    const direct = parseFloat(mv("adjAmt")), broker = parseFloat(mv("adjBroker"));
+    const direct = pnum(mv("adjAmt")), broker = pnum(mv("adjBroker"));
     if(!isNaN(direct)) return Math.round(direct*100)/100;
     if(!isNaN(broker)) return Math.round((broker - appCash(acct))*100)/100;
     return NaN;
@@ -2428,7 +2502,7 @@ function renderCash(){
 }
 
 window.setMemberMargin = (m,v) => {
-  const pf = root.portfolios[m], n = parseFloat(v);
+  const pf = root.portfolios[m], n = pnum(v);
   if(pf && n>=1) pf.settings.marginX = n;
   save(); render();
 };
@@ -2440,11 +2514,11 @@ window.setMemberLot = (m, which, v) => {
   const pf = root.portfolios[m];
   if(!pf) return;
   if(which==="on") pf.settings.lotOn = !!v;
-  else { const n = Math.floor(parseFloat(v)); if(n>=1) pf.settings.lotRound = n; }
+  else { const n = Math.floor(pnum(v)); if(n>=1) pf.settings.lotRound = n; }
   save(); render();
 };
 window.setMemberInitial = (m,v) => {
-  const pf = root.portfolios[m], n = parseFloat(String(v).replace(/[^0-9.]/g,""));
+  const pf = root.portfolios[m], n = pnum(String(v).replace(/[^0-9.]/g,""));
   if(pf && !isNaN(n) && n>0){ pf.settings.initialCapital = Math.round(n*100)/100; pf.settings.initialEstimated = false; }
   save(); render();
 };
@@ -2458,13 +2532,13 @@ function renderNtRange(){
   const box = $("nt_range");
   if(!box) return;
   const acct = acctInView();
-  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
   const side = ntSide();
   if(!acct || isNaN(P) || isNaN(S) || !side){ box.innerHTML = ""; return; }
   const den = side*(P-S);
   const eq = aumOf(acct);
   const tiers = settingsFor(acct).tiers;
-  const typed = parseFloat($("nt_qty").value);
+  const typed = pnum($("nt_qty").value);
   const cur = ntTier();
 
   const cols = TIERS.map((name,i)=>{
@@ -2479,7 +2553,7 @@ function renderNtRange(){
     // highlight tells the truth after the count is edited by hand.
     const on = c.i===cur && (isNaN(typed) || typed===c.q);
     const colour = (c.walls.length || c.under) ? "var(--amber)" : (on ? "var(--gold)" : "var(--sub)");
-    return '<button class="fccell'+(on?" on":"")+'" onclick="ntPickTier('+c.i+','+c.q+')" title="'+
+    return '<button class="fccell'+(on?" on":"")+'" aria-pressed="'+(on?"true":"false")+'" onclick="ntPickTier('+c.i+','+c.q+')" title="'+
       (c.walls.length ? "held back by "+c.walls.join(" and ") : c.mult+"R")+'">' +
       '<span class="n" style="color:'+colour+'">'+fmtQ(c.q)+'</span>' +
       '<span class="t">'+c.name+' &middot; '+c.mult+'R</span>' +
@@ -2499,8 +2573,9 @@ window.ntPickTier = (i, q) => {
 function newTradeCal(){
   $("nt_warn").innerHTML = ""; $("nt_warn").style.display = "none";
   if(inGroup()) return renderGroupNewTrade();
+  $("nt_ladder").innerHTML = "";        // the group's per-account table, left over from a group view
   renderNtRange();
-  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
@@ -2525,7 +2600,7 @@ function newTradeCal(){
   // range above uses, so a blank box opens exactly the count the tier cell shows.
   const z = tierSize(acct, P, den, mult), qR = z.q;
   const free = bpFree(acct);
-  const typed = parseFloat($("nt_qty").value);
+  const typed = pnum($("nt_qty").value);
   const q = (!isNaN(typed) && typed>0) ? typed : qR;
   const capped = q*P > free;
 
@@ -2629,11 +2704,11 @@ const ntPlan = () => ({ cutIf:mv("nt_cut").trim(), waitIf:mv("nt_wait").trim(), 
 function openTrade(){
   if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
-  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   const calQ = newTradeCal();
-  const aptr = parseFloat($("nt_aptr").value);
-  const q = $("nt_qty").value ? parseFloat($("nt_qty").value) : calQ;
+  const aptr = pnum($("nt_aptr").value);
+  const q = $("nt_qty").value ? pnum($("nt_qty").value) : calQ;
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
   if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
   if(shortBlock(acctInView())) return;              // newTradeCal has already said why
@@ -2745,7 +2820,7 @@ function positionRow(t, acct, showAcct){
   const row =
     '<tr class="prow">' +
       '<td class="tickcell">' +
-        '<button class="small" style="padding:1px 7px" onclick="toggleRow(\''+t.id+'\')" title="'+(open?"Collapse":"Expand")+'">'+
+        '<button class="small" style="padding:1px 7px" onclick="toggleRow(\''+t.id+'\')" aria-expanded="'+(open?"true":"false")+'" title="'+(open?"Collapse":"Expand")+'">'+
           (open?"&#9662;":"&#9656;")+'</button> ' +
         '<span class="tk">'+esc(t.ticker)+'</span> ' +
         '<span class="pill '+(t.side>0?"long":"short")+'">'+(t.side>0?"LONG":"SHORT")+'</span>' +
@@ -2941,8 +3016,8 @@ function positionUI(id, kind){
     '</div>' + quick,
     verb,
     () => {
-      const P = parseFloat(mv("m_px"));
-      let q = parseFloat(mv("m_q"));
+      const P = pnum(mv("m_px"));
+      let q = pnum(mv("m_q"));
       if(isNaN(P) || P<=0) return "Enter a price.";
       if(isNaN(q) || q<=0) return "Enter a quantity.";
       if(add){
@@ -2960,7 +3035,7 @@ function positionUI(id, kind){
     () => {
       const el = $("m_note");
       if(!el) return;
-      const P = parseFloat(mv("m_px")), q = parseFloat(mv("m_q"));
+      const P = pnum(mv("m_px")), q = pnum(mv("m_q"));
       if(isNaN(P) || isNaN(q) || q<=0){ el.innerHTML = ""; return; }
       el.innerHTML = add ? addNote(t, d, P, q, acct) : reduceNote(t, d, P, q);
     });
@@ -3194,7 +3269,7 @@ window.gearUI = id => {
     () => {
       const tk = mv("g_tk").trim().toUpperCase();
       if(!tk) return "Enter a ticker.";
-      const r0 = parseFloat(mv("g_r0")), aum0 = parseFloat(mv("g_aum0"));
+      const r0 = pnum(mv("g_r0")), aum0 = pnum(mv("g_aum0"));
       if(!(r0>0)) return "1R at open must be positive.";
       if(!(aum0>0)) return "AUM at open must be positive.";
       t.ticker = tk; t.rUnit = r0; t.aumAtOpen = aum0;
@@ -3206,7 +3281,7 @@ window.gearUI = id => {
         t.tier = ti2;
         t.mult = settingsFor(acctOf(id)).tiers[ti2];   // the pill reads this
       }
-      const a1 = parseFloat(mv("g_aptr")), a0 = parseFloat(mv("g_aptr0"));
+      const a1 = pnum(mv("g_aptr")), a0 = pnum(mv("g_aptr0"));
       t.aptr = (!isNaN(a1) && a1>0) ? a1 : null;
       // aptrAtOpen is a locked-at-open field, and correcting a typo is not the same as recomputing
       // it. Register #3 asked for exactly this: a mistyped volatility used to be permanent.
@@ -3234,7 +3309,7 @@ window.overrideUI = id => {
     '</div>',
     "Apply override",
     () => {
-      const q = parseFloat(mv("m_aq")), a = parseFloat(mv("m_aa"));
+      const q = pnum(mv("m_aq")), a = pnum(mv("m_aa"));
       if(isNaN(q) && isNaN(a)) return "Enter a position size or an average price.";
       if(!isNaN(q) && q<0) return "Position size can't be negative.";
       t.events.push({type:"adjust", qty:isNaN(q)?null:q, price:isNaN(a)?null:a, stop:null, ts:Date.now()});
@@ -3299,20 +3374,20 @@ window.editEvent = (id, i) => {
                         : (entry && dayOf(ts) < dayOf(entry.ts)))
         return "Nothing can be dated before the entry.";
       if(type==="entry" || type==="add" || type==="trim" || type==="close"){
-        const q = parseFloat(mv("m_q")), p = parseFloat(mv("m_p"));
+        const q = pnum(mv("m_q")), p = pnum(mv("m_p"));
         if(isNaN(q) || q<=0) return "Shares must be positive.";
         if(isNaN(p) || p<=0) return "Enter a price.";
         e.qty = q; e.price = p;
         if(type==="entry"){
-          const s = parseFloat(mv("m_s"));
+          const s = pnum(mv("m_s"));
           e.stop = isNaN(s) ? null : s;
         }
       } else if(type==="budget"){
-        const m = parseFloat(mv("m_m"));
+        const m = pnum(mv("m_m"));
         if(isNaN(m) || m<=0) return "Enter a risk budget.";
         e.mult = m;
       } else if(type==="adjust"){
-        const q = parseFloat(mv("m_q")), p = parseFloat(mv("m_p"));
+        const q = pnum(mv("m_q")), p = pnum(mv("m_p"));
         if(isNaN(q) && isNaN(p)) return "Enter a position size or an average price.";
         e.qty = isNaN(q) ? null : q;
         e.price = isNaN(p) ? null : p;
@@ -3397,7 +3472,10 @@ function renderTabStrip(){
     const n = k==="portfolio" ? scopeTrades("open").length
             : k==="tally" ? scopeTrades("closed").length : null;
     const push = side==="right" && first ? (first = false, ' style="margin-left:auto"') : "";
-    return '<button class="'+(k===cur?"on":"")+'"'+push+
+    // aria-current says which section is open; the label keeps the count from running into the
+    // name ("Closed Trades48").
+    return '<button class="'+(k===cur?"on":"")+'"'+push+(k===cur?' aria-current="page"':'')+
+      ' aria-label="'+esc(label+(n ? ", "+n+(k==="portfolio"?" open":" closed") : ""))+'"'+
       ' onclick="setTab(\''+k+'\')">'+label+
       (n ? '<span class="n">'+n+'</span>' : "")+'</button>';
   }).join("");
@@ -3433,7 +3511,7 @@ window.toggleLog = id => {
   if(!row) return;
   const open = row.style.display !== "none";
   row.style.display = open ? "none" : "table-row";
-  if(btn) btn.innerHTML = open ? "&#9656;" : "&#9662;";
+  if(btn){ btn.innerHTML = open ? "&#9656;" : "&#9662;"; btn.setAttribute("aria-expanded", open ? "false" : "true"); }
   const gear = $("cg_"+id); if(gear) gear.style.display = open ? "none" : "";
 };
 window.saveNote = id => {
@@ -3507,6 +3585,13 @@ function reviewsDueHtml(){
   return n ? '<span style="color:var(--gold);font-weight:600">'+n+" 30-day review"+(n>1?"s":"")+" due</span>" : "";
 }
 
+// Notes and the review save themselves when you leave the box. A mark refresh redraws Closed
+// Trades every minute, and text typed but not yet saved went with it. Quiet: no redraw, so the
+// click that left the box still lands where it was aimed.
+window.keepReview30 = id => {
+  const t = getTrade(id), ta = $("rev_"+id);
+  if(t && ta){ t.review30 = ta.value.trim(); save(); }
+};
 window.saveReview30 = id => {
   const t = getTrade(id), ta = $("rev_"+id);
   if(!t || !ta) return;
@@ -3537,7 +3622,7 @@ const daysBetween = (a,b) => Math.round((dayOf(b)-dayOf(a))/864e5);
 // render() rebuilds the table and collapses this row — put it back so the result stays in view.
 function reopenLog(id){
   const row = $("log_"+id);
-  if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b) b.innerHTML = "&#9662;";
+  if(row){ row.style.display = "table-row"; const b = $("tgl_"+id); if(b){ b.innerHTML = "&#9662;"; b.setAttribute("aria-expanded","true"); }
            const gear = $("cg_"+id); if(gear) gear.style.display = ""; }
 }
 
@@ -3595,9 +3680,9 @@ function renderClosed(){
 
     const due = reviewDue(t);
     return "<tr"+(due?" class='reviewdue'":"")+">" +
-      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
-        (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
-        (t.notes?" <span class='muted' title='Has notes'>&#9998;</span>":"")+"</td>" +
+      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+t.id+"')\" aria-expanded='false' id='tgl_"+t.id+"' title='Show event log and notes'>&#9656;</button>"+esc(t.ticker)+
+        (due?" <span class='revdot' title='30-day review due' aria-hidden='true'>&#9679;</span><span class='sr-only'>30-day review due</span>":"")+
+        (t.notes?" <span class='muted' title='Has notes' aria-hidden='true'>&#9998;</span><span class='sr-only'>has notes</span>":"")+"</td>" +
       "<td class='v-ct-side'>"+(t.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[t.tier]+"</td><td class='v-ct-setup"+(t.legacySetup?" legacy":"")+"'>"+setupHtml(t)+"</td>" +
       "<td class='num v-ct-opened'>"+shortDate(S.openTs)+"</td><td class='num v-ct-closed'>"+shortDate(S.endTs)+"</td>" +
       "<td class='num v-ct-days'>"+S.days+"</td>" +
@@ -3624,14 +3709,14 @@ function renderClosed(){
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='split' style='margin-top:12px'>" +
         "<div><div class='lbl'>Notes</div>" +
-        "<textarea id='note_"+t.id+"' style='min-height:88px'>"+esc(t.notes||"")+"</textarea>" +
+        "<textarea id='note_"+t.id+"' aria-label='Notes' onchange=\"saveNote('"+t.id+"')\" style='min-height:88px'>"+esc(t.notes||"")+"</textarea>" +
         "<div class='row' style='margin-top:6px;align-items:center'><button class='small' onclick=\"saveNote('"+t.id+"')\">Save notes</button>" +
         "<span class='muted' id='notest_"+t.id+"'></span></div></div>" +
         "<div><div class='lbl'>30-day review " +
           (due ? "<span style='color:var(--gold)'>&mdash; due now</span>"
                : (t.review30 && t.review30.trim()) ? "<span class='pos'>&mdash; done</span>"
                : "<span class='muted'>&mdash; in "+reviewDueIn(t)+" day"+(reviewDueIn(t)===1?"":"s")+"</span>") + "</div>" +
-        "<textarea id='rev_"+t.id+"' style='min-height:88px'>"+esc(t.review30||"")+"</textarea>" +
+        "<textarea id='rev_"+t.id+"' aria-label='30-day review' onchange=\"keepReview30('"+t.id+"')\" style='min-height:88px'>"+esc(t.review30||"")+"</textarea>" +
         "<div class='row' style='margin-top:6px;align-items:center'><button class='small"+(due?" primary":"")+"' onclick=\"saveReview30('"+t.id+"')\">Save 30-day</button></div></div>" +
       "</div></td></tr>";
   }).join("");
@@ -3780,8 +3865,8 @@ function renderGroupClosed(){
       "<div class='row' style='margin-top:8px;justify-content:flex-end'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">Delete from all accounts</button></div>" +
       "</td></tr>";
     return "<tr"+(due?" class='reviewdue'":"")+">" +
-      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
-        (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
+      "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" aria-expanded='false' id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
+        (due?" <span class='revdot' title='30-day review due' aria-hidden='true'>&#9679;</span><span class='sr-only'>30-day review due</span>":"")+"</td>" +
       "<td class='v-ct-side'>"+(f.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[f.tier]+"</td><td class='v-ct-setup"+(f.legacySetup?" legacy":"")+"'>"+setupHtml(f)+"</td>" +
       "<td class='num v-ct-opened'>"+shortDate(opened)+"</td><td class='num v-ct-closed'>"+shortDate(shut)+"</td>" +
       "<td class='num v-ct-days'>"+days+"</td>" +
@@ -3800,9 +3885,9 @@ function renderGroupClosed(){
 function lossTagSelect(t){
   if(derive(t).realized >= 0) return '<span class="muted">&mdash;</span>';
   const legacy = t.lossTag && !lossTags().some(o=>o.v===t.lossTag);
-  return '<select onchange="setLossTag(\x27'+t.id+'\x27,this.value)" style="max-width:230px">' +
+  return '<select aria-label="Loss reason" onchange="setLossTag(\x27'+t.id+'\x27,this.value)" style="max-width:230px">' +
     '<option value="">tag this loss…</option>' +
-    lossTags().map(o=>'<option value="'+o.v+'"'+(t.lossTag===o.v?" selected":"")+'>'+o.t+'</option>').join("") +
+    lossTags().map(o=>'<option value="'+esc(o.v)+'"'+(t.lossTag===o.v?" selected":"")+'>'+esc(o.t)+'</option>').join("") +
     (legacy ? '<option value="'+esc(t.lossTag)+'" selected>'+esc(t.lossTag)+' (retired tag)</option>' : "") +
     '</select>';
 }
@@ -3863,6 +3948,14 @@ function renderCharts(chrono){
   const BC = bookCurve(chartAcct(), periodStart());
   $("plPct").innerHTML = svgTimeLine(BC.pct, v=>v.toFixed(1)+"%");
   $("eqCurve").innerHTML = svgTimeLine(BC.eq, fmt$, {zeroBase:false});
+
+  // To a screen reader each chart is one picture: what it is and where it ends up.
+  const sayChart = (id, text) => { const el = $(id); if(el){ el.setAttribute("role","img"); el.setAttribute("aria-label", text); } };
+  sayChart("histChart", "R multiples of "+chrono.length+" closed trades, from "+fmtR(Math.min(...rms))+" to "+fmtR(Math.max(...rms)));
+  sayChart("curveChart", "Cumulative R over trades, ending at "+fmtR(run));
+  sayChart("plBars", "P/L per trade: best "+fmt$(Math.max(...pls))+", worst "+fmt$(Math.min(...pls)));
+  sayChart("plPct", "P/L as a percentage of the starting book, ending at "+BC.pct[BC.pct.length-1].y.toFixed(1)+"%");
+  sayChart("eqCurve", "Equity curve, from "+fmt$(BC.eq[0].y)+" to "+fmt$(BC.eq[BC.eq.length-1].y));
 
   // --- statistics
   const wins = S.filter(s=>s.rm>0), losses = S.filter(s=>s.rm<=0);
@@ -3934,7 +4027,7 @@ const memberIn = m => !gSel()[m];
 let gPx = {};
 const pxFor = (m, P) => { const v = gPx[m]; return (v>0) ? v : P; };
 window.setMemberPx = (m, v) => {
-  const x = parseFloat(v);
+  const x = pnum(v);
   if(v === "" || isNaN(x) || x <= 0) delete gPx[m]; else gPx[m] = x;
   repaintGroupCalc();
 };
@@ -3972,7 +4065,7 @@ function groupSizeRows(P, S, side, ti){
 // repaintGroupCalc only rewrites the derived cells, so typing into a per-account fill never blows
 // away the input the cursor is sitting in.
 function renderGroupNewTrade(){
-  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   $("nt_err").textContent = "";
   if(isNaN(P) || isNaN(S)){ $("nt_calbox").style.display="none"; return null; }
@@ -3991,7 +4084,7 @@ function renderGroupNewTrade(){
     // carrying an apostrophe would break out of the attribute no matter how it were quoted.
     rows.map((r,i)=>{
       return "<tr id='grow_"+i+"'>" +
-        "<td><input type='checkbox' style='width:auto' "+(r.on?"checked":"")+
+        "<td><input type='checkbox' aria-label='Take, "+esc(r.m)+"' style='width:auto' "+(r.on?"checked":"")+
           " onchange=\"toggleMemberAt("+i+")\"></td>" +
         // Shares first and in gold: it is the number you act on, everything else is why.
         "<td class='num' id='gq_"+i+"' style='font-size:15px'></td>" +
@@ -3999,7 +4092,7 @@ function renderGroupNewTrade(){
         "<td class='num'>"+fmt$(r.aum)+"</td>" +
         // Each account gets the price it was actually filled at; blank means the shared entry above.
         // Cent steps: fills on a liquid name differ by pennies, so that is what the arrows should nudge.
-        "<td class='num'><input id='gfill_"+i+"' type='number' step='0.01' value='"+
+        "<td class='num'><input id='gfill_"+i+"' aria-label='Fill for "+esc(r.m)+"' type='number' step='0.01' value='"+
           (gPx[r.m]>0 ? gPx[r.m] : "")+"' placeholder='"+P+"' title='Fill for "+esc(r.m)+
           " &mdash; blank uses the entry above' style='width:88px;padding:4px 7px;font-size:13px;text-align:right'"+
           " oninput=\"setMemberPxAt("+i+", this.value)\"></td>" +
@@ -4015,7 +4108,7 @@ function renderGroupNewTrade(){
 }
 
 function repaintGroupCalc(){
-  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   if(isNaN(P) || isNaN(S) || !(side*(P-S)>0) || !$("grow_0")) return null;
   const rows = groupSizeRows(P,S,side,ti);
@@ -4085,7 +4178,7 @@ function paintGroupCalc(rows, P, S, side, ti){
 
 function openGroupTrade(){
   const tk = $("nt_tk").value.trim().toUpperCase();
-  const P = parseFloat($("nt_entry").value), S = parseFloat($("nt_stop").value);
+  const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
   const side = ntSide(), ti = ntTier();
   const rows = renderGroupNewTrade();
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
@@ -4094,7 +4187,7 @@ function openGroupTrade(){
   if(!taking.length){ $("nt_err").textContent = "No account can take this trade — every member is unticked or sized to zero."; return; }
 
   const gid = "g"+Date.now()+Math.floor(Math.random()*1e4);
-  const gaptr = parseFloat($("nt_aptr").value);
+  const gaptr = pnum($("nt_aptr").value);
   const now = Date.now();
   taking.forEach(r=>{
     root.portfolios[r.m].trades.unshift({
@@ -4189,12 +4282,12 @@ function gTradeUI(gid, kind){
       '<div style="flex:1"><label for="m_pct">Percent of each leg</label><input id="m_pct" type="number" step="any" placeholder="'+(add?"25":"33")+'"></div>' +
     '</div>' + quick,
     verb,
-    () => add ? gAddFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px")))
-              : gTrimFrac(gid, parseFloat(mv("m_pct"))/100, parseFloat(mv("m_px"))),
+    () => add ? gAddFrac(gid, pnum(mv("m_pct"))/100, pnum(mv("m_px")))
+              : gTrimFrac(gid, pnum(mv("m_pct"))/100, pnum(mv("m_px"))),
     () => {
       const el = $("m_note");
       if(!el) return;
-      const P = parseFloat(mv("m_px")), f = parseFloat(mv("m_pct"))/100;
+      const P = pnum(mv("m_px")), f = pnum(mv("m_pct"))/100;
       if(!(P>0) || !(f>0)){ el.innerHTML = ""; return; }
       el.innerHTML = '<table style="margin-top:8px">' + legsOf(gid).map(x=>{
         const d = derive(x.t), q = Math.floor(d.Q*Math.min(f, add ? f : 1));
@@ -4280,7 +4373,7 @@ window.gCloseUI = gid => {
   openModal("Close " + esc(first.ticker) + ' <span class="muted" style="text-transform:none;letter-spacing:0">in all ' +
       legs.length + ' accounts</span>',
     '<div><label for="m_px">Exit price</label><input id="m_px" type="number" step="any" value="'+first.last+'"></div>',
-    "Close", () => gCloseAt(gid, parseFloat(mv("m_px"))));
+    "Close", () => gCloseAt(gid, pnum(mv("m_px"))));
 };
 // gToggleCard, legStats and groupTradeCard are gone: the position list renders both modes, so
 // there is no second card renderer to keep in step.
@@ -4597,30 +4690,45 @@ function render(){
 function renderLedger(){
   const box = $("ledger"), sum = $("auditSummary");
   if(!box) return;
+  // Every transaction means the cash too: a deposit, a withdrawal and a broker-drift adjustment
+  // each move the book exactly as a trade does, and a ledger without them cannot be reconciled.
+  // A cash adjustment is an adjustment by definition, so it carries the Adj. tag.
   const rows = [];
-  scope().forEach(acct=>(root.portfolios[acct].trades||[]).forEach(t=>{
-    t.events.forEach((e,i)=>rows.push({acct, t, e, i}));
-  }));
-  const adj = rows.filter(x=>x.e.adj).length;
+  scope().forEach(acct=>{
+    (root.portfolios[acct].trades||[]).forEach(t=>t.events.forEach((e,i)=>rows.push({acct, t, e, i, ts:e.ts})));
+    cashFlows(acct).forEach(f=>rows.push({acct, f, ts:f.ts}));
+  });
+  const adj = rows.filter(x=>x.e ? x.e.adj : x.f.type==="adjust").length;
   if(sum) sum.textContent = rows.length
     ? rows.length + (rows.length===1 ? " transaction" : " transactions") +
       (adj ? " · " + adj + " adjusted" : "") : "";
   if(!rows.length){ box.innerHTML = '<div class="muted">No transactions yet.</div>'; return; }
-  rows.sort((a,b)=>b.e.ts - a.e.ts);
+  rows.sort((a,b)=>b.ts - a.ts);
   const g = inGroup();
+  const FLOW = {deposit:"deposit", withdraw:"withdrawal", adjust:"adjustment"};
   box.innerHTML = '<table><tr><th>Date</th>' + (g?'<th>Account</th>':'') +
     '<th>Ticker</th><th>Event</th><th class="num">Shares</th><th class="num">Price</th>' +
-    '<th class="num">Stop</th><th></th></tr>' +
+    '<th class="num">Stop</th><th class="num">Amount</th><th></th></tr>' +
     rows.map(r=>{
+      const date = '<tr><td>'+shortDate(r.ts)+'</td>' + (g?'<td>'+esc(r.acct)+'</td>':'');
+      if(r.f){
+        const f = r.f, amt = flowSigned(f);
+        return date +
+          '<td>Cash'+(f.note ? ' <span class="muted">'+esc(f.note)+'</span>' : '')+'</td>' +
+          '<td>'+(FLOW[f.type]||esc(f.type))+'</td>' +
+          '<td class="num">&mdash;</td><td class="num">&mdash;</td><td class="num">&mdash;</td>' +
+          '<td class="num '+cls(amt)+'">'+fmt$(amt)+'</td>' +
+          '<td>'+(f.type==="adjust" ? '<span class="pill tier" title="Cash adjusted to match the broker">Adj.</span>' : '')+'</td></tr>';
+      }
       const e = r.e;
-      return '<tr><td>'+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+'</td>' +
-        (g?'<td>'+esc(r.acct)+'</td>':'') +
+      return date +
         '<td class="tickcell"><span style="font-family:var(--mono);font-weight:600">'+esc(r.t.ticker)+'</span>' +
           (r.t.status==="closed"?' <span class="muted">closed</span>':'')+'</td>' +
         '<td>'+e.type+'</td>' +
         '<td class="num">'+(e.qty!=null?fmtQ(e.qty):"&mdash;")+'</td>' +
         '<td class="num">'+(e.price!=null?fmtP(e.price):"&mdash;")+'</td>' +
         '<td class="num">'+(e.type==="stop" ? stopDesc(e) : (e.stop!=null?fmtP(e.stop):"&mdash;"))+'</td>' +
+        '<td class="num">&mdash;</td>' +
         '<td>'+adjPill(e)+'</td></tr>';
     }).join("") + '</table>';
 }
@@ -4661,7 +4769,7 @@ function bindSettings(){
   // Initial capital: the one figure typed by hand. Everything after it is a record.
   $("aum").addEventListener("change", e=>{
     const pf = root.portfolios[acctInView()];
-    const v = parseFloat(e.target.value.replace(/[^0-9.]/g,""));
+    const v = pnum(e.target.value.replace(/[^0-9.]/g,""));
     if(pf && !isNaN(v) && v>0){ pf.settings.initialCapital = Math.round(v*100)/100; pf.settings.initialEstimated = false; }
     save(); render();
   });
@@ -4673,11 +4781,11 @@ function bindSettings(){
     return g ? root.groups[g].settings : state.settings;
   };
   $("rpct").addEventListener("change", e=>{
-    const v = parseFloat(e.target.value);
+    const v = pnum(e.target.value);
     if(!isNaN(v) && v>0){ ruleset().rPct = v; save(); render(); }
   });
   ["t0","t1","t2"].forEach((id,i)=>$(id).addEventListener("change", e=>{
-    const v = parseFloat(e.target.value);
+    const v = pnum(e.target.value);
     if(!isNaN(v) && v>0){ ruleset().tiers[i] = v; save(); render(); }
   }));
   // Margin belongs to the account, not the ruleset — it is a broker arrangement, not a method.
@@ -4690,21 +4798,21 @@ function bindSettings(){
     save(); render();
   });
   $("marginX").addEventListener("change", e=>{
-    const pf = root.portfolios[acctInView()], v = parseFloat(e.target.value);
+    const pf = root.portfolios[acctInView()], v = pnum(e.target.value);
     if(pf && v>=1) pf.settings.marginX = v;
     save(); render();
   });
-  $("heatcap").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
-  $("coldr").addEventListener("change", e=>{ const v = parseFloat(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
+  $("heatcap").addEventListener("change", e=>{ const v = pnum(e.target.value); if(!isNaN(v)&&v>0){ ruleset().heatCap = v; save(); render(); } });
+  $("coldr").addEventListener("change", e=>{ const v = pnum(e.target.value); if(!isNaN(v)&&v>0){ ruleset().coldR = v; save(); render(); } });
   ["nt_entry","nt_stop","nt_qty","nt_aptr"].forEach(id=>$(id).addEventListener("input", newTradeCal));
   $("nt_open").addEventListener("click", openTrade);
   $("nt_tk").addEventListener("input", updateWash);
   updateWash();
   $("fhkey").addEventListener("change", e=>{ root.finnhub = e.target.value.trim(); save(); render(); });
 
-  $("exportBtn").addEventListener("click", ()=>{ $("io").value = JSON.stringify(root,null,1); $("io_err").textContent = ""; });
+  $("exportBtn").addEventListener("click", ()=>{ $("io").value = bookJson(); $("io_err").textContent = ""; });
   $("downloadBtn").addEventListener("click", ()=>{
-    const json = JSON.stringify(root,null,1);
+    const json = bookJson();
     // Always put the book in the box too: some sandboxed viewers block page-initiated downloads,
     // and a button that silently does nothing is worse than no button.
     $("io").value = json;
@@ -4726,7 +4834,7 @@ function bindSettings(){
       : "This viewer blocks downloads. Your whole book is in the box above — copy it out and save it yourself.";
   });
   $("copyBtn").addEventListener("click", async ()=>{
-    const json = JSON.stringify(root,null,1);
+    const json = bookJson();
     $("io").value = json;
     try{
       await navigator.clipboard.writeText(json);
@@ -4754,7 +4862,7 @@ function bindSettings(){
     const nTrades = Object.values(root.portfolios).reduce((n,p)=>n+p.trades.length, 0);
     const nBooks = Object.keys(root.portfolios).length;
     if(!confirm("Delete everything: "+nTrades+" trade(s) across "+nBooks+" portfolio(s), plus all settings.\n\nThis cannot be undone. Continue?")) return;
-    $("io").value = JSON.stringify(root,null,1);
+    $("io").value = bookJson();
     if(!confirm("Last check.\n\nYour current book has been placed in the box below — copy it out now if there is any chance you want it back.\n\nErase everything?")) return;
     try{ localStorage.removeItem(KEY); }catch(e){}
     root = newRoot(); normalize(); save(); render();
@@ -4784,9 +4892,21 @@ function applyImport(){
                   incoming+".\n\nThis cannot be undone, and the box holds the incoming data, not a "+
                   "copy of yours. Cancel and use Download .json first if you are not certain.\n\nContinue?")) return;
     }
-    if(whole) root = p;
-    else root.portfolios[root.active] = p;
-    normalize(); save(); render();
+    // Tried on the side. Before, the incoming book replaced this one first and was checked after,
+    // so a file that failed half way said "nothing was imported" while the broken book sat in
+    // memory, and the next click on anything saved it over the real one.
+    const prev = root;
+    if(whole && !p.finnhub && prev.finnhub) p.finnhub = prev.finnhub;   // backups leave the key out
+    try{
+      if(whole) root = p;
+      else { root = JSON.parse(JSON.stringify(prev)); root.portfolios[root.active] = p; }
+      normalize();
+      render();                       // a book that loads but cannot be drawn is refused too
+    }catch(err){
+      root = prev; normalize(); render();
+      throw err;
+    }
+    save();
     $("io_err").className = "okmsg"; $("io_err").textContent = "Imported.";
   }catch(e){
     $("io_err").className = "err"; $("io_err").textContent = "That isn't an export from this app — nothing was imported.";
@@ -4879,7 +4999,7 @@ window.marksUI = () => {
   openModal("Marks", body, "Save", () => {
     const now = Date.now();
     syms.forEach((s,i)=>{
-      const v = parseFloat(mv("mk_"+i));
+      const v = pnum(mv("mk_"+i));
       if(v>0) held.get(s).legs.forEach(t=>{ t.last = v; t.lastMarkTs = now; });
     });
     return null;
@@ -4887,7 +5007,7 @@ window.marksUI = () => {
 };
 
 function pollMarks(){
-  if(!root.finnhub) return;
+  if(!root.finnhub || document.hidden) return;     // a background tab spends no API calls
   if(!allOpenTrades().length) return;
   const ae = document.activeElement;
   if(ae && (ae.tagName==="INPUT" || ae.tagName==="TEXTAREA")) return;  // don't re-render under the cursor
@@ -4929,7 +5049,38 @@ function tickClock(){
 // Only one overlay left: Settings and Data are panes, and a pane is left by going somewhere else.
 $("modal").addEventListener("mousedown", e=>{ if(e.target === $("modal")) closeModal(); });
 document.addEventListener("keydown", e=>{
-  if(e.key === "Escape" && $("modal").style.display === "flex") closeModal();
+  if($("modal").style.display !== "flex") return;
+  if(e.key === "Escape") closeModal();
+  // Tab stays inside an open dialog; the page behind it is not reachable until it closes.
+  if(e.key === "Tab"){
+    const f = [...document.querySelectorAll(".modalcard button, .modalcard input, .modalcard select, .modalcard textarea, .modalcard [tabindex]")]
+      .filter(el=>!el.disabled && el.offsetParent !== null && el.tabIndex >= 0);
+    if(!f.length) return;
+    const first = f[0], last = f[f.length-1];
+    if(!e.target.closest || !e.target.closest(".modalcard")){ e.preventDefault(); first.focus(); }
+    else if(e.shiftKey && e.target === first){ e.preventDefault(); last.focus(); }
+    else if(!e.shiftKey && e.target === last){ e.preventDefault(); first.focus(); }
+  }
+});
+
+// Two tabs on this page each hold their own copy of the book, and each save writes the whole of
+// it. Without this, the tab you were not using wrote its older copy over everything done in the
+// other the next time you touched it. A save in another tab now replaces this tab's copy, and an
+// open dialog closes, since it was editing the copy that just went out of date.
+window.addEventListener("storage", e=>{
+  if(e.key !== KEY || e.newValue == null) return;
+  try{
+    const p = JSON.parse(e.newValue);
+    if(!(p && p.portfolios && p.active)) return;
+    // Where this tab is looking stays put; only the book underneath is replaced.
+    const keep = root ? {tab:root.tab, active:root.active, focus:root.focus, fcTier:root.fcTier} : {};
+    root = p; normalize();
+    if(keep.tab) root.tab = keep.tab;
+    if(keep.active && (root.portfolios[keep.active] || (root.groups||{})[keep.active])){ root.active = keep.active; root.focus = keep.focus; }
+    if(keep.fcTier != null) root.fcTier = keep.fcTier;
+    if($("modal").style.display === "flex") closeModal();
+    render();
+  }catch(err){}
 });
 
 load();

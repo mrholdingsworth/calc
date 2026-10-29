@@ -628,6 +628,135 @@ const CASES = {
     clearFields();
   },
 
+  /* A book from anywhere else can't run code, a bad file can't replace the book, two tabs can't
+     overwrite each other, the key stays out of backups, and typed text survives a redraw. */
+  safety(){
+    const lose = (o) => trade(Object.assign({status:"closed", closedAt:T0()+2*D, last:48,
+      events:[ev("entry",{qty:100, price:50, stop:48}, 0), ev("close",{qty:100, price:48}, 2)]}, o||{}));
+    // Loss tags are text, never markup.
+    const L = lose();
+    book([L]); root.defs.lossTags = [{v:'x"><b>', t:"<b>bold</b>"}]; root.tab = "tally"; render();
+    const opt = [...$("closedTbl").querySelectorAll("select option")].find(o=>o.textContent.indexOf("bold")>=0);
+    check("loss tag shown as text", [opt && opt.textContent, $("closedTbl").querySelectorAll("select b").length], ["<b>bold</b>", 0]);
+
+    // IDs that could close a handler's quote are replaced; a group's legs keep one shared gid.
+    const a = lose({id:"a');x('", gid:"g'1"}), b = lose({id:"9", gid:"g'1"});
+    group([["A1", 100000, [a]], ["B1", 100000, [b]]]);
+    check("unsafe ids replaced", [SAFE_ID.test(a.id), b.id, SAFE_ID.test(a.gid), a.gid===b.gid], [true, "9", true, true]);
+
+    // A file that fails half way leaves the book exactly as it was, unsaved.
+    const keepT = lose({ticker:"KEEP"});
+    book([keepT]); root.finnhub = "KEY";
+    let saves = 0; const realSave = save; save = () => { saves++; return true; };
+    $("io").value = JSON.stringify({active:"A", portfolios:{A:{settings:{}, trades:[{id:"1", ticker:"Z", status:"open"}]}}});
+    applyImport();
+    check("failed import changes nothing", [state.trades.map(t=>t.ticker), saves, /nothing was imported/.test($("io_err").textContent)], [["KEEP"], 0, true]);
+    // A good file goes in, and a backup without the key keeps this browser's key.
+    $("io").value = JSON.stringify({active:"B", finnhub:"", portfolios:{B:{settings:defaults().settings, trades:[], cashFlows:[]}}});
+    applyImport();
+    save = realSave;
+    check("good import, key kept", [root.active, root.finnhub], ["B", "KEY"]);
+    check("backups leave the key out", JSON.parse(bookJson()).finnhub, "");
+
+    // A save in another tab replaces this tab's copy; this tab stays where it was looking.
+    book([keepT]); root.tab = "charts";
+    const other = JSON.parse(JSON.stringify(root)); other.tab = "portfolio";
+    other.portfolios.Trading.trades.push(lose({ticker:"OTHER"}));
+    window.dispatchEvent(new StorageEvent("storage", {key:KEY, newValue:JSON.stringify(other)}));
+    check("other tab's save loaded", [state.trades.map(t=>t.ticker).sort(), root.tab], [["KEEP","OTHER"], "charts"]);
+
+    // A number too large for a double is Infinity to parseFloat, and Infinity passed every "> 0"
+    // test. Number fields blank it themselves; the text money fields did not.
+    const o = trade({events:[ev("entry",{qty:100, price:50, stop:48})]});
+    book([o]); root.tab = "settings"; render();
+    $("aum").value = "9".repeat(400); $("aum").dispatchEvent(new Event("change"));
+    check("infinite initial capital refused", root.portfolios.Trading.settings.initialCapital, 100000);
+
+    // Notes and the review save when the box is left.
+    const N = lose();
+    book([N]); root.tab = "tally"; render(); toggleLog(N.id);
+    $("note_"+N.id).value = "typed"; $("note_"+N.id).dispatchEvent(new Event("change"));
+    $("rev_"+N.id).value = "a month on"; $("rev_"+N.id).dispatchEvent(new Event("change"));
+    check("notes and review kept on leaving the box", [N.notes, N.review30], ["typed", "a month on"]);
+
+    // The ledger is every transaction: trades and cash, the cash adjustment tagged.
+    const pf = book([o]);
+    pf.cashFlows = [{type:"deposit", amount:5000, ts:T0()+D}, {type:"adjust", amount:-0.37, note:"broker", ts:T0()+2*D}];
+    root.tab = "audit"; render();
+    const cells = [...$("ledger").querySelectorAll("tr")].map(r=>r.textContent);
+    check("ledger has cash", [cells.some(c=>/deposit/.test(c)), cells.some(c=>/adjustment/.test(c) && /Adj\./.test(c)), $("auditSummary").textContent],
+      [true, true, "3 transactions · 1 adjusted"]);
+
+    // A background tab spends no API calls.
+    let polled = 0; const realRefresh = refreshMarks; refreshMarks = () => { polled++; };
+    // Polling also waits out a focused field, so focus goes somewhere that is not one.
+    const parked = document.createElement("button"); document.body.appendChild(parked); parked.focus();
+    root.finnhub = "KEY"; Object.defineProperty(document, "hidden", {value:true, configurable:true});
+    pollMarks();
+    // Visible, said outright: the preview pane itself may be in the background while this runs.
+    Object.defineProperty(document, "hidden", {value:false, configurable:true});
+    pollMarks();
+    delete document.hidden;
+    refreshMarks = realRefresh; root.finnhub = ""; parked.remove();
+    check("no polling while hidden", polled, 1);
+
+    // builtinTags loads a v1 book that restores Thesis broken; that must not reach the defaults.
+    check("defaults never edited by a load", [DEFS_DEFAULT.lossTags.length, DEFS_DEFAULT.setups.length], [0, 0]);
+    book([]);
+    check("a new book starts with no tags of its own", root.defs.lossTags, []);
+
+    const csp = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    check("policy: Finnhub only", !!csp && /connect-src https:\/\/finnhub\.io;/.test(csp.content) && /default-src 'none'/.test(csp.content), true);
+  },
+
+  /* Screen readers: names on every control, state on every toggle, dialogs that behave. */
+  a11y(){
+    const c = trade({status:"closed", closedAt:T0()+2*D, last:48, events:[ev("entry",{qty:100, price:50, stop:48}, 0), ev("close",{qty:100, price:48}, 2)]});
+    const o = trade({events:[ev("entry",{qty:100, price:50, stop:48})]});
+    book([c, o, trade({status:"closed", closedAt:T0()+4*D, last:55, events:[ev("entry",{qty:100, price:50, stop:48}, 3), ev("close",{qty:100, price:55}, 4)]})]);
+    const vis = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const named = el => !!(el.getAttribute("aria-label") || (el.id && document.querySelector('label[for="'+el.id+'"]')) || el.closest("label"));
+    for(const tb of ["portfolio","new","tally","charts","audit","settings","data"]){
+      root.tab = tb; render();
+      if(tb==="tally") toggleLog(c.id);
+      if(tb==="portfolio"){ rowOpen[o.id] = true; render(); }
+      if(tb==="new"){ setNT("X", "50", "48", ""); newTradeCal(); }
+      const bare = [...document.querySelectorAll("button")].filter(vis).filter(b=>!/[A-Za-z0-9]/.test(b.textContent) && !b.getAttribute("aria-label"));
+      const unnamed = [...document.querySelectorAll("input,select,textarea")].filter(vis).filter(e=>!named(e)).map(e=>e.id||e.tagName);
+      check(tb+": symbol buttons named", bare.length, 0);
+      check(tb+": every field named", unnamed, []);
+    }
+    rowOpen = {};
+    root.tab = "tally"; render();
+    const cur = document.querySelector('#sectabs button[aria-current="page"]');
+    check("open tab marked, count spoken", cur && cur.getAttribute("aria-label"), "Closed Trades, 2 closed");
+    toggleLog(c.id);
+    check("expand state", $("tgl_"+c.id).getAttribute("aria-expanded"), "true");
+
+    root.tab = "settings"; render();
+    const fz = $("s_fuzz"), tipEl = fz.getAttribute("aria-describedby") && $(fz.getAttribute("aria-describedby"));
+    check("explainer is the field's description", [!!tipEl && /suggested size/.test(tipEl.textContent),
+      document.querySelector('label[for="s_fuzz"] .info').getAttribute("aria-hidden")], [true, "true"]);
+
+    root.tab = "portfolio"; render();
+    const gearBtn = [...document.querySelectorAll("#pane-portfolio button")].find(b=>b.getAttribute("aria-label")==="History and corrections");
+    gearBtn.focus(); gearBtn.click();
+    check("dialog announced", document.querySelector(".modalcard").getAttribute("role"), "dialog");
+    closeModal();
+    check("focus back on the gear", document.activeElement === gearBtn, true);
+
+    root.tab = "charts"; render();
+    check("charts are labelled pictures", [$("eqCurve").getAttribute("role"), /^Equity curve, from /.test($("eqCurve").getAttribute("aria-label"))], ["img", true]);
+
+    // The group's per-account table: every Take box and Fill named, and gone once an account is in view.
+    group([["A1", 100000], ["B1", 50000]]); root.tab = "new"; render();
+    setNT("G", "50", "48", ""); newTradeCal();
+    check("group fields named", [...$("nt_ladder").querySelectorAll("input")].filter(e=>!named(e)).length, 0);
+    root.active = "A1"; render(); newTradeCal();
+    check("group table cleared in an account", $("nt_ladder").innerHTML, "");
+    clearFields();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();

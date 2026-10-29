@@ -245,6 +245,38 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-29 — v2.0-dev, review against the outline: safety and screen readers
+
+Found by a review against the outline, an injection test with a hostile book, and a screen-reader
+audit, each confirmed on a probe before fixing.
+
+- **Outline gap closed:** the Audit ledger now lists deposits, withdrawals and cash adjustments
+  (tagged Adj.), not only trade transactions (II.B.3, "all transactions").
+- **Injection:** loss-tag names were written into the page unescaped (ran on render); trade and
+  group IDs from an imported book could break out of inline handlers (ran on click). Tags are
+  escaped; IDs that are not plain letters, digits, `-` or `_` are replaced on load, one new gid per
+  group. A Content-Security-Policy now allows connections to Finnhub only, so even an injection
+  that ran could send nothing anywhere.
+- **Data loss:** a failed import said "nothing was imported" with the broken book already in
+  memory, and the next click saved it -- import is now tried on the side and only then swapped in.
+  Two open tabs overwrote each other -- a save in one now reloads the other. Notes and the review
+  save when the box is left, so a mark refresh cannot drop typed text.
+- **Also:** the Finnhub key is left out of every backup (an import without one keeps this
+  browser's); polling stops while the tab is hidden; numbers from fields must be finite (only
+  reachable through a 400-digit entry in a text money field -- number fields already refuse it);
+  the group New Trade table no longer lingers after switching to an account; missing defaults were
+  filled with the shared default list itself, so restoring Thesis broken on one book edited the
+  default for every book after it -- now a copy.
+- **Screen readers:** sections say which is open (`aria-current`) and speak their count; dialogs
+  are announced, keep Tab inside and return focus to what opened them; symbol buttons are named
+  from their title; expand buttons say open or closed; every field has a name (13 in Settings,
+  the group Take and Fill boxes, the loss picker, notes, review, JSON box); the (i) explainers and
+  hover tips are each field's or header's description, and the bubble's letter is no longer read
+  as part of the label; warnings and errors are announced; charts are labelled pictures with where
+  they end; the masthead is the page heading.
+- `v2-checks.js`: `safety` and `a11y`, 311/311, and passing twice in one page (the default-list
+  leak was found that way). Fourteen deliberate breaks, each caught.
+
 ### 2026-10-29 — v2.0-dev, unrealised gains, the noise check, fuzziness (V2-PLAN 31-33)
 
 - **Unrealized gains:** a switch in Settings › General and display, off by default; on, the

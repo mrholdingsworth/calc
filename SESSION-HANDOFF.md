@@ -128,7 +128,19 @@ the script fails to load — `runChecks` being undefined is the symptom.
 Warnings state the figure and the threshold. **No coaching text**: no explaining strategy, no
 telling the user what to do.
 
-**`jsq()`, not `esc()`, for a value in an inline handler.** Better, pass an index or an id.
+**`jsq()`, not `esc()`, for a value in an inline handler.** Better, pass an index or an id. IDs
+are safe to write raw only because `cleanIds()` replaces any that are not `[A-Za-z0-9_-]` on load;
+a new kind of stored ID going into a handler needs the same.
+
+**A book from elsewhere is hostile until loaded.** Every stored string is `esc()`'d on the way to
+the page; import is tried on the side and swapped in only if it normalizes and renders; the
+Content-Security-Policy allows connections to Finnhub only -- a new outside service has to be added
+there or it is silently blocked. Backups (`bookJson`) leave the Finnhub key out.
+
+**Accessible by construction.** A button drawn as a symbol needs a `title` (`applyA11y` names it
+from that); a field needs a `<label for>` or `aria-label`; a toggle carries `aria-expanded` or
+`aria-pressed`; an explainer goes in `TIPS` or an `.info` bubble and becomes a description
+automatically. The `a11y` case fails on a nameless field or symbol button on any tab.
 
 ## Waiting on Steve, not on work
 
@@ -149,6 +161,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
   file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, and a sweep of every show/hide item — 276 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, and a sweep of every show/hide item — 311 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.
