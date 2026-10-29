@@ -316,6 +316,24 @@ These supersede anything above that disagrees, including the outline's II.A.3.v 
     Settings › Show on screen. Page-wide (`root.ui.hidden`), not per account. A position's
     identity, shares, prices acted on and actions are never hideable.
 
+### 2026-10-28, the Closed Trades / Statistics / 30-day review pass
+
+25. **Closed Trades** lists newest close first, adds Opened, Closed, Days (in trade), Avg entry and
+    Avg exit, and carries no stat tiles -- those are Statistics' alone. The row's event log is
+    read-only; delete and every correction are in the gear. The gear is for adjustments and the
+    activity detail; notes and the 30-day review stay in the row.
+26. **A group's Closed Trades never sums R across accounts.** The header gives each account's own
+    total; the line keeps the mean. Delete-from-all is inside the expansion, not on the line.
+27. **The equity curve is the book**: initial capital, cash in and out, realised P/L, by day, so it
+    ends on `bookOf`. P/L % is measured against the book where the period starts.
+28. **By setup splits Legacy by its original text** until a trade is refiled. Two duplicate P/L
+    charts and the Planned-at-entry tile (v1 checklist) are gone.
+29. **One period filter, All / YTD / Last 90 days**, over Closed Trades and Statistics together
+    (`root.ui.period`). A trade belongs to the period it closed in. The review badge ignores it.
+30. **The 30-day review is fixed at 30 days**, a one-month post-mortem; the setting is gone. Every
+    closed trade past 30 days without one stays flagged, history included, by Steve's decision.
+    A price-at-review field was declined: meaningless without the context it would lack.
+
 Still open by Steve's choice: unrealised gains in the summary. Kept for now: fuzziness 10%, open
 heat in R.
 
@@ -327,8 +345,8 @@ heat in R.
   right for a cash account; a margin account's maintenance requirement genuinely is marked, so it
   may have to follow `marginX` rather than be one rule (from decision 2).
 - From the document's own list: initial stop as a sizing-basis option, thinkorswim CSV details, the
-  APTR/Loss audit test-case review, and the Closed Trades / Statistics / 30-day review pass. The
-  tier-selector question is now closed by decision 12.
+  APTR/Loss audit test-case review. The tier-selector question is closed by decision 12, the
+  Closed Trades / Statistics / 30-day review pass by 25-30.
 
 ---
 

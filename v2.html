@@ -225,7 +225,7 @@ th{text-align:left;font-size:9.5px;font-weight:700;color:var(--mut);text-transfo
    padding:6px 8px;border-bottom:1px solid var(--line2);white-space:nowrap}
 td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
 /* The toggle and the ticker are one unit — never let a narrow screen break them apart. */
-td.tickcell{white-space:nowrap}
+td.tickcell, td.v-ct-opened, td.v-ct-closed{white-space:nowrap}
 /* A closed trade whose 30-day review is due. Gold rather than a semantic colour: nothing is wrong,
    there is simply work outstanding. */
 tr.reviewdue td{background:rgba(176,141,63,.09)}
@@ -241,8 +241,6 @@ details summary{cursor:pointer;font-size:12.5px;color:var(--sub);font-weight:600
 details summary::-webkit-details-marker{display:none}
 button.warn{color:var(--amber);border-color:rgba(240,168,50,.55)}
 button.warn:hover{background:var(--amberbg);border-color:var(--amber);color:var(--amber)}
-.dedit{cursor:pointer;border-bottom:1px dotted var(--line2);padding-bottom:1px}
-.dedit:hover{color:var(--gold);border-bottom-color:var(--gold)}
 details summary::before{content:"\25B8  ";color:var(--mut)}
 details[open] summary::before{content:"\25BE  "}
 .tabs{display:flex;gap:6px;row-gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
@@ -425,16 +423,16 @@ button.small{--r:7px}
 
 <section class="tabpane" id="pane-tally">
   <div class="card">
-    <div class="panehead"><h2>Closed Trades</h2><span class="muted" id="closedSummary"></span></div>
-    <div class="statrow" id="stats" style="margin:12px 0"></div>
-    <div class="scroll"><table id="closedTbl"></table></div>
+    <div class="panehead"><h2>Closed Trades</h2>
+      <span class="periodPick"></span><span class="muted" id="closedSummary"></span></div>
+    <div class="scroll" style="margin-top:12px"><table id="closedTbl"></table></div>
   </div>
 </section>
 
 <section class="tabpane" id="pane-charts">
   <div class="card">
     <div class="panehead"><h2>Statistics</h2>
-      <span id="chartsAcct"></span><span class="muted" id="chartsSummary"></span></div>
+      <span id="chartsAcct"></span><span class="periodPick"></span><span class="muted" id="chartsSummary"></span></div>
     <div id="chartsEmpty" class="muted">Needs 2 closed trades.</div>
     <div id="chartsBox" style="display:none">
       <div class="lbl" style="margin-top:14px">Statistics</div>
@@ -469,15 +467,7 @@ button.small{--r:7px}
           <svg class="chart" id="plBars" viewBox="0 0 560 130"></svg>
         </div>
         <div class="metric" style="padding:10px 12px">
-          <div class="k">Cumulative P/L over trades</div>
-          <svg class="chart" id="plTrades" viewBox="0 0 560 130"></svg>
-        </div>
-        <div class="metric" style="padding:10px 12px">
-          <div class="k">Cumulative P/L over time</div>
-          <svg class="chart" id="plTime" viewBox="0 0 560 130"></svg>
-        </div>
-        <div class="metric" style="padding:10px 12px">
-          <div class="k">P/L % of starting equity, over time</div>
+          <div class="k">P/L % of starting book, over time</div>
           <svg class="chart" id="plPct" viewBox="0 0 560 130"></svg>
         </div>
       </div>
@@ -573,8 +563,6 @@ button.small{--r:7px}
           <div class="sctl"><input id="s_lossDisc" type="number" step="0.1" min="0.1"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_breachR">Stop breach<span class="info" data-tip="Internal R below which a stop-out is marked as a breach on the closed-trades table.">i</span></label>
           <div class="sctl"><input id="s_breachR" type="number" step="0.05"><span class="suffix">R</span></div></div>
-        <div class="srow"><label for="s_reviewDays">Review due<span class="info" data-tip="Days after a trade closes before its review is flagged as due.">i</span></label>
-          <div class="sctl"><input id="s_reviewDays" type="number" step="1" min="1"><span class="suffix">days</span></div></div>
       </div>
 
       <div class="setbox">
@@ -674,7 +662,7 @@ const VBAR = '<span class="vbar">|</span>';
    produces is not a rate of anything. */
 const DEFS_DEFAULT = {
   scratchLo:-0.05, scratchHi:0.10, winR:1,
-  reviewDays:30, breachR:-1.25, lossDisc:1.2,
+  breachR:-1.25, lossDisc:1.2,
   aptrTight:1, aptrFloor:1.5,
   // The user's own tags. A tag removed later stays on the trades carrying it, marked retired.
   lossTags:[],
@@ -694,7 +682,10 @@ function setupHtml(t){
   return esc(c) + (setupList().indexOf(c)<0 ? ' <span class="muted">(retired)</span>' : "");
 }
 // The key a trade counts under in the by-setup table.
-const setupKey = t => t.legacySetup ? "Legacy" : (String(t.concept||"").trim() || "(none)");
+// Legacy trades count under their original text, so a book of imported history still compares its
+// setups instead of reading as one Legacy row; refiling a trade moves it to the listed setup.
+const setupKey = t => { const c = String(t.concept||"").trim();
+  return !c ? "(none)" : t.legacySetup ? "Legacy: "+c : c; };
 // Defensive: normalize() fills root.defs, but these are read from functions that can run before it.
 const defs = () => (root && root.defs) || DEFS_DEFAULT;
 const isScratch = rm => rm >= defs().scratchLo && rm <= defs().scratchHi;
@@ -708,7 +699,7 @@ const lossTags = () => {
    About the person and the screen, never about a book. On root for the reason register #1 records:
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
-const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{} };
+const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all" };
 
 /* ---- what each panel shows ----
    Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
@@ -724,18 +715,17 @@ const SHOWABLE = [
   ["Portfolio summary", [["ps-heat","Open heat"],["ps-aptr","Weighted APTR"],["ps-aum","AUM"],
     ["ps-alloc","Allocation"],["ps-car","Cash at risk"],["ps-tax","Est. tax"],["ps-open","Open trades"],
     ["ps-pl","Book P/L"],["ps-stale","Stale marks"]]],
-  ["Closed Trades", [["ct-side","Side"],["ct-tier","Tier"],["ct-setup","Setup"],["ct-1r","1R"],
-    ["ct-rint","R internal"],["ct-racct","R account"],["ct-real","Realized"],["ct-days","Days"],
+  ["Closed Trades", [["ct-side","Side"],["ct-tier","Tier"],["ct-setup","Setup"],["ct-opened","Opened"],
+    ["ct-closed","Closed"],["ct-days","Days"],["ct-entry","Avg entry"],["ct-exit","Avg exit"],["ct-1r","1R"],
+    ["ct-rint","R internal"],["ct-racct","R account"],["ct-real","Realized"],
     ["ct-rday","R/day"],["ct-pospct","Position P/L %"],["ct-eqpct","% equity"],["ct-loss","Loss audit"]]],
   ["Statistics tiles", [["st-closed","Closed trades"],["st-win","Win rate"],["st-total","Total R"],
     ["st-exp","Expectancy"],["st-avg","Avg win | loss"],["st-disc","Loss discipline"],["st-tags","Tagged losses"],
-    ["st-noise","Noise stopouts"],["st-viol","Rule violations"],["st-planned","Planned at entry"],
+    ["st-noise","Noise stopouts"],["st-viol","Rule violations"],
     ["st-days","Avg days held"],["st-rpd","R per day"],["st-dd","Max drawdown"],["st-ls","Long | short"]]],
   ["Statistics charts", [["sc-hist","R distribution","#pane-charts .metric:has(#histChart)"],
     ["sc-curve","Cumulative R","#pane-charts .metric:has(#curveChart)"],
     ["sc-plbars","P/L per trade","#pane-charts .metric:has(#plBars)"],
-    ["sc-pltrades","Cumulative P/L, trades","#pane-charts .metric:has(#plTrades)"],
-    ["sc-pltime","Cumulative P/L, time","#pane-charts .metric:has(#plTime)"],
     ["sc-plpct","P/L %","#pane-charts .metric:has(#plPct)"],
     ["sc-eq","Equity curve","#pane-charts .metric:has(#eqCurve)"],
     ["sc-tier","By tier","#pane-charts .metric:has(#tierTbl)"],
@@ -842,6 +832,40 @@ function bookOf(acct){
   const flows = (pf.cashFlows||[]).reduce((a,f)=>a + flowSigned(f), 0);
   const realised = (pf.trades||[]).reduce((a,t)=>a + derive(t).realized, 0);
   return Math.round(((pf.settings.initialCapital||0) + flows + realised)*100)/100;
+}
+// The same three things bookOf sums, each dated: every cash movement, and every transaction that
+// realised something (a trim, a close, a correction), so the book can be drawn day by day and the
+// last point is bookOf. Open trades count too -- a trim on a running position is in the book.
+function bookSteps(acct){
+  const pf = root.portfolios[acct];
+  if(!pf) return {start:0, steps:[]};
+  const steps = (pf.cashFlows||[]).map(f=>({ts:f.ts, flow:flowSigned(f), pl:0}));
+  (pf.trades||[]).forEach(t=>{
+    const se = derive(t).series;
+    let prev = 0;
+    t.events.forEach((e,i)=>{ const r = se[i].realized;
+      if(r !== prev){ steps.push({ts:e.ts, flow:0, pl:r-prev}); prev = r; } });
+  });
+  return {start: pf.settings.initialCapital||0, steps};
+}
+// The book drawn by day from those records. Before `from` everything folds into the opening figure;
+// from it on, one point per day. Same sums as bookOf, so the last point is the book.
+function bookCurve(acct, from){
+  const B = bookSteps(acct);
+  let base = B.start;
+  const byDay = new Map();
+  B.steps.forEach(st=>{
+    if(from!=null && st.ts < from){ base += st.flow + st.pl; return; }
+    const k = dayOf(st.ts), o = byDay.get(k) || {flow:0, pl:0};
+    o.flow += st.flow; o.pl += st.pl; byDay.set(k, o);
+  });
+  const days = [...byDay.keys()].sort((a,b)=>a-b);
+  const x0 = (days.length ? days[0] : today0()) - 864e5;
+  let eq = base, plRun = 0;
+  const out = {base, eq:[{x:x0, y:base}], pct:[{x:x0, y:0}]};
+  days.forEach(k=>{ const o = byDay.get(k); eq += o.flow + o.pl; plRun += o.pl;
+    out.eq.push({x:k, y:eq}); out.pct.push({x:k, y: base ? plRun/base*100 : 0}); });
+  return out;
 }
 // What the app thinks the broker holds in cash: the book less what open positions cost, with a
 // short's proceeds counting the other way. Compared with the broker's figure, the difference is the
@@ -1094,6 +1118,7 @@ function normalize(){
   }
   // A built-in's key in the user's own list would be a second, editable copy of it.
   root.defs.lossTags = root.defs.lossTags.filter(o=>!BUILTIN_TAGS.some(x=>x.v===o.v));
+  delete root.defs.reviewDays;          // was a setting; the review is a fixed 30 days now
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
   root.ui.hidden = Object.assign({}, root.ui.hidden);     // never the shared default object
@@ -1227,17 +1252,17 @@ const TIPS = {
   "Avg win | avg loss": "Mean account R of winning trades and of losing trades.",
   "BP free": "Buying power not used by open positions.",
   "Book P/L (mark)": "Realised plus unrealised P/L on open positions, at the mark.",
-  "By setup": "Closed trades grouped by setup; freehand text from before the list counts as Legacy.",
+  "By setup": "Closed trades grouped by setup; freehand text from before the list counts as Legacy under its own name.",
   "By tier": "Closed trades grouped by tier.",
   "Cash at risk": "What a stop-out loses from here, net of profit already banked. Unstopped long shares count at a $0 stop.",
   "Closed trades": "Closed trades in this account, and how many were scratches.",
   "Cost": "Shares times price.",
-  "Cumulative P/L over time": "Realised P/L summed by close date.",
-  "Cumulative P/L over trades": "Realised P/L summed trade by trade, in close order.",
   "Cumulative R over trades": "Account R summed trade by trade, in close order.",
   "Daily vol": "APTR: the stock's average true range as a percentage of price.",
   "Date": "When it happened.",
-  "Days": "Calendar days held; a same-day trade counts as one.",
+  "Days": "Days in the trade, open to close; a same-day trade counts as one.",
+  "Opened": "Date of the entry.", "Closed": "Date of the final exit.",
+  "Avg entry": "Average fill across the entry and every add.", "Avg exit": "Average fill across every trim and the close.",
   "Detail": "Shares and price, or the stops set.",
   "Entry": "Entry price, shares, and allocation at open.",
   "Equity": "AUM this account sizes from.",
@@ -1247,12 +1272,11 @@ const TIPS = {
   "Or adjust by": "A signed amount to add to the book directly.",
   "Initial capital": "What the account started with; the book is worked out from it.",
   "Book at cost": "Cash plus what was paid for open positions.",
-  "Equity curve over time": "Starting AUM plus realised P/L, by close date.",
+  "Equity curve over time": "The book at cost by day: initial capital, cash in and out, and realised P/L.",
   "Event": "The kind of transaction.",
   "Exit plan": "How the trade is meant to be closed.",
   "Expectancy": "Mean account R per closed trade.",
   "Fill": "The price this account filled at; blank uses the entry above.",
-  "Group totals": "Account R summed across the group's accounts.",
   "If Y → cut": "The condition that ends the trade early.",
   "If Z → wait": "The condition under which the trade is held through noise.",
   "Initial R": "Risk at entry in account R, and the stop distance per share.",
@@ -1272,11 +1296,10 @@ const TIPS = {
   "Open heat": "Cash at risk in R. In a group, the heaviest account.",
   "Open trades": "Open positions. House money: the stops lock in a gain on the whole trade.",
   "P/L": "Realised plus unrealised, in dollars and account R.",
-  "P/L % of starting equity, over time": "Cumulative realised P/L as a percentage of AUM when the first trade opened.",
+  "P/L % of starting book, over time": "Cumulative realised P/L as a percentage of the book at the start of the period.",
   "P/L per trade, in order closed": "Realised P/L of each closed trade.",
   "Percent of each leg": "A percentage of what each account holds, since the accounts hold different sizes.",
   "Percent of each leg at price — blank covers the rest": "Each stop as a percentage of every account's position.",
-  "Planned at entry": "Trades opened under the old checklist with every box ticked.",
   "Pos after": "Shares held after this transaction.",
   "Position": "Ticker and side.",
   "Position P/L %": "Realised P/L over the capital put into the position.",
@@ -1375,7 +1398,7 @@ function derive(t){
       if(e.stop!=null || e.stops) stops = stopsFrom(e);
     }
     const mark = e.price!=null ? e.price : (series.length ? series[series.length-1].mark : avg);
-    series.push({ label:e.type, mark, val:(realized + t.side*(mark-avg)*Q)/t.rUnit });
+    series.push({ label:e.type, mark, val:(realized + t.side*(mark-avg)*Q)/t.rUnit, realized });
   }
   return {Q, avg, realized, stops, stop:furthestStop(t.side, stops), series, mult};
 }
@@ -1881,7 +1904,6 @@ const SET_FIELDS = [
   ["s_winR",      "defs", "winR",       "num"],
   ["s_lossDisc",  "defs", "lossDisc",   "num"],
   ["s_breachR",   "defs", "breachR",    "num"],
-  ["s_reviewDays","defs", "reviewDays", "num"],
   ["s_aptrTight", "defs", "aptrTight",  "num"],
   ["s_aptrFloor", "defs", "aptrFloor",  "num"],
   ["s_lossTags",  "defs", "lossTags",   "tags"],
@@ -3193,6 +3215,7 @@ window.gearUI = id => {
     '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th><th></th></tr>'+rows+'</table></div>' +
     '<div class="row" style="margin-top:8px">' +
       '<button class="small" onclick="overrideUI(\''+t.id+'\')">Override position</button>' +
+      '<button class="small danger" style="margin-left:auto" onclick="deleteTrade(\''+t.id+'\')">Delete trade</button>' +
     '</div>',
     "Save details",
     () => {
@@ -3259,6 +3282,9 @@ function syncStatus(t){
   else if(t.status==="open" && d.Q <= 1e-9 && t.events.length > 1){
     t.status = "closed"; t.closedAt = last.ts;
   }
+  // A closed trade's date is its last transaction's. Re-dating that transaction from the gear has
+  // to move it, or the trade sorts, filters and falls due for review on the old day.
+  else if(t.status==="closed" && t.events.length > 1) t.closedAt = last.ts;
 }
 
 // Reopen the gear after a correction, so the effect is visible where the decision was made.
@@ -3364,6 +3390,7 @@ window.deleteTrade = id => {
   if(!confirm("Delete "+t.ticker+" permanently, with its full event log"+(t.status==="closed"?" and its place in the tally":"")+"? AUM is not adjusted.")) return;
   const pf = root.portfolios[acctOf(id)];
   pf.trades = pf.trades.filter(x=>x.id!==id);
+  closeModal();                              // asked from the gear, which would be left on a trade that is gone
   save(); render();
 };
 // Which position rows are open. Deliberately NOT persisted and not on a trade: a row expansion is
@@ -3447,12 +3474,35 @@ window.setLossTag = (id,v) => { const t = getTrade(id); if(t){ t.lossTag = v||nu
 
 // A month after a close, the market has answered a question the exit could not: did it keep going
 // without you, or did the exit hold up? Due once 30 days have passed and nothing has been written.
-const REVIEW_DAYS = () => defs().reviewDays;
+// Fixed, not a setting: it is a one-month post-mortem by definition, and the label says so.
+const REVIEW_DAYS = () => 30;
 const reviewDue = t => t.status==="closed" &&
   !(t.review30 && t.review30.trim()) &&
   daysBetween(t.closedAt || t.createdAt, Date.now()) >= REVIEW_DAYS();
 const reviewDueIn = t => REVIEW_DAYS() - daysBetween(t.closedAt || t.createdAt, Date.now());
 const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
+
+/* ---- period: one window over Closed Trades and Statistics ----
+   A page preference, so it lives on root.ui and both tabs read the same one: a figure on one tab
+   and the trade list behind it on the other can never be cut at different dates. A trade belongs
+   to the period it closed in. The review badge ignores it -- a review is owed whatever is in view. */
+const PERIODS = [["all","All"], ["ytd","YTD"], ["90d","Last 90 days"]];
+function periodStart(){
+  const p = ui().period, n = new Date();
+  if(p==="ytd") return new Date(n.getFullYear(), 0, 1).getTime();
+  if(p==="90d") return new Date(n.getFullYear(), n.getMonth(), n.getDate()-89).getTime();   // today and the 89 before
+  return null;
+}
+const closeTs = t => t.closedAt || (t.events.length ? t.events[t.events.length-1].ts : t.createdAt);
+const inPeriod = t => { const s = periodStart(); return s==null || closeTs(t) >= s; };
+window.setPeriod = v => { root.ui.period = v; save(); render(); };
+function renderPeriodPicks(){
+  const cur = ui().period;
+  document.querySelectorAll(".periodPick").forEach(el=>{
+    el.innerHTML = '<select style="width:auto;margin-right:8px" aria-label="Period" onchange="setPeriod(this.value)">' +
+      PERIODS.map(([v,l])=>'<option value="'+v+'"'+(v===cur?" selected":"")+'>'+l+'</option>').join("") + '</select>';
+  });
+}
 /* ---- backup nudge ---- */
 // The whole book lives in one browser. Clearing site data takes it, and there is no copy anywhere
 // else, so the age of the last real backup is worth a standing label rather than a line in a hint.
@@ -3511,76 +3561,6 @@ const dayOf = ts => { const d = new Date(ts); return new Date(d.getFullYear(), d
 const today0 = () => dayOf(Date.now());
 const daysBetween = (a,b) => Math.round((dayOf(b)-dayOf(a))/864e5);
 
-// Click a date in the event log to swap it for a picker. The Save button only appears once
-// something is actually being edited, so the row stays quiet until you touch it.
-window.editEventDate = (id, i) => {
-  const span = $("dspan_"+id+"_"+i);
-  const t = getTrade(id);
-  if(!span || !t || span.dataset.editing) return;
-  span.dataset.editing = "1";
-  span.innerHTML = "<input type='date' id='dinp_"+id+"_"+i+"' value='"+dateVal(t.events[i].ts)+
-                   "' max='"+dateVal(Date.now())+"' style='max-width:150px'>";
-  const btn = $("dsave_"+id);
-  if(btn) btn.style.display = "";
-  const inp = $("dinp_"+id+"_"+i);
-  if(inp){
-    inp.focus();
-    // Escape backs out of an edit you didn't need — opening a picker shouldn't trap you in it.
-    inp.addEventListener("keydown", ev=>{
-      if(ev.key==="Escape"){ ev.preventDefault(); cancelEventDate(id,i); }
-      if(ev.key==="Enter"){ ev.preventDefault(); saveEventDates(id); }
-    });
-  }
-};
-
-window.cancelEventDate = (id,i) => {
-  const span = $("dspan_"+id+"_"+i), t = getTrade(id);
-  if(!span || !t) return;
-  delete span.dataset.editing;
-  span.textContent = new Date(t.events[i].ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});
-  if(!document.querySelector("#log_"+id+" input[type=date]")){
-    const btn = $("dsave_"+id); if(btn) btn.style.display = "none";
-    const err = $("daterr_"+id); if(err) err.textContent = "";
-  }
-};
-
-window.saveEventDates = id => {
-  const t = getTrade(id), errEl = $("daterr_"+id);
-  if(!t) return;
-  if(errEl) errEl.textContent = "";
-
-  const before = t.events.map(e=>e.ts);          // so a rejected edit changes nothing
-  const revert = () => t.events.forEach((e,j)=>{ e.ts = before[j]; });
-  let touched = false, bad = false, future = false;
-  t.events.forEach((e,i)=>{
-    const inp = $("dinp_"+id+"_"+i);
-    if(!inp) return;
-    const ts = tsFromDateVal(inp.value, e.ts);
-    if(ts==null){ bad = true; return; }
-    if(dayOf(ts) > today0()){ future = true; return; }
-    if(ts !== e.ts){ e.ts = ts; touched = true; }
-  });
-  if(bad){ revert(); if(errEl) errEl.textContent = "A date was left empty."; return; }
-  if(future){ revert(); if(errEl) errEl.textContent = "A trade can't be dated in the future."; return; }
-
-  // The log is a sequence, compared by day: same-day events are fine (a day trade), earlier is not.
-  for(let i=1;i<t.events.length;i++){
-    if(dayOf(t.events[i].ts) < dayOf(t.events[i-1].ts)){
-      revert();
-      if(errEl) errEl.textContent = "Events have to stay in order — " + t.events[i].type +
-        " can't be dated before the " + t.events[i-1].type + " above it.";
-      return;
-    }
-  }
-  // Nothing to save is not an error: close the pickers and leave the trade alone.
-  if(!touched){ save(); render(); reopenLog(id); return; }
-
-  // Keep the fields the rest of the app sorts and groups by in step with the log.
-  t.createdAt = t.events[0].ts;
-  if(t.status==="closed") t.closedAt = t.events[t.events.length-1].ts;
-
-  save(); render(); reopenLog(id);
-};
 // render() rebuilds the table and collapses this row — put it back so the result stays in view.
 function reopenLog(id){
   const row = $("log_"+id);
@@ -3591,31 +3571,31 @@ function reopenLog(id){
 /* ========================= tally ========================= */
 function renderClosed(){
   if(inGroup()) return renderGroupClosed();
-  const closed = state.trades.filter(t=>t.status==="closed");
+  // Newest close first. The array is in the order trades were opened, which put a trade that ran
+  // for weeks below the ones opened and closed while it was still running.
+  const closed = state.trades.filter(t=>t.status==="closed" && inPeriod(t)).sort((a,b)=>closeTs(b)-closeTs(a));
   const sum = $("closedSummary");
+  // The due count sits in the header so it is in view whatever the period cuts out.
+  const badge = reviewsDueHtml();
   if(closed.length){
     const totR = closed.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
-    // The due count sits in the header so it is still visible with the section collapsed.
-    const badge = reviewsDueHtml();
-    sum.innerHTML = closed.length+" trades &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" +
+    sum.innerHTML = closed.length+" trade"+(closed.length===1?"":"s")+" &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" +
       (badge ? " &middot; " + badge : "");
-  } else sum.textContent = "";
+  } else sum.innerHTML = badge;
 
   const tbl = $("closedTbl");
   if(!closed.length){
-    tbl.innerHTML = "<tr><td class='muted'>No closed trades.</td></tr>";
-    $("stats").innerHTML = "";
+    tbl.innerHTML = "<tr><td class='muted'>"+(periodStart()==null ? "No closed trades." : "No trades closed in this period.")+"</td></tr>";
     return;
   }
 
-  const chrono = closed.slice().sort((a,b)=>(a.closedAt||a.createdAt||0)-(b.closedAt||b.createdAt||0));
-
   const rows = closed.map(t=>{
-    const S = stats(t), d = S.d, rm = S.rm;
+    const S = stats(t), d = S.d, rm = S.rm, F = fillAvgs(t);
 
-    // replay for the per-event detail table
+    // Replay for the per-event detail table. Read-only: corrections go through the gear, which
+    // checks order and dates and marks what it changed in the audit ledger.
     let Q2=0, avg2=0, real2=0;
-    const evRows = t.events.map((e,i)=>{
+    const evRows = t.events.map(e=>{
       let det = "";
       if(e.type==="entry"||e.type==="add"){
         avg2 = (Q2+e.qty)>0 ? (avg2*Q2+e.price*e.qty)/(Q2+e.qty) : e.price; Q2 += e.qty;
@@ -3630,8 +3610,7 @@ function renderClosed(){
         det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
                e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
       }
-      return "<tr><td><span class='dedit' id='dspan_"+t.id+"_"+i+"' onclick=\"editEventDate('"+t.id+"',"+i+")\" title='Click to change this date'>"+
-             new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</span></td><td>"+e.type+
+      return "<tr><td>"+shortDate(e.ts)+"</td><td>"+e.type+
              "</td><td>"+det+"</td><td class='num'>"+fmtQ(Q2)+"</td><td class='num'>"+(Q2>0?fmtP(avg2):"&mdash;")+
              "</td><td class='num "+cls(real2)+"'>"+fmtR(real2/t.rUnit)+"</td></tr>";
     }).join("");
@@ -3647,6 +3626,9 @@ function renderClosed(){
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+
         (t.notes?" <span class='muted' title='Has notes'>&#9998;</span>":"")+"</td>" +
       "<td class='v-ct-side'>"+(t.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[t.tier]+"</td><td class='v-ct-setup"+(t.legacySetup?" legacy":"")+"'>"+setupHtml(t)+"</td>" +
+      "<td class='num v-ct-opened'>"+shortDate(S.openTs)+"</td><td class='num v-ct-closed'>"+shortDate(S.endTs)+"</td>" +
+      "<td class='num v-ct-days'>"+S.days+"</td>" +
+      "<td class='num v-ct-entry'>"+(F.entry==null?"&mdash;":fmtP(F.entry))+"</td><td class='num v-ct-exit'>"+(F.exit==null?"&mdash;":fmtP(F.exit))+"</td>" +
       "<td class='num v-ct-1r'>"+fmt$(t.rUnit)+"</td>" +
       // The pill goes to the LEFT of the figure. In a right-aligned column anything trailing the
       // number pushes it off the edge the other rows line up on, so the one row carrying a flag is
@@ -3656,21 +3638,17 @@ function renderClosed(){
         fmtR(S.rmInt))+"</td>" +
       "<td class='num v-ct-racct "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
       "<td class='num v-ct-real "+clsR(rm)+"'>"+fmt$(d.realized)+"</td>" +
-      "<td class='num v-ct-days'>"+S.days+"</td>" +
       "<td class='num v-ct-rday "+clsR(rm)+"'>"+fmtR(S.rPerDay)+"</td>" +
       "<td class='num v-ct-pospct "+clsR(rm)+"'>"+(S.posPct==null?"&mdash;":(S.posPct>0?"+":"")+S.posPct.toFixed(2)+"%")+"</td>" +
       "<td class='num v-ct-eqpct "+clsR(rm)+"'>"+(S.roe==null?"&mdash;":(S.roe>0?"+":"")+S.roe.toFixed(2)+"%")+"</td>" +
       "<td class='v-ct-loss'>"+tagSel+"</td>" +
+      // Only the gear, and only once the row is open. Delete lives inside it: correcting or removing
+      // a closed trade is deliberate, not a button to brush past on every line of the tally.
       "<td class='num' style='white-space:nowrap'>" +
-        "<button class='small primary' id='dsave_"+t.id+"' style='display:none;margin-right:5px' onclick=\"saveEventDates('"+t.id+"')\">Save dates</button>" +
-        "<button class='small danger' title='Delete this trade' onclick=\"deleteTrade('"+t.id+"')\">&#10005;</button>" +
-        // The gear appears once the row is open: correcting a closed trade is deliberate, not a
-        // button to brush past on every line of the tally.
-        "<div><button class='small' id='cg_"+t.id+"' style='display:none;margin-top:4px' title='Details, history and corrections' onclick=\"gearUI('"+t.id+"')\">&#9881;</button></div></td></tr>" +
-    "<tr id='log_"+t.id+"' style='display:none'><td colspan='13' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+        "<button class='small' id='cg_"+t.id+"' style='display:none' title='Details, history and corrections' onclick=\"gearUI('"+t.id+"')\">&#9881;</button></td></tr>" +
+    "<tr id='log_"+t.id+"' style='display:none'><td colspan='18' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
-      "<div class='err' id='daterr_"+t.id+"'></div>" +
       "<div class='split' style='margin-top:12px'>" +
         "<div><div class='lbl'>Notes</div>" +
         "<textarea id='note_"+t.id+"' style='min-height:88px'>"+esc(t.notes||"")+"</textarea>" +
@@ -3685,17 +3663,29 @@ function renderClosed(){
       "</div></td></tr>";
   }).join("");
 
-  tbl.innerHTML = "<tr><th>Ticker</th><th class='v-ct-side'>Side</th><th class='v-ct-tier'>Tier</th><th class='v-ct-setup'>Setup</th><th class='num v-ct-1r'>1R</th>" +
-    "<th class='num v-ct-rint' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num v-ct-racct' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num v-ct-real'>Realized</th><th class='num v-ct-days'>Days</th><th class='num v-ct-rday'>R/day</th><th class='num v-ct-pospct' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num v-ct-eqpct' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th class='v-ct-loss'>Loss audit</th><th></th></tr>" + rows;
-
-  $("stats").innerHTML = statsHtml(bookStats(closed));
+  tbl.innerHTML = "<tr><th>Ticker</th><th class='v-ct-side'>Side</th><th class='v-ct-tier'>Tier</th><th class='v-ct-setup'>Setup</th>" +
+    "<th class='num v-ct-opened'>Opened</th><th class='num v-ct-closed'>Closed</th><th class='num v-ct-days'>Days</th>" +
+    "<th class='num v-ct-entry'>Avg entry</th><th class='num v-ct-exit'>Avg exit</th><th class='num v-ct-1r'>1R</th>" +
+    "<th class='num v-ct-rint' title='Realised over what this position was built to lose &mdash; independent of the tier it was taken at'>R internal</th><th class='num v-ct-racct' title='Realised over the account R unit. This is the multiple every statistic and chart uses'>R account</th><th class='num v-ct-real'>Realized</th><th class='num v-ct-rday'>R/day</th><th class='num v-ct-pospct' title='Realized P/L over the capital actually deployed in this position'>Position P/L %</th><th class='num v-ct-eqpct' title='Realized P/L over the account equity the trade was sized against'>% equity</th><th class='v-ct-loss'>Loss audit</th><th></th></tr>" + rows;
 }
+
+// Average fill each way, from the log: across every entry and add, and across every trim and close.
+// Fills, not the replayed average, so an override in the log does not change what was paid.
+function fillAvgs(t){
+  let iq=0, iv=0, oq=0, ov=0;
+  t.events.forEach(e=>{
+    if(e.type==="entry"||e.type==="add"){ iq += e.qty; iv += e.qty*e.price; }
+    else if(e.type==="trim"||e.type==="close"){ oq += e.qty; ov += e.qty*e.price; }
+  });
+  return { entry: iq ? iv/iq : null, exit: oq ? ov/oq : null };
+}
+const shortDate = ts => new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});
 
 // Aggregates for a set of closed trades, and the tile row that renders them. Extracted so the
 // tally and the statistics panel show the same numbers from the same code.
 function bookStats(list){
   const A = { n:list.length, tot:0, wins:0, exWin:0, decisive:0, scratch:0,
-              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, tags:{}, tagged:0, planned:0, checked:0, rms:[] };
+              wr:0, lr:0, wn:0, ln:0, worst:0, discOK:0, tags:{}, tagged:0, rms:[] };
   list.forEach(t=>{
     const rm = stats(t).rm;
     A.tot += rm; A.rms.push(rm);
@@ -3712,7 +3702,6 @@ function bookStats(list){
            // Counted by whatever tags exist, not by two hard-coded keys: tags are user-defined, and
            // renaming one changes its key.
            if(t.lossTag){ A.tagged++; A.tags[t.lossTag] = (A.tags[t.lossTag]||0) + 1; } }
-    if(Array.isArray(t.checks) && t.checks.length){ A.checked++; if(t.checks.every(Boolean)) A.planned++; }
   });
   return A;
 }
@@ -3722,7 +3711,6 @@ function statsHtml(A){
   const exp = A.tot/A.n;
   const payoff = (A.wn && A.ln) ? (A.wr/A.wn)/Math.abs(A.lr/A.ln) : null;
   const disc = A.ln ? Math.round(100*A.discOK/A.ln) : null;
-  const planPct = A.checked ? Math.round(100*A.planned/A.checked) : 0;
   const tagName = v => { const o = lossTags().find(x=>x.v===v); return o ? o.t : v+" (retired)"; };
   const tagLine = Object.keys(A.tags).sort((a,b)=>A.tags[b]-A.tags[a])
     .map(v=>esc(tagName(v))+" "+A.tags[v]).join(" &middot; ");
@@ -3748,16 +3736,14 @@ function statsHtml(A){
     ((defs().builtins||{}).noise
       ? '<div class="metric v-st-noise"><div class="k">Noise stopouts</div><div class="v">'+(A.tagged ? Math.round(100*(A.tags.noise||0)/A.tagged)+"%" : "&mdash;")+'</div><div class="r">'+(A.tags.noise||0)+' of '+A.tagged+' tagged losses</div></div>' : "") +
     ((defs().builtins||{}).violation
-      ? '<div class="metric v-st-viol"><div class="k">Rule violations</div><div class="v">'+(A.tags.violation||0)+'</div><div class="r">of '+A.ln+' losses</div></div>' : "") +
-    // "Planned at entry" measured compliance with a checklist that no longer exists. Kept while any
-    // trade in the set still carries one, so historical books keep the figure; gone once they are
-    // all trades opened without it, rather than reporting a number that falls for no reason.
-    (A.checked ? '<div class="metric v-st-planned"><div class="k">Planned at entry</div><div class="v" style="color:'+(planPct>=80?"var(--green)":(planPct>=50?"var(--amber)":"var(--mut)"))+'">'+planPct+'%</div><div class="r">of '+A.checked+' trades opened under the checklist</div></div>' : "");
+      ? '<div class="metric v-st-viol"><div class="k">Rule violations</div><div class="v">'+(A.tags.violation||0)+'</div><div class="r">of '+A.ln+' losses</div></div>' : "");
+  // "Planned at entry" is gone: it measured the v1 checklist, which every imported trade carries
+  // and no new one can, so it would have read the same figure forever. t.checks is still kept.
 }
 
 // Closed group trades: the visible line is the whole group, the expansion is one row per account.
 function renderGroupClosed(){
-  const closed = scopeTrades("closed");
+  const closed = scopeTrades("closed").filter(x=>inPeriod(x.t));
   const tbl = $("closedTbl"), sum = $("closedSummary");
   const groups = {}, order = [];
   closed.forEach(x=>{
@@ -3766,36 +3752,46 @@ function renderGroupClosed(){
     groups[k].push(x);
   });
   order.sort((a,b)=>{
-    const la = Math.max(...groups[a].map(x=>x.t.closedAt||0));
-    const lb = Math.max(...groups[b].map(x=>x.t.closedAt||0));
+    const la = Math.max(...groups[a].map(x=>closeTs(x.t)));
+    const lb = Math.max(...groups[b].map(x=>closeTs(x.t)));
     return lb-la;
   });
 
-  const totR = closed.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
+  // R per account, never summed across them: 1R is a different number of dollars in each, so a
+  // group total in R adds unlike things. Each account's own total, in member order.
+  const perAcct = groupMembers(root.active).map(m=>{
+    const mine = closed.filter(x=>x.acct===m);
+    if(!mine.length) return null;
+    const r = mine.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
+    return esc(m)+" <span class=\""+cls(r)+"\">"+fmtR(r)+"</span>";
+  }).filter(Boolean);
   const badge = reviewsDueHtml();
-  sum.innerHTML = order.length ? order.length+" group trade"+(order.length===1?"":"s")+
-    " &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>"+(badge?" &middot; "+badge:"") : "";
+  sum.innerHTML = (order.length ? order.length+" group trade"+(order.length===1?"":"s")+
+    (perAcct.length ? " &middot; "+perAcct.join(" "+VBAR+" ") : "") : "") +
+    (badge ? (order.length ? " &middot; " : "")+badge : "");
 
   if(!order.length){
-    tbl.innerHTML = "<tr><td class='muted'>No closed trades in this group yet.</td></tr>";
-    $("stats").innerHTML = "";
+    tbl.innerHTML = "<tr><td class='muted'>"+(periodStart()==null ? "No closed trades in this group yet." : "No trades closed in this period.")+"</td></tr>";
     return;
   }
 
   const rows = order.map(k=>{
     const legs = groups[k], f = legs[0].t;
     const realized = legs.reduce((a,x)=>a+derive(x.t).realized, 0);
-    const rSum = legs.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0);
-    const rMean = rSum/legs.length;
-    const days = Math.max(...legs.map(x=>stats(x.t).days));
+    const rMean = legs.reduce((a,x)=>a+derive(x.t).realized/x.t.rUnit, 0)/legs.length;
+    const LS = legs.map(x=>stats(x.t));
+    const days = Math.max(...LS.map(s=>s.days));
+    const opened = Math.min(...LS.map(s=>s.openTs)), shut = Math.max(...LS.map(s=>s.endTs));
     const due = legs.some(reviewDueLeg);
-    const detail = "<tr><td colspan='10' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
-      "<div class='scroll'><table><tr><th>Account</th><th class='num v-ct-1r'>1R</th><th class='num v-ct-real'>Realized</th>" +
+    const detail = "<tr><td colspan='12' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
+      "<div class='scroll'><table><tr><th>Account</th><th class='num v-ct-entry'>Avg entry</th><th class='num v-ct-exit'>Avg exit</th><th class='num v-ct-1r'>1R</th><th class='num v-ct-real'>Realized</th>" +
       "<th class='num v-ct-rint'>R internal</th><th class='num v-ct-racct'>R account</th><th class='num v-ct-days'>Days</th><th class='num v-ct-rday'>R/day</th>" +
       "<th class='num v-ct-pospct'>Position P/L %</th><th class='num v-ct-eqpct'>% equity</th><th class='v-ct-loss'>Loss audit</th><th></th></tr>" +
-      legs.map(x=>{
-        const S = stats(x.t), rm = S.rm;
-        return "<tr><td>"+esc(x.acct)+"</td><td class='num v-ct-1r'>"+fmt$(x.t.rUnit)+"</td>" +
+      legs.map((x,i)=>{
+        const S = LS[i], rm = S.rm, F = fillAvgs(x.t);
+        return "<tr><td>"+esc(x.acct)+"</td>" +
+          "<td class='num v-ct-entry'>"+(F.entry==null?"&mdash;":fmtP(F.entry))+"</td><td class='num v-ct-exit'>"+(F.exit==null?"&mdash;":fmtP(F.exit))+"</td>" +
+          "<td class='num v-ct-1r'>"+fmt$(x.t.rUnit)+"</td>" +
           "<td class='num v-ct-real "+clsR(rm)+"'>"+fmt$(S.d.realized)+"</td>" +
           "<td class='num v-ct-rint "+clsR(rm)+"'>"+(S.rmInt==null?"&mdash;":fmtR(S.rmInt))+"</td>" +
           "<td class='num v-ct-racct "+clsR(rm)+"'>"+fmtR(rm)+"</td>" +
@@ -3805,23 +3801,27 @@ function renderGroupClosed(){
           "<td class='v-ct-loss'>"+lossTagSelect(x.t)+"</td>" +
           "<td class='num' style='white-space:nowrap'><button class='small' title='Details, history and corrections' onclick=\"gearUI('"+x.t.id+"')\">&#9881;</button> " +
             "<button class='small' onclick=\"focusMember('"+jsq(x.acct)+"')\">Open</button></td></tr>";
-      }).join("") + "</table></div></td></tr>";
+      }).join("") + "</table></div>" +
+      // Removing one account's leg is in that leg's gear; removing the whole trade is here, inside
+      // the expansion, never on the line itself.
+      "<div class='row' style='margin-top:8px;justify-content:flex-end'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">Delete from all accounts</button></div>" +
+      "</td></tr>";
     return "<tr"+(due?" class='reviewdue'":"")+">" +
       "<td class='tickcell'><button class='small' style='margin-right:6px' onclick=\"toggleLog('"+k+"')\" id='tgl_"+k+"'>&#9656;</button>"+esc(f.ticker)+
         (due?" <span class='revdot' title='30-day review due'>&#9679;</span>":"")+"</td>" +
       "<td class='v-ct-side'>"+(f.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[f.tier]+"</td><td class='v-ct-setup"+(f.legacySetup?" legacy":"")+"'>"+setupHtml(f)+"</td>" +
+      "<td class='num v-ct-opened'>"+shortDate(opened)+"</td><td class='num v-ct-closed'>"+shortDate(shut)+"</td>" +
+      "<td class='num v-ct-days'>"+days+"</td>" +
       "<td class='num'>"+legs.length+"</td>" +
       "<td class='num v-ct-real "+clsR(rMean)+"'>"+fmt$(realized)+"</td>" +
       "<td class='num v-ct-racct "+clsR(rMean)+"'>"+fmtR(rMean)+"</td>" +
-      "<td class='num v-ct-days'>"+days+"</td>" +
-      "<td class='num'><button class='small danger' onclick=\"gDeleteClosed('"+k+"')\">&#10005;</button></td></tr>" +
+      "<td></td></tr>" +
       "<tr id='log_"+k+"' style='display:none'>"+detail.slice(4);
   }).join("");
 
-  tbl.innerHTML = "<tr><th>Ticker</th><th class='v-ct-side'>Side</th><th class='v-ct-tier'>Tier</th><th class='v-ct-setup'>Setup</th><th class='num'>Accounts</th>" +
-    "<th class='num v-ct-real'>Realized</th><th class='num v-ct-racct'>Mean R</th><th class='num v-ct-days'>Days</th><th></th></tr>" + rows;
-  $("stats").innerHTML = '<div class="metric"><div class="k">Group totals</div><div class="v '+cls(totR)+'">'+fmtR(totR)+'</div>'+
-    '<div class="r">summed across accounts</div></div>';
+  tbl.innerHTML = "<tr><th>Ticker</th><th class='v-ct-side'>Side</th><th class='v-ct-tier'>Tier</th><th class='v-ct-setup'>Setup</th>" +
+    "<th class='num v-ct-opened'>Opened</th><th class='num v-ct-closed'>Closed</th><th class='num v-ct-days'>Days</th><th class='num'>Accounts</th>" +
+    "<th class='num v-ct-real'>Realized</th><th class='num v-ct-racct'>Mean R</th><th></th></tr>" + rows;
 }
 // Shared by the account view and the group expansion, so a tag looks and behaves the same in both.
 function lossTagSelect(t){
@@ -3883,25 +3883,13 @@ function renderCharts(chrono){
   let run = 0;
   $("curveChart").innerHTML = svgLine(rms.map(r=>(run+=r)), {labels:chrono.map(t=>t.ticker)});
 
-  // --- P/L per trade, and cumulative by trade
+  // --- P/L per trade
   $("plBars").innerHTML = svgSignedBars(pls, chrono.map(t=>t.ticker), fmt$);
-  let runPl = 0;
-  const cumPl = pls.map(p=>(runPl+=p));
-  $("plTrades").innerHTML = svgSignedBars(cumPl, chrono.map(t=>t.ticker), fmt$);
 
-  // --- time series. Several trades can close on one day, so collapse to one point per day.
-  const byDay = new Map();
-  S.forEach(s=>{ const k = dayOf(s.endTs); byDay.set(k, (byDay.get(k)||0) + s.d.realized); });
-  const days = [...byDay.keys()].sort((a,b)=>a-b);
-  let acc = 0;
-  const cumByDay = days.map(k=>({ x:k, y:(acc += byDay.get(k)) }));
-  $("plTime").innerHTML = svgTimeLine(cumByDay, fmt$);
-
-  // Baseline is the equity the first trade was sized against — the same anchor the R unit used.
-  const startEquity = S[0].aum0 || bookOf(chartAcct());
-  $("plPct").innerHTML = svgTimeLine(cumByDay.map(p=>({x:p.x, y:p.y/startEquity*100})), v=>v.toFixed(1)+"%");
-  $("eqCurve").innerHTML = svgTimeLine(
-    [{x: days[0]-864e5, y: startEquity}].concat(cumByDay.map(p=>({x:p.x, y:startEquity+p.y}))), fmt$, {zeroBase:false});
+  // --- the book by day, and realised P/L as a percentage of where the period started
+  const BC = bookCurve(chartAcct(), periodStart());
+  $("plPct").innerHTML = svgTimeLine(BC.pct, v=>v.toFixed(1)+"%");
+  $("eqCurve").innerHTML = svgTimeLine(BC.eq, fmt$, {zeroBase:false});
 
   // --- statistics
   const wins = S.filter(s=>s.rm>0), losses = S.filter(s=>s.rm<=0);
@@ -4616,6 +4604,7 @@ function render(){
   qBox.disabled = inGroup();
   qBox.placeholder = inGroup() ? "per account" : "from R";
   if(inGroup()) qBox.value = "";
+  renderPeriodPicks();
 
   if(tab==="portfolio"){ renderCash(); renderPortfolio(); }
   if(tab==="tally")  renderClosed();
@@ -4674,8 +4663,8 @@ window.setChartAcct = a => { root.chartAcct = a; save(); render(); };
 function chartTrades(){
   const a = chartAcct();
   if(!a) return [];
-  return root.portfolios[a].trades.filter(t=>t.status==="closed")
-    .sort((x,y)=>(x.closedAt||x.createdAt||0)-(y.closedAt||y.createdAt||0));
+  return root.portfolios[a].trades.filter(t=>t.status==="closed" && inPeriod(t))
+    .sort((x,y)=>closeTs(x)-closeTs(y));
 }
 
 /* ========================= bindings ========================= */

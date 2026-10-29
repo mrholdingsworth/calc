@@ -11,13 +11,15 @@
        py -I -c "
        import io
        h=io.open('_dev/v2-checks.js',encoding='utf-8').read()
-       s=io.open('v2.html',encoding='utf-8').read(); i=s.rindex('<\/script>')
+       s=io.open('v2.html',encoding='utf-8').read(); i=s.rindex('</'+'script>')
        io.open('_dev/_probe_checks.html','w',encoding='utf-8',newline='\n').write(s[:i]+h+s[i:])
        "
 
    Open the probe in the pane and call runChecks(). It returns {passed, failed:[...]}; an empty
-   failed list is the pass. Delete the probe afterwards. The backslash in that closing tag is
-   load-bearing -- see compare.js.
+   failed list is the pass. Delete the probe afterwards. The tag is split in two because this
+   comment ends up inside the page's script, where a whole closing tag would end it -- see
+   compare.js. (It was written '<\/script>', which Python reads literally and never finds.)
+   From Git Bash, never pass an argument that starts with // -- MSYS rewrites it to /.
 
    It cannot damage a book. save() is replaced for the duration, confirm() answers yes, and the
    real root is put back in a finally. On the live page that still matters: never trust a harness
@@ -324,11 +326,13 @@ const CASES = {
     root.tab = "settings"; render();
     $("s_lossTags").value = "Late entry\nNoise"; $("s_lossTags").dispatchEvent(new Event("change"));
     check("typed Noise kept separate", root.defs.lossTags.map(o=>o.v), ["late","noise-own"]);
-    root.tab = "tally"; render();
-    const tiles = [...$("stats").querySelectorAll(".metric .k")].map(k=>k.textContent);
-    check("both tiles shown", ["Noise stopouts","Rule violations"].every(k=>tiles.indexOf(k)>=0), true);
-    root.defs.builtins.noise = false; render();
-    check("noise tile hidden when off", [...$("stats").querySelectorAll(".metric .k")].some(k=>k.textContent==="Noise stopouts"), false);
+    // The tiles live on Statistics only now, which needs two trades to draw; read the tile row direct.
+    const tiles = () => { const d = document.createElement("div");
+      d.innerHTML = statsHtml(bookStats(state.trades.filter(t=>t.status==="closed")));
+      return [...d.querySelectorAll(".metric .k")].map(k=>k.textContent); };
+    check("both tiles shown", ["Noise stopouts","Rule violations"].every(k=>tiles().indexOf(k)>=0), true);
+    root.defs.builtins.noise = false;
+    check("noise tile hidden when off", tiles().indexOf("Noise stopouts")>=0, false);
   },
 
   /* Binary colour, gray inside the scratch band (-0.05R to +0.10R by default). */
@@ -470,6 +474,109 @@ const CASES = {
     });
     root.ui.hidden = {};
     rowOpen = {};
+  },
+
+  /* Closed Trades: newest close first, a read-only log, delete only in the gear, dates and fills,
+     the review fixed at 30 days, one period over both tabs, and group R never summed. */
+  closedPass(){
+    const mk = (tk, o, c, extra) => trade(Object.assign({ticker:tk, status:"closed", closedAt:T0()+c*D, last:55,
+      events:[ev("entry",{qty:100, price:50, stop:48}, o), ev("close",{qty:100, price:55}, c)]}, extra||{}));
+    const tks = () => [...$("closedTbl").rows].filter(r=>r.querySelector("td.tickcell"))
+      .map(r=>r.querySelector("td.tickcell").textContent.replace(/[^A-Z]/g,""));
+    // AAA ran longest: opened first, closed last. In opened order it sat at the bottom.
+    const A = mk("AAA", 0, 10), B = mk("BBB", 2, 4), C = mk("CCC", 5, 6);
+    book([C, B, A]); root.tab = "tally"; render();
+    check("newest close first", tks(), ["AAA","CCC","BBB"]);
+    check("no tile row on Closed Trades", $("stats"), null);
+    check("no delete on the row", $("closedTbl").querySelector("button.danger"), null);
+    toggleLog(A.id);
+    check("log is read-only", !!$("log_"+A.id).querySelector("input, [onclick*='EventDate']"), false);
+    gearUI(A.id);
+    const del = [...$("modalBody").querySelectorAll("button.danger")].find(b=>b.textContent==="Delete trade");
+    check("delete is in the gear", !!del, true);
+    if(del) del.click();
+    check("deleted, gear closed", [state.trades.some(t=>t.id===A.id), $("modal").style.display], [false, "none"]);
+
+    // 100 @ 50 and 100 @ 52 in: avg entry 51. 100 @ 55 and 100 @ 57 out: avg exit 56.
+    const F = trade({ticker:"FFF", status:"closed", closedAt:T0()+9*D, last:57,
+      events:[ev("entry",{qty:100, price:50, stop:48}, 1), ev("add",{qty:100, price:52}, 2),
+              ev("trim",{qty:100, price:55}, 5), ev("close",{qty:100, price:57}, 9)]});
+    book([F]); root.tab = "tally"; render();
+    const cell = k => $("closedTbl").querySelector("td.v-ct-"+k).textContent;
+    check("opened, closed, days", [cell("opened"), cell("closed"), cell("days")], [shortDate(T0()+D), shortDate(T0()+9*D), "8"]);
+    check("avg entry, avg exit", [cell("entry"), cell("exit")], [fmtP(51), fmtP(56)]);
+    // Re-dating the close from the gear has to move the trade's close date with it.
+    editEvent(F.id, F.events.length-1); $("m_date").value = dateVal(T0()+12*D); submitModal(); closeModal();
+    check("close date follows the re-dated close", dayOf(F.closedAt), dayOf(T0()+12*D));
+    // Never a negative duration: the gear is the one place a date changes, and it refuses an entry
+    // dated after the close and a close (or any later transaction) dated before the entry.
+    const before = F.events.map(e=>e.ts), refused = (i, day) => {
+      editEvent(F.id, i); $("m_date").value = dateVal(T0()+day*D); submitModal();
+      const err = $("m_err").textContent; closeModal(); return !!err;
+    };
+    check("entry after the close refused", refused(0, 13), true);
+    check("close before the entry refused", refused(F.events.length-1, 0), true);
+    check("trim before the entry refused", refused(2, 0), true);
+    check("refusals change nothing", [F.events.map(e=>e.ts), dayOf(F.closedAt)], [before, dayOf(T0()+12*D)]);
+    check("opened on or before closed", stats(F).openTs <= stats(F).endTs, true);
+
+    // A fixed one-month post-mortem. The old setting is dropped on load and changes nothing.
+    const n = new Date(), ago = k => new Date(n.getFullYear(), n.getMonth(), n.getDate()-k, 12).getTime();
+    book([]); root.defs.reviewDays = 5; normalize();
+    check("review setting gone", root.defs.reviewDays === undefined, true);
+    check("due at 30 days, not 29", [reviewDue(mk("R", 0, 0, {closedAt:ago(29)})), reviewDue(mk("R", 0, 0, {closedAt:ago(30)}))], [false, true]);
+
+    // 90 days is today and the 89 before it. YTD starts on 1 January.
+    book([mk("OLD",0,0,{closedAt:ago(95)}), mk("NEW",0,0,{closedAt:ago(5)}), mk("EDG",0,0,{closedAt:ago(89)}),
+          mk("LYR",0,0,{closedAt:new Date(n.getFullYear()-1, 11, 31, 12).getTime()})]);
+    root.tab = "tally";
+    const per = p => { root.ui.period = p; render(); return tks().sort(); };
+    check("all", per("all"), ["EDG","LYR","NEW","OLD"]);
+    check("last 90 days", per("90d"), ["EDG","NEW"]);
+    check("Statistics cut the same", chartTrades().map(t=>t.ticker).sort(), ["EDG","NEW"]);
+    check("YTD drops last year", per("ytd").indexOf("LYR"), -1);
+    check("one picker on each tab", document.querySelectorAll(".periodPick select").length, 2);
+    root.ui.period = "all";
+
+    // Two accounts, each lose exactly 1R of their own: $1,000 of 1,000 and $500 of 500. Summed it
+    // would read -2R, which is no account's result.
+    const leg = rU => trade({gid:"g1", ticker:"GRP", status:"closed", closedAt:T0()+3*D, rUnit:rU, last:48,
+      events:[ev("entry",{qty:rU/2, price:50, stop:48}, 0), ev("close",{qty:rU/2, price:48}, 3)]});
+    group([["A1", 100000, [leg(1000)]], ["B1", 50000, [leg(500)]]]);
+    root.tab = "tally"; render();
+    const sm = $("closedSummary").textContent;
+    check("group header: each account's R, not the sum", [sm.split(fmtR(-1)).length-1, sm.indexOf(fmtR(-2))>=0], [2, false]);
+    check("no delete on the group line", $("closedTbl").rows[1].querySelector("button.danger"), null);
+    check("whole-trade delete inside the expansion", !!$("log_g1").querySelector("button.danger"), true);
+  },
+
+  /* Statistics: the equity curve is the book, legacy setups split by name, the stale parts gone. */
+  statsPass(){
+    // $100,000 initial, $5,000 deposited on day 3, a close for +$700 (100 x 7) and a trim on a
+    // still-open trade for +$200 (50 x 4): the book is $105,900.
+    const c = trade({status:"closed", closedAt:T0()+6*D, last:57, concept:"Breakout", legacySetup:true, checks:[true,true,true,true],
+      events:[ev("entry",{qty:100, price:50, stop:48}, 4), ev("close",{qty:100, price:57}, 6)]});
+    const o = trade({events:[ev("entry",{qty:100, price:50, stop:48}, 1), ev("trim",{qty:50, price:54}, 8)]});
+    const pf = book([c, o], {initialCapital:100000});
+    pf.cashFlows = [{type:"deposit", amount:5000, ts:T0()+3*D}];
+    const BC = bookCurve("Trading", null);
+    check("book is 105,900", bookOf("Trading"), 105900);
+    check("curve opens on initial capital", BC.eq[0].y, 100000);
+    check("curve ends on the book", BC.eq[BC.eq.length-1].y, bookOf("Trading"));
+    // From day 5 on: the deposit folds into the opening figure, both realisations fall inside.
+    const BP = bookCurve("Trading", T0()+5*D);
+    check("period opens on the book at its start", BP.base, 105000);
+    check("P/L % over the period", BP.pct[BP.pct.length-1].y, 900/105000*100);
+
+    const c2 = trade({status:"closed", closedAt:T0()+7*D, last:47, concept:"Pullback", legacySetup:true, checks:[true,true,true,true],
+      events:[ev("entry",{qty:100, price:50, stop:48}, 5), ev("close",{qty:100, price:47}, 7)]});
+    const c3 = trade({status:"closed", closedAt:T0()+8*D, last:52, concept:"Breakout",
+      events:[ev("entry",{qty:100, price:50, stop:48}, 6), ev("close",{qty:100, price:52}, 8)]});
+    book([c, c2, c3]); root.defs.setups = ["Breakout"]; root.tab = "charts"; render();
+    const keys = [...$("conceptTbl").rows].slice(1).map(r=>r.cells[0].textContent.replace(/\s*small n$/,""));
+    check("legacy split by original name", keys.sort(), ["Breakout","Legacy: Breakout","Legacy: Pullback"]);
+    check("no Planned at entry tile", $("stats2").textContent.indexOf("Planned at entry"), -1);
+    check("duplicate P/L charts gone", [$("plTrades"), $("plTime")], [null, null]);
   },
 
   /* Small things that each broke once. */

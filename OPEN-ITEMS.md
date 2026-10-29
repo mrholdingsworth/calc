@@ -324,6 +324,24 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-28 — v2.0-dev, Closed Trades / Statistics / 30-day review pass (V2-PLAN 25-30)
+
+- **Fixed:** a group's Closed Trades header and Group totals tile summed R across accounts; the
+  equity curve started from the first trade's AUM at open and ignored cash in and out (it ended at
+  $1,028.31 on the 2026-10-22 export against a book of $1,028.09 -- it now ends on the book);
+  Closed Trades was in opened order, not close order.
+- **Closed Trades:** Opened, Closed, Days, Avg entry and Avg exit columns (hideable); no tile row;
+  read-only event log; delete moved into the gear (single trades) or the expansion (whole group).
+  Re-dating the close in the gear now moves the trade's close date with it.
+- **Statistics:** Legacy setups split by original name (the export shows 12, typos such as
+  "Brealout" included, refile from the gear); cumulative P/L over trades and over time removed as
+  duplicates of the equity curve; Planned at entry removed.
+- **Period filter** All / YTD / Last 90 days over both tabs. **30-day review fixed at 30 days**,
+  setting removed; history keeps its flags.
+- `v2-checks.js`: `closedPass` and `statsPass` added, 268/268; six deliberate breaks each caught.
+  The gear refuses an entry dated after the close and anything dated before the entry, so a
+  trade can never run backwards; shown to fail with that guard removed.
+
 ### 2026-10-27 — v2.0-dev, what each panel shows (V2-PLAN 24)
 
 - **Settings › Show on screen:** a checkbox per part, panel by panel, 66 in all. Each part is
