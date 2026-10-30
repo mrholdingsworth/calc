@@ -245,6 +245,29 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-10-29 — v2.0-dev, Audit: the broker file (V2-PLAN 34–37)
+
+Built from two real thinkorswim Transaction History exports, after Steve settled the questions they
+raised. Upload on the Audit tab; the file is read in the browser and goes nowhere.
+
+- **Nothing changes until approved.** Every difference is a row; only ticked rows apply, after a
+  confirm, each tagged Adj. with what it was. The file is evidence of fills, not of intent, which is
+  why an order that would open a trade is flagged rather than created (the "intent" point in the
+  broker-sync item above still holds).
+- **Read against the 10-22 book:** 50 orders from 55 fills; in the overlap, 22 identical, 2 real
+  price fixes (GRAL close $138.29 → $138.65, ASST close $28.20 → $28.21), 8 under a cent offered
+  unticked, SNXX 10/07 held back (two broker round trips, one app trade); after 10/22, the DOCS
+  close is offered on its open trade and 13 orders that would start trades are flagged. With every
+  order logged, the balance line brings app cash to the broker's $480.56 exactly.
+- **Options file:** 17 option rows counted, not read (net −$49.88 offered as one unticked
+  adjustment); the $100 transfer offered as a deposit without copying its bank-and-name text; the
+  $0.39 dividend as a cash adjustment.
+- `v2-checks.js`: `csvAudit`, 342/342, passing twice in one page. Eighteen deliberate breaks
+  (quoting, fill merging, the last balance, options, the conflict rule, sub-cent ticks, trim vs
+  close, already-recorded cash, a short's direction, applying without approval, a projection that
+  wrote to the book, the "was" record, the Apply count, unnamed boxes, the group picker, and
+  unescaped file text), each caught.
+
 ### 2026-10-29 — v2.0-dev, review against the outline: safety and screen readers
 
 Found by a review against the outline, an injection test with a hostile book, and a screen-reader

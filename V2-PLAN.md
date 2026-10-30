@@ -350,18 +350,41 @@ heat in R.
     tier (the R figure, Risk taken, the warning line), allocation over max or under min (Cost too),
     under-minimum sizes in the Fast calc and New Trade ranges, and a group member under its minimum.
 
+### Settled 2026-10-29: the broker file (II.B)
+
+Settled from two real thinkorswim Transaction History exports (stocks only; stocks, options, a
+transfer and a dividend).
+
+34. **Nothing from the file changes the book until it is ticked and applied.** Every difference is
+    a row; Apply asks once more and applies only ticked rows. Each change is tagged Adj. with what
+    it was ("From the broker file — was …"); an event the file adds says "Added from the broker
+    file".
+35. **One account per file**: the account in view; a group picks the member. Split fills (same
+    ticker and direction, back to back, within 5 minutes) are one order at the volume-weighted
+    price. Orders pair with app transactions on ticker and direction within 3 days; a different
+    time on the same day is not a difference, a different day is a fix.
+36. **What is offered ticked**: a real price, share or date difference; a broker order missing from
+    a trade that was open that day (add, trim or close; a sell larger than the position is only
+    flagged); transfers (deposit or withdrawal, noted "Broker transfer" -- the description carries
+    the bank and the name, so it is not copied); dividends, as a cash adjustment, not a deposit.
+    **Offered unticked**: a price difference under a cent; the file's stock fees; the option
+    rows' net cash; a final adjustment to the broker's last balance, worked out after every other
+    ticked row. **Flagged, no box**: an order that would start a trade (the file has no stop or
+    tier), a transaction the file lacks, and a ticker-day where the two sides have a different
+    number of orders (two round trips logged as one) -- shown both ways, fixed in the gear.
+37. **Options are counted, not read.** The app has nothing to match them to; their cash is the one
+    unticked adjustment above, so it never lands in stock cash by accident. Assignment and expiry
+    rows have not been seen; any row type not understood is listed as not read.
+
 ### Still open (2026-10-29)
 
-- **Audit: the thinkorswim CSV import (II.B).** Waiting on an activity export. Settle from the file:
-  how a row matches a transaction, broker-split partial fills, one account per file or several,
-  and whether a broker trade missing from the app is flagged or offered for creation.
 - **Tuning, kept for now:** open heat in R. Then cutover (phase 11), last.
 
 Closed since this list was first written: the sizing pipeline (decisions 1, 4 and 12 — one sizer,
 `tierSize`); `bpUsed` (22 — cost for cash, mark for margin); initial stop as a sizing basis
 (rejected with net liq and trade price under 1–2: size from AUM at the current stop); the
 tier-selector question (12); the Closed Trades / Statistics / 30-day review pass (25–30);
-unrealised gains (31); the ADR and Loss audit revisit (32); fuzziness (33).
+unrealised gains (31); the ADR and Loss audit revisit (32); fuzziness (33); the CSV import (34–37).
 
 Built on a reading Steve has not yet confirmed: the pre-trade checkboxes are removed, as the later
 outline says (III.B), rather than moved into the gear as the un-outlined ideas document had it.
@@ -628,8 +651,8 @@ Self-contained, late, and the only genuinely new maths in v2 (II.A.2.v).
 
 ### 10 — Audit
 
-New section (II.B). Depends on a thinkorswim test case that does not exist yet, so the pieces land
-in dependency order and the useful half works without a CSV:
+New section (II.B). Built in this order; the CSV half landed 2026-10-29 once real exports existed
+(decisions 34–37):
 
 1. **The ledger first** — every transaction across the book, in one table, with `Adj.` on anything
    edited. Useful immediately, and phase 4 is already writing to it.

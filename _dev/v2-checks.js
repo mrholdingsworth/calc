@@ -757,6 +757,113 @@ const CASES = {
     clearFields();
   },
 
+  /* The broker file (thinkorswim Transaction History). A made-up file covering every kind of row:
+     a price fix, a date fix, split fills under a cent, an order the app lacks on an open trade
+     (an add and a trim), one with no trade, one the file lacks, a day with two round trips logged
+     as one, a short, an option, a transfer each way, a dividend, an unknown row type. */
+  csvAudit(){
+    const day = (d, m) => new Date(dayOf(T0() + d*D) + 12*36e5 + (m||0)*6e4).toISOString();
+    const row = (d, m, type, desc, amt, bal, misc, comm) => [day(d, m), type, desc, misc||0, comm||0, amt||0, bal==null ? 0 : bal].join(",");
+    const text = "﻿Execution Time,Type,Description,Misc Fees,Commissions & Fees,Amount,Balance\n" + [
+      row(0, -600, "BAL", "Cash balance at the start of business day", 0, 900),
+      row(1, 0, "TRD", "BOT +10 AAA @10.00", -100, 800),
+      row(0, 30, "CRC", '"Tfr SOME BANK, A NAME 100.0 US$"', 100, 999),        // listed late, stamped early
+      row(1, 5, "TRD", "BOT +5 BBB @20", -100, 700),
+      row(2, 0, "TRD", "SOLD -10 AAA @11.25", 112.5, 812.5, -0.01),
+      row(2, 10, "TRD", "BOT +3 CCC @7.835", -23.5, 790),
+      row(2, 11, "TRD", "BOT +5 CCC @7.835", -39.18, 750),                       // a minute later: one order
+      row(3, 0, "TRD", "SOLD -10 DDD @50", 500, 1250),
+      row(3, 5, "TRD", "SOLD -5 BBB @21", 105, 1355),
+      row(4, 0, "TRD", "BOT +0.5 EEE @.82", -0.41, 1354),
+      row(5, 0, "TRD", "BOT +2 CCC @8", -16, 1338),
+      row(6, 0, "TRD", "SOLD -4 CCC @9", 36, 1374),
+      row(6, 30, "TRD", "BOT +10 GGG @16.02", -160.2, 1214),
+      row(6, 30, "TRD", "SOLD -10 GGG @16.015", 160.15, 1374),
+      row(6, 31, "TRD", "BOT +10 GGG @16.035", -160.35, 1214),
+      row(6, 300, "TRD", "SOLD -10 GGG @16.05", 160.5, 1374),
+      row(7, 0, "TRD", "SOLD -1 XYZ 100 (Weeklys) 16 OCT 26 12 PUT @.42 CBOE", 42, 1415, -0.01, -0.65),
+      row(8, 0, "CRC", "Tfr out", -50, 1365),
+      row(8, 5, "DOI", "Qualified Dividend - SOMECO 0.39 US$", 0.39, 1365.39),
+      row(8, 9, "JRN", "Something new", 0, 1365.39),
+      row(9, -600, "BAL", "Cash balance at the start of business day", 0, 1234.5)
+    ].join("\r\n") + "\r\n";
+
+    check("quoted comma and quote", csvSplit('a,"b, c","x""y"\n'), [["a","b, c",'x"y']]);
+    let threw = null;
+    try{ parseBrokerCsv("Date,What\n1,2"); }catch(e){ threw = e.message; }
+    check("not an export: refused", threw, "Not a thinkorswim transaction export.");
+
+    const f = parseBrokerCsv(text);
+    const cc = f.orders.find(o=>o.tk==="CCC");
+    check("split fills are one order", [f.fills, f.orders.length, cc.qty, cc.fills, cc.price], [14, 13, 8, 2, 7.835]);
+    check("fraction, no leading zero", (o=>[o.qty, o.price, o.dir])(f.orders.find(o=>o.tk==="EEE")), [0.5, 0.82, 1]);
+    check("option counted, not read", [f.optRows, f.optCash, f.orders.some(o=>o.tk==="XYZ")], [1, 41.34, false]);
+    check("stock fees", f.fees, -0.01);
+    check("cash rows", f.cash.map(c=>[c.type, c.amount, c.note]),
+      [["deposit",100,"Broker transfer"],["withdraw",50,"Broker transfer"],["adjust",0.39,"Dividend"]]);
+    check("unknown row listed", f.unread.map(u=>u.type), ["JRN"]);
+    check("final balance is the last row's", f.final, 1234.5);
+
+    const trades = [
+      trade({ticker:"AAA", status:"closed", closedAt:T0()+2*D, events:[ev("entry",{qty:10, price:10, stop:9}, 1), ev("close",{qty:10, price:11}, 2)]}),
+      trade({ticker:"BBB", status:"closed", closedAt:T0()+4*D, events:[ev("entry",{qty:5, price:20, stop:19}, 1), ev("close",{qty:5, price:21}, 4)]}),
+      trade({ticker:"CCC", events:[ev("entry",{qty:8, price:7.83, stop:7}, 2)]}),
+      trade({ticker:"DDD", side:-1, events:[ev("entry",{qty:10, price:50, stop:52}, 3)]}),
+      trade({ticker:"FFF", events:[ev("entry",{qty:2, price:30, stop:28}, 5)]}),
+      trade({ticker:"GGG", status:"closed", closedAt:T0()+6*D, events:[ev("entry",{qty:10, price:16.04, stop:15}, 6), ev("close",{qty:10, price:16.05}, 6)]})
+    ];
+    book(trades);
+    csvOn = {};
+    const snap = JSON.stringify(root);
+    const items = csvCompare(f, "Trading");
+    const kinds = tk => items.filter(it=>it.tk===tk).map(it=>it.kind + (it.as ? ":" + it.as : "") + (csvIsOn(it) ? "*" : ""));
+    check("price fix, ticked", kinds("AAA"), ["same", "fix*"]);
+    check("a different day is a fix", [kinds("BBB"), items.find(it=>it.tk==="BBB" && it.kind==="fix").date], [["same","fix*"], true]);
+    check("under a cent unticked; add and trim on the open trade", kinds("CCC"), ["sub", "add:add*", "add:trim*"]);
+    check("a short's entry is a sell", kinds("DDD"), ["same"]);
+    check("no open trade: flagged only", kinds("EEE"), ["new"]);
+    check("not in the file: flagged only", kinds("FFF"), ["app"]);
+    check("two round trips logged as one: no fixes", [kinds("GGG"), csvTickable(items.find(it=>it.tk==="GGG"))], [["clash"], false]);
+    check("cash offered: transfers and dividend ticked, fees and options not",
+      items.filter(it=>it.kind==="cash").map(it=>it.key.split("|")[0] + (it.note==="Dividend" ? "D" : "") + (csvIsOn(it) ? "*" : "")),
+      ["f*", "f*", "fD*", "fees", "opt"]);
+    csvProjected(f, "Trading");
+    check("reading and projecting change nothing", JSON.stringify(root), snap);
+    check("nothing applied without approval", [csvApply(f, "Trading", ()=>false), JSON.stringify(root)], [0, snap]);
+
+    csvOn = {rem:true};
+    const n = csvApply(f, "Trading", csvIsOn);
+    check("approved rows applied", n, 8);
+    const aaa = trades[0].events[1];
+    check("fix keeps what it was", [aaa.price, aaa.adj, aaa.src, aaa.was.price], [11.25, true, "file", 11]);
+    check("date moved to the broker's", trades[1].events[1].ts, Date.parse(day(3, 5)));
+    check("added in order, position right", [trades[2].events.map(e=>e.type), derive(trades[2]).Q], [["entry","add","trim"], 6]);
+    check("cash now the broker's", appCash("Trading"), 1234.5);
+    const again = csvCompare(f, "Trading");
+    check("read again: nothing left to apply but what was declined",
+      again.filter(it=>csvTickable(it)).map(it=>it.kind+":"+(it.note||it.tk)).sort(),
+      ["cash:Broker fees", "cash:Option cash", "sub:CCC"]);
+    check("ledger tags the cash adjustment", cashFlows("Trading").filter(x=>x.type==="adjust").map(x=>x.note), ["Dividend", "Match broker balance"]);
+
+    // On screen: boxes named, Apply counts only ticked rows, and is off with none.
+    book(JSON.parse(snap).portfolios.Trading.trades);
+    csvLoad(text, "t.csv");
+    root.tab = "audit"; render();
+    const boxes = [...document.querySelectorAll("#csvOut input[data-k]")];
+    const applyBtn = () => [...document.querySelectorAll("#csvOut button")].find(b=>/^Apply/.test(b.textContent));
+    check("a box for every offer, each named", [boxes.length, boxes.filter(b=>!b.getAttribute("aria-label")).length], [11, 0]);
+    check("apply counts ticked", applyBtn().textContent, "Apply 7");
+    [...document.querySelectorAll("#csvOut input[data-k]:checked")].forEach(b=>csvTick(Object.assign(b, {checked:false})));
+    check("apply off with nothing ticked", [applyBtn().textContent, applyBtn().disabled], ["Apply 0", true]);
+    // The tag is split: whole, it would end the page script this file is compiled into.
+    csvLoad(text.replace("Something new", "<scr"+"ipt>x</scr"+"ipt>").replace("+0.5 EEE", "+0.5 <i>z</i>"), "t.csv"); render();
+    const html = $("csvOut").innerHTML;
+    check("file text escaped", [html.indexOf("&lt;script&gt;") >= 0, html.indexOf("&lt;I&gt;Z") >= 0, /<i>z/i.test(html)], [true, true, false]);
+    group([["A1", 100000], ["B1", 50000]]); root.tab = "audit"; render();
+    check("group: pick the account", [...$("csvAcct").options].map(o=>o.value), ["A1", "B1"]);
+    csvClear();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();
@@ -781,6 +888,7 @@ window.runChecks = () => {
     }
   } finally {
     closeModal(); clearFields();
+    csvData = null; csvOn = {};
     root = keep; normalize();
     save = realSave; window.confirm = realConfirm; window.alert = realAlert;
     render();

@@ -490,6 +490,12 @@ button.small{--r:7px}
 <section class="tabpane" id="pane-audit">
   <div class="card">
     <div class="panehead"><h2>Audit</h2><span class="muted" id="auditSummary"></span></div>
+    <div class="row" style="margin-bottom:8px">
+      <div><label for="csvFile">Broker file</label><input id="csvFile" type="file" accept=".csv,text/csv" onchange="readCsv(this)"></div>
+      <div id="csvAcctWrap"></div>
+    </div>
+    <div id="csvMsg" class="muted" role="status"></div>
+    <div id="csvOut"></div>
     <div class="scroll" id="ledger"></div>
   </div>
 </section>
@@ -3191,7 +3197,8 @@ const EVENT_DESC = e => {
 // The title is plain text, so the description is stripped of markup BEFORE escaping -- running an
 // entity through esc() turns &mdash; into the five characters a reader actually sees.
 const adjPill = e => e.adj
-  ? ' <span class="pill tier" title="'+esc("Edited" + (e.was ? " — was " + stripTags(EVENT_DESC(e.was)) : ""))+'">Adj.</span>'
+  ? ' <span class="pill tier" title="'+esc((e.src==="file" ? (e.was ? "From the broker file" : "Added from the broker file") : "Edited") +
+      (e.was ? " — was " + stripTags(EVENT_DESC(e.was)) : ""))+'">Adj.</span>'
   : "";
 const stripTags = s => String(s).replace(/<[^>]*>/g,"").replace(/&middot;/g,"·").replace(/&mdash;/g,"—").replace(/&rarr;/g,"→");
 
@@ -4676,7 +4683,7 @@ function render(){
   if(tab==="portfolio"){ renderCash(); renderPortfolio(); }
   if(tab==="tally")  renderClosed();
   if(tab==="charts") renderCharts(chartTrades());
-  if(tab==="audit")  renderLedger();
+  if(tab==="audit"){ renderCsv(); renderLedger(); }
 
   const os = $("openSummary");
   if(os) os.textContent = open.length ? open.length+" open" : "none open";
@@ -4684,9 +4691,9 @@ function render(){
 }
 
 /* ========================= audit ledger =========================
-   Every transaction in the book, newest first, across whatever is in view. The CSV side of Audit
-   needs a thinkorswim test case, but the ledger does not, and it is the half that gets used daily.
-   A transaction edited from the gear carries an "Adj." tag, with what it was in the tooltip. */
+   Every transaction in the book, newest first, across whatever is in view. A transaction edited
+   from the gear or corrected from a broker file carries an "Adj." tag, with what it was in the
+   tooltip. */
 function renderLedger(){
   const box = $("ledger"), sum = $("auditSummary");
   if(!box) return;
@@ -4731,6 +4738,349 @@ function renderLedger(){
         '<td class="num">&mdash;</td>' +
         '<td>'+adjPill(e)+'</td></tr>';
     }).join("") + '</table>';
+}
+
+/* ========================= audit: broker file =========================
+   A thinkorswim "Transaction History" export set against one account's transactions. It is read in
+   the browser and never sent anywhere, and it changes nothing by itself: every difference is a row
+   with a box, and only ticked rows are applied, on the user's say-so. The file is evidence, not an
+   authority -- it knows the fills but not the stop, the tier or why.
+
+   What it reads: stock fills (TRD, "BOT +5 RSKD @7.835"), transfers (CRC) and dividends (DOI).
+   Options are counted, not read -- this app sizes stock positions and has nothing to match them to;
+   their cash is offered as one adjustment. Anything else is listed as not read rather than guessed.
+
+   Split fills become one order: the same ticker and direction, back to back for that ticker,
+   within five minutes, at the volume-weighted price -- which is how they are entered here.
+   Orders pair with app transactions on ticker and direction within three days, best first (nearest
+   day, then same shares, then nearest price); a same-day difference in time is not a difference.
+   A ticker that traded a different number of times on a day than the app shows (two round trips
+   logged as one) is never corrected automatically: pairing would bend one trip toward the other. */
+let csvData = null, csvOn = {}, csvPick = null, csvNote = "";
+const CSV_STOCK  = /^(BOT|SOLD) ([+-]?\d*\.?\d+) (\S+) @(\d*\.?\d+)(?: [A-Z]+)?$/;
+const CSV_OPTION = / (PUT|CALL) @/;
+const CSV_GAP = 5*60*1000;
+const fq = v => Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:4});
+const r6 = v => Math.round(v*1e6)/1e6, r2 = v => Math.round(v*100)/100;
+const dayGap = (a, b) => Math.round((dayOf(a) - dayOf(b))/864e5);
+
+// Quoted fields can hold commas (a transfer's description does), and "" is a quote.
+function csvSplit(text){
+  const out = []; let row = [], f = "", q = false;
+  const end = () => { row.push(f); f = ""; if(row.length > 1 || row[0] !== "") out.push(row); row = []; };
+  for(let i=0; i<text.length; i++){
+    const c = text[i];
+    if(q){
+      if(c === '"'){ if(text[i+1] === '"'){ f += '"'; i++; } else q = false; }
+      else f += c;
+    }
+    else if(c === '"') q = true;
+    else if(c === ",") { row.push(f); f = ""; }
+    else if(c === "\n" || c === "\r"){ if(c === "\r" && text[i+1] === "\n") i++; end(); }
+    else f += c;
+  }
+  end();
+  return out;
+}
+
+function parseBrokerCsv(text){
+  const rows = csvSplit(String(text).replace(/^﻿/, ""));
+  if(!rows.length) throw new Error("The file is empty.");
+  const head = rows[0].map(h=>h.trim()), col = n => head.indexOf(n);
+  if(["Execution Time","Type","Description","Amount","Balance"].some(n=>col(n) < 0))
+    throw new Error("Not a thinkorswim transaction export.");
+  const cell = (r, n) => col(n) < 0 ? "" : String(r[col(n)]==null ? "" : r[col(n)]).trim();
+  const money = (r, n) => { const x = pnum(cell(r, n)); return isNaN(x) ? 0 : x; };
+  const fills = [], cash = [], unread = [];
+  let fees = 0, optCash = 0, optRows = 0, first = null, last = null, final = NaN;
+  rows.slice(1).forEach(r=>{
+    const ts = Date.parse(cell(r,"Execution Time")), type = cell(r,"Type"), desc = cell(r,"Description");
+    if(isNaN(ts)){ unread.push({type, desc}); return; }
+    first = first==null ? ts : Math.min(first, ts);
+    last  = last==null  ? ts : Math.max(last, ts);
+    // The last row's balance is the broker's cash now. File order, not time order: a transfer is
+    // stamped the day it was sent and listed the day it posted.
+    const bal = pnum(cell(r,"Balance"));
+    if(!isNaN(bal)) final = r2(bal);
+    const fee = money(r,"Misc Fees") + money(r,"Commissions & Fees"), amt = money(r,"Amount");
+    if(type === "BAL") return;
+    if(type === "TRD"){
+      const m = CSV_STOCK.exec(desc);
+      if(m){
+        const qty = Math.abs(pnum(m[2])), price = pnum(m[4]);
+        if(qty > 0 && price > 0){
+          fills.push({ts, dir: m[1]==="BOT" ? 1 : -1, qty, price, tk: m[3].toUpperCase()});
+          fees += fee;
+          return;
+        }
+      }
+      if(CSV_OPTION.test(desc)){ optRows++; optCash += amt + fee; return; }
+    }
+    else if(type === "CRC" && amt){ cash.push({ts, type: amt > 0 ? "deposit" : "withdraw", amount: r2(Math.abs(amt)), note:"Broker transfer"}); return; }
+    else if(type === "DOI" && amt){ cash.push({ts, type:"adjust", amount: r2(amt), note:"Dividend"}); return; }
+    unread.push({type, desc});
+  });
+  if(first == null) throw new Error("No dated rows in the file.");
+  fills.sort((a,b)=>a.ts - b.ts);
+  const orders = [], lastOf = {};
+  fills.forEach(f=>{
+    const o = lastOf[f.tk];
+    if(o && o.dir === f.dir && f.ts - o.last <= CSV_GAP){
+      o.value += f.qty*f.price; o.qty = r6(o.qty + f.qty); o.last = f.ts; o.fills++;
+    } else {
+      const n = {tk:f.tk, dir:f.dir, qty:f.qty, value:f.qty*f.price, ts:f.ts, last:f.ts, fills:1};
+      orders.push(n); lastOf[f.tk] = n;
+    }
+  });
+  orders.forEach(o=>{ o.price = r6(o.value/o.qty); });
+  return {orders, cash, unread, fees: r2(fees), optCash: r2(optCash), optRows, first, last, final, fills: fills.length};
+}
+
+// Every difference between the file and one account, as rows. Recomputed from the book each time,
+// so a row always points at the transaction as it is now.
+function csvCompare(f, acct){
+  const pf = root.portfolios[acct], items = [];
+  const d0 = dayOf(f.first), d1 = dayOf(f.last);
+  const evs = [];
+  pf.trades.forEach(t=>t.events.forEach((e, i)=>{
+    if(!/^(entry|add|trim|close)$/.test(e.type) || e.qty==null || e.price==null) return;
+    if(dayOf(e.ts) < d0 || dayOf(e.ts) > d1) return;
+    evs.push({t, e, i, tk: String(t.ticker).toUpperCase(), dir: (e.type==="entry" || e.type==="add") ? t.side : -t.side});
+  }));
+  const dk = (tk, ts) => tk + "|" + dayOf(ts), days = {};
+  const slot = k => days[k] || (days[k] = {b:[], a:[]});
+  f.orders.forEach(o=>slot(dk(o.tk, o.ts)).b.push(o));
+  evs.forEach(x=>slot(dk(x.tk, x.e.ts)).a.push(x));
+  const clash = new Set(Object.keys(days).filter(k=>days[k].b.length && days[k].a.length && days[k].b.length !== days[k].a.length));
+  clash.forEach(k=>{
+    const s = days[k], o = s.b[0];
+    items.push({key:"c|"+k, kind:"clash", ts:o.ts, tk:o.tk, b:s.b, a:s.a, t:(s.a[0]||{}).t});
+  });
+  const os = f.orders.filter(o=>!clash.has(dk(o.tk, o.ts)));
+  const es = evs.filter(x=>!clash.has(dk(x.tk, x.e.ts)));
+  const pairs = [];
+  os.forEach((o, i)=>es.forEach((x, j)=>{
+    if(x.tk !== o.tk || x.dir !== o.dir) return;
+    const g = Math.abs(dayGap(o.ts, x.e.ts));
+    if(g > 3) return;
+    pairs.push({i, j, s: g*1000 + (Math.abs(x.e.qty - o.qty) > 1e-6 ? 100 : 0) + Math.abs(x.e.price - o.price)});
+  }));
+  pairs.sort((a,b)=>a.s - b.s);
+  const oTo = {}, eTo = {};
+  pairs.forEach(p=>{ if(oTo[p.i]==null && eTo[p.j]==null){ oTo[p.i] = p.j; eTo[p.j] = p.i; } });
+
+  os.forEach((o, i)=>{
+    const key = "o|" + o.tk + "|" + o.ts;
+    if(oTo[i] != null){
+      const x = es[oTo[i]], e = x.e;
+      const date = dayGap(o.ts, e.ts) !== 0, qty = Math.abs(e.qty - o.qty) > 1e-6;
+      const dp = r6(Math.abs(e.price - o.price)), price = dp >= 0.01, sub = dp > 0 && dp < 0.01;
+      const kind = (date || qty || price) ? "fix" : sub ? "sub" : "same";
+      items.push({key, kind, ts:o.ts, tk:o.tk, dir:o.dir, o, x, date, qty, price: price || sub, on: kind==="fix"});
+      return;
+    }
+    // Not in the app. It belongs to a trade that was open on that day, if there was one; a new trade
+    // is only flagged, because the file has no stop or tier to open it with.
+    const t = pf.trades.filter(t=>String(t.ticker).toUpperCase()===o.tk && t.events.length &&
+        dayOf(t.events[0].ts) <= dayOf(o.ts) && (t.status==="open" || dayOf(t.closedAt||0) >= dayOf(o.ts)))
+      .sort((a,b)=>b.events[0].ts - a.events[0].ts)[0];
+    let as = null;
+    if(t){
+      if(o.dir === t.side) as = "add";
+      else {
+        const held = derive(Object.assign({}, t, {events: t.events.filter(e=>e.ts <= o.ts)})).Q;
+        if(o.qty <= held + 1e-6) as = o.qty >= held - 1e-6 ? "close" : "trim";
+      }
+    }
+    items.push(as ? {key, kind:"add", ts:o.ts, tk:o.tk, dir:o.dir, o, t, as, on:true}
+                  : {key, kind:"new", ts:o.ts, tk:o.tk, dir:o.dir, o, t});
+  });
+  es.forEach((x, j)=>{
+    if(eTo[j] == null) items.push({key:"a|"+x.t.id+"|"+x.e.ts, kind:"app", ts:x.e.ts, tk:x.tk, dir:x.dir, x, t:x.t});
+  });
+
+  // Cash. A movement already in the app -- same kind, same amount, within three days -- is a match.
+  const flows = cashFlows(acct);
+  const known = c => flows.some(x=>x.type===c.type && Math.abs(flowSigned(x) - flowSigned(c)) < 0.005 &&
+    Math.abs(dayGap(x.ts, c.ts)) <= 3 && (c.type!=="adjust" || x.note===c.note));
+  const cashItem = (key, c, on) => items.push(Object.assign({key, kind: known(c) ? "cashSame" : "cash", on}, c, {c}));
+  f.cash.forEach(c=>cashItem("f|"+c.type+"|"+c.ts+"|"+c.amount, c, true));
+  if(Math.abs(f.fees) >= 0.005)    cashItem("fees", {type:"adjust", amount:f.fees,    note:"Broker fees", ts:f.last}, false);
+  if(Math.abs(f.optCash) >= 0.005) cashItem("opt",  {type:"adjust", amount:f.optCash, note:"Option cash", ts:f.last}, false);
+  return items;
+}
+const csvIsOn = it => csvOn[it.key] != null ? csvOn[it.key] : !!it.on;
+const csvTickable = it => it.kind==="fix" || it.kind==="sub" || it.kind==="add" || it.kind==="cash";
+
+// Applies the rows `on` approves, to whatever root is now. Returns how many it applied. "rem" -- the
+// broker's balance -- goes last, so it is only what the other approved rows did not explain.
+function csvApply(f, acct, on){
+  const pf = root.portfolios[acct];
+  const items = csvCompare(f, acct).filter(it=>csvTickable(it) && on(it));
+  const touched = new Set();
+  let n = 0;
+  items.forEach(it=>{
+    if(it.kind==="fix" || it.kind==="sub"){
+      const e = it.x.e, before = JSON.parse(JSON.stringify(e));
+      if(it.date) e.ts = it.o.ts;
+      if(it.qty) e.qty = it.o.qty;
+      if(it.price) e.price = it.o.price;
+      if(!e.adj){ e.was = before; e.adj = true; }
+      e.src = "file";
+      touched.add(it.x.t);
+    } else if(it.kind==="add"){
+      it.t.events.push({type:it.as, qty:it.o.qty, price:it.o.price, ts:it.o.ts, adj:true, src:"file"});
+      touched.add(it.t);
+    } else if(it.kind==="cash"){
+      pf.cashFlows.push({type:it.type, amount:it.amount, note:it.note, ts:it.ts, src:"file",
+                         aumAfter: r2(bookOf(acct) + flowSigned(it))});
+    }
+    n++;
+  });
+  touched.forEach(t=>{
+    t.events.sort((a,b)=> a.type==="entry" ? -1 : b.type==="entry" ? 1 : a.ts-b.ts);
+    syncStatus(t);
+    syncCompound(t, acct);
+  });
+  if(on({key:"rem"})){
+    const gap = r2(f.final - appCash(acct));
+    if(Math.abs(gap) >= 0.005){
+      pf.cashFlows.push({type:"adjust", amount:gap, note:"Match broker balance", ts:f.last, src:"file",
+                         aumAfter: r2(bookOf(acct) + gap)});
+      n++;
+    }
+  }
+  return n;
+}
+// The app's cash once every other ticked row is applied, worked out on a copy of the book.
+function csvProjected(f, acct){
+  const keep = root;
+  root = JSON.parse(JSON.stringify(root));
+  try{ csvApply(f, acct, it=>it.key!=="rem" && csvIsOn(it)); return appCash(acct); }
+  finally{ root = keep; }
+}
+function csvAcct(){
+  if(!inGroup()) return acctInView();
+  const m = groupMembers(root.active);
+  return m.indexOf(csvPick) >= 0 ? csvPick : (m[0] || null);
+}
+
+window.readCsv = inp => {
+  const file = inp.files && inp.files[0];
+  if(!file) return;
+  if(file.size > 5e6){ csvData = null; csvNote = "File too large."; renderCsv(); return; }
+  const rd = new FileReader();
+  rd.onload = () => { csvLoad(String(rd.result), file.name); renderCsv(); applyTips(); };
+  rd.onerror = () => { csvData = null; csvNote = "Couldn't read the file."; renderCsv(); };
+  rd.readAsText(file);
+};
+function csvLoad(text, name){
+  try{ csvData = parseBrokerCsv(text); csvData.name = name || "file"; csvNote = ""; }
+  catch(err){ csvData = null; csvNote = err.message; }
+  csvOn = {};
+}
+window.csvClear = () => { csvData = null; csvOn = {}; csvNote = ""; const i = $("csvFile"); if(i) i.value = ""; renderCsv(); };
+window.csvSetAcct = v => { csvPick = v; csvOn = {}; renderCsv(); applyTips(); };
+window.csvTick = el => {
+  csvOn[el.dataset.k] = el.checked;
+  const k = el.dataset.k;
+  renderCsv(); applyTips();
+  const back = [...document.querySelectorAll("#csvOut input[data-k]")].find(b=>b.dataset.k===k);
+  if(back) back.focus();
+};
+window.csvApplyNow = () => {
+  const acct = csvAcct();
+  if(!csvData || !acct) return;
+  const rem = csvIsOn({key:"rem"}) && Math.abs(csvData.final - csvProjected(csvData, acct)) >= 0.005;
+  const n = csvCompare(csvData, acct).filter(it=>csvTickable(it) && csvIsOn(it)).length + (rem ? 1 : 0);
+  if(!n) return;
+  if(!confirm("Apply "+n+" approved change"+(n===1?"":"s")+" to "+acct+"? Each is tagged Adj.")) return;
+  const prev = JSON.stringify(root);
+  try{
+    const done = csvApply(csvData, acct, csvIsOn);
+    csvNote = done + " applied.";
+    csvOn = {};
+    save();
+  }catch(err){
+    root = JSON.parse(prev); normalize();
+    csvNote = "Nothing applied: " + err.message;
+  }
+  render();
+};
+
+function renderCsv(){
+  const out = $("csvOut"), msg = $("csvMsg"), pick = $("csvAcctWrap");
+  if(!out) return;
+  const acct = csvAcct();
+  pick.innerHTML = inGroup()
+    ? '<label for="csvAcct">Account</label><select id="csvAcct" onchange="csvSetAcct(this.value)">' +
+        groupMembers(root.active).map(m=>'<option value="'+esc(m)+'"'+(m===acct?" selected":"")+'>'+esc(m)+'</option>').join("") +
+      '</select>'
+    : "";
+  msg.textContent = csvNote;
+  if(!csvData || !acct){ out.innerHTML = ""; return; }
+  const f = csvData, items = csvCompare(f, acct);
+  const side = d => d > 0 ? "Buy" : "Sell";
+  const fill = (q, p) => fq(q) + " @ " + fmtP(p);
+  const gear = t => t ? ' <button class="small" onclick="gearUI(\''+t.id+'\')" title="Open the trade">&#9881;</button>' : "";
+  const box = (it, what) => csvTickable(it)
+    ? '<input type="checkbox" data-k="'+esc(it.key)+'" aria-label="'+esc("Approve: "+what)+'" onchange="csvTick(this)"'+(csvIsOn(it)?" checked":"")+'>'
+    : "";
+  const tradeRow = it => {
+    let broker = "&mdash;", app = "&mdash;", change = "";
+    if(it.o) broker = fill(it.o.qty, it.o.price) + (it.o.fills > 1 ? ' <span class="muted">'+it.o.fills+' fills</span>' : "");
+    if(it.x) app = it.x.e.type + " " + fill(it.x.e.qty, it.x.e.price) + (it.date ? ' <span class="muted">'+shortDate(it.x.e.ts)+'</span>' : "");
+    if(it.kind==="fix" || it.kind==="sub")
+      change = [it.date ? "date &rarr; "+shortDate(it.o.ts) : null, it.qty ? "shares &rarr; "+fq(it.o.qty) : null,
+                it.price ? "price &rarr; "+fmtP(it.o.price) + (it.kind==="sub" ? ' <span class="muted">&lt;1&cent;</span>' : "") : null]
+               .filter(Boolean).join(" &middot; ");
+    else if(it.kind==="add")  change = "log as " + it.as + gear(it.t);
+    else if(it.kind==="new")  change = (it.t ? "more than the position" : "not in app &mdash; no open trade") + gear(it.t);
+    else if(it.kind==="app")  change = "not in file" + gear(it.t);
+    else if(it.kind==="clash"){
+      broker = it.b.map(o=>side(o.dir)+" "+fill(o.qty, o.price)).join("<br>");
+      app = it.a.map(x=>x.e.type+" "+fill(x.e.qty, x.e.price)).join("<br>");
+      change = it.b.length+" orders vs "+it.a.length+" &mdash; fix in gear" + gear(it.t);
+    }
+    const what = it.tk + " " + shortDate(it.ts) + " " + (it.kind==="add" ? "log as " + it.as : "correction");
+    return '<tr><td>'+box(it, what)+'</td><td>'+shortDate(it.ts)+'</td>' +
+      '<td style="font-family:var(--mono);font-weight:600">'+esc(it.tk)+'</td>' +
+      '<td>'+(it.kind==="clash" ? "" : side(it.dir))+'</td>' +
+      '<td class="num">'+broker+'</td><td class="num">'+app+'</td><td>'+change+'</td></tr>';
+  };
+  const RANK = {fix:0, add:1, sub:2, clash:3, new:4, app:5};
+  const trades = items.filter(it=>RANK[it.kind]!=null).sort((a,b)=>RANK[a.kind]-RANK[b.kind] || a.ts-b.ts);
+  const same = items.filter(it=>it.kind==="same");
+  const head = '<table><tr><th><span class="sr-only">Approve</span></th><th>Date</th><th>Ticker</th><th>Side</th>' +
+               '<th class="num">Broker</th><th class="num">App</th><th>Change</th></tr>';
+
+  const cash = items.filter(it=>it.kind==="cash");
+  const cashSame = items.filter(it=>it.kind==="cashSame").length;
+  const NAME = {deposit:"Deposit", withdraw:"Withdrawal"};
+  const cashRow = (it, label, amt, extra) =>
+    '<tr><td>'+box(it, label+" "+fmt$(amt))+'</td><td>'+shortDate(it.ts)+'</td><td>'+label+(extra||"")+'</td>' +
+    '<td class="num '+cls(amt)+'">'+fmt$(amt)+'</td></tr>';
+  const proj = csvProjected(f, acct), gap = r2(f.final - proj);
+  const rem = {key:"rem", kind:"cash", ts:f.last};
+  const cashRows = cash.map(it=>cashRow(it, NAME[it.type] || it.note, flowSigned(it),
+      it.key==="opt" ? ' <span class="muted">'+f.optRows+' option rows</span>' : "")).join("") +
+    (Math.abs(gap) >= 0.005 ? cashRow(rem, "Match broker balance", gap,
+      ' <span class="muted">broker '+fmt$(f.final)+' &middot; app '+fmt$(proj)+'</span>') : "");
+
+  const n = items.filter(it=>csvTickable(it) && csvIsOn(it)).length + (csvIsOn(rem) && Math.abs(gap) >= 0.005 ? 1 : 0);
+  const review = trades.length;
+  out.innerHTML =
+    '<div class="muted" style="margin:6px 0">'+esc(f.name)+' &middot; '+shortDate(f.first)+' &ndash; '+shortDate(f.last)+
+      ' &middot; '+f.orders.length+' orders &middot; '+same.length+' match'+(review ? ' &middot; <b>'+review+' to review</b>' : '')+'</div>' +
+    (review ? '<div class="scroll">'+head+trades.map(tradeRow).join("")+'</table></div>' : "") +
+    (same.length ? '<details><summary>'+same.length+' match</summary><div class="scroll">'+head+same.map(tradeRow).join("")+'</table></div></details>' : "") +
+    (cashRows ? '<div class="lbl" style="margin-top:10px">Cash</div><div class="scroll"><table><tr><th><span class="sr-only">Approve</span></th>' +
+      '<th>Date</th><th>Item</th><th class="num">Amount</th></tr>'+cashRows+'</table></div>' : "") +
+    (cashSame ? '<div class="muted">'+cashSame+' cash '+(cashSame===1?"item":"items")+' already in app</div>' : "") +
+    (f.optRows || f.unread.length ? '<div class="muted" style="margin-top:6px">Not read: ' +
+      [f.optRows ? f.optRows+" option rows" : null].concat(f.unread.map(u=>esc(u.type)+" "+esc(u.desc))).filter(Boolean).join(" &middot; ") + '</div>' : "") +
+    '<div class="row" style="margin:10px 0 14px"><button onclick="csvApplyNow()"'+(n ? "" : " disabled")+'>Apply '+n+'</button>' +
+      '<button class="small" onclick="csvClear()">Clear</button></div>';
 }
 
 // Charts read one account at a time — a group picks which through the dropdown, since none of the
