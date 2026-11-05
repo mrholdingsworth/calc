@@ -19,7 +19,7 @@ own key is empty, and on demand from Data › Re-import from v1; it never writes
 
 1. `OPEN-ITEMS.md` — To do, Ruled out, then Decided/done newest-first. Reasons, not just changes.
 2. `V2-PLAN.md` — the **"Settled 2026-10-26"**, **"2026-10-27"** and **"2026-10-28"** and **"2026-10-29"**
-   sections first (decisions 1–41): they record Steve's answers and
+   sections first (decisions 1–44): they record Steve's answers and
    supersede anything earlier in the file that disagrees, including the outline document.
 3. This file.
 4. `WEAKNESSES.md` (the register) and `REVIEW-2026-10-26.md` only when you need the history of a
@@ -133,7 +133,9 @@ are safe to write raw only because `cleanIds()` replaces any that are not `[A-Za
 a new kind of stored ID going into a handler needs the same.
 
 **A book from elsewhere is hostile until loaded.** Every stored string is `esc()`'d on the way to
-the page; import is tried on the side and swapped in only if it normalizes and renders; the
+the page, and every stored number is made a number by `typeClean()` in `normalize` -- a new number
+field goes into it (or into `defaults()`, which it reads), and a new event type into `EVENT_TYPES`,
+or loading drops it; import is tried on the side and swapped in only if it normalizes and renders; the
 Content-Security-Policy allows connections to Finnhub only -- a new outside service has to be added
 there or it is silently blocked. Backups (`bookJson`) leave the Finnhub key out.
 
@@ -141,6 +143,9 @@ there or it is silently blocked. Backups (`bookJson`) leave the Finnhub key out.
 from that); a field needs a `<label for>` or `aria-label`; a toggle carries `aria-expanded` or
 `aria-pressed`; an explainer goes in `TIPS` or an `.info` bubble and becomes a description
 automatically. The `a11y` case fails on a nameless field or symbol button on any tab.
+
+**The read-me describes every tool.** A new tab, button or Settings group gets its line in
+`README_HTML`, one to four sentences: what it does and how to use it.
 
 **Nothing blocks a trade opening.** Warnings flag; nothing refuses. A new guard is a warning line,
 never a return from `openTrade`. The app is a tracker first now.
@@ -176,6 +181,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
   file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar and the coaching export — 413 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers and the read-me — 428 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.

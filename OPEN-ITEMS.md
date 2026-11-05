@@ -65,6 +65,27 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, pre-launch review: number fields, the read-me, open heat (V2-PLAN 42–44)
+
+- **Security, found in the pre-launch review:** text had always been escaped on its way to the
+  page, but number fields were written raw. A book from elsewhere could put markup in an event's
+  type, a budget multiple or a settings number (tiers, R %, max allocation) and have it run on
+  render, or in a timestamp and have it run when a Closed Trades date was clicked (that one came in
+  with the calendar). `typeClean()` now runs on every load: number fields become finite numbers or
+  their default, events and cash movements of unknown kinds or with no usable date are dropped, a
+  trade with no entry is dropped, and display-preference keys are restricted. The real book loads
+  through it unchanged (49 trades, 214 events, $1,028.09).
+- **Open heat keeps counting unstopped shares at full cost** (Steve: the user should be concerned
+  about unstopped shares). A stopless position on a small book reads as many R and puts up the red
+  banner until a stop is set; that is intended.
+- **Read me:** opens by itself the first time a book is seen on a browser, and from a button in
+  Settings after that. One to four sentences per tool -- every tab, the gear, marks, cash, the
+  calendar, Fast calc, every Settings group, Data and the coaching export -- under an amber box
+  saying to fit Settings to the account before entering anything.
+- `v2-checks.js`: `hostileNumbers`, `readme`; the failed-import check now forces a render failure
+  rather than relying on a malformed trade (which is now cleaned instead of crashing). 428/428,
+  twice in one page; nine more deliberate breaks, each caught.
+
 ### 2026-11-04 — v2.0-dev, a tracker first: nothing blocks, dividends, calendar, coaching export (V2-PLAN 38–41)
 
 - **Nothing stops a trade opening.** The unstopped-short block and its setting are gone (warnings

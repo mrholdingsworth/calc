@@ -166,6 +166,9 @@ button.calcell{display:flex;flex-direction:column;align-items:flex-start;gap:1px
 button.calcell.sel{border-color:var(--gold)}
 .calcell.today .cd{color:var(--gold)}
 .calcell .cd{font-weight:700}
+.readme ul{margin:4px 0 12px;padding-left:18px}
+.readme li{margin:5px 0;font-size:13px;line-height:1.45}
+.readme .lbl{margin-top:12px}
 .calcell .cn{color:var(--gold);font-size:8px;margin-left:3px;vertical-align:middle}
 .calcell .cp,.calcell .cv{font-family:var(--mono);font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 @media (max-width:560px){ .calcell .cv{display:none} }
@@ -520,7 +523,8 @@ button.small{--r:7px}
 
 <section class="tabpane" id="pane-settings">
   <div class="card">
-    <div class="panehead"><h2>Settings</h2><span class="muted" id="setScope"></span></div>
+    <div class="panehead"><h2>Settings</h2><span class="muted" id="setScope"></span>
+      <button class="small" style="margin-left:auto" onclick="openReadme()">Read me</button></div>
 
     <!-- One setting per row: its name on the left, its control on the right, and a switch on the
          same row as the value it governs. Grouped by what a setting is about, two columns wide where
@@ -1081,6 +1085,73 @@ function cleanIds(){
   }));
 }
 
+// Every field that should be a number, made one, before anything reads it. Text was always escaped
+// on its way to the page, but numbers were written raw -- so a book from elsewhere could put markup
+// in a tier multiple, an event's type or a timestamp and have it run when the page drew (found in
+// the pre-launch review, 2026-11-04). A number field that is not a finite number takes its default,
+// or null where blank means something; an event or cash movement of a kind the app does not know,
+// or with no usable date, is dropped.
+const EVENT_TYPES = ["entry","add","trim","close","stop","budget","adjust","div"];
+const FLOW_TYPES = ["deposit","withdraw","adjust"];
+function typeClean(){
+  const isObj = v => v && typeof v === "object" && !Array.isArray(v);
+  const num = (v, dflt) => { const x = (v===null || v==="" || typeof v==="boolean") ? NaN : +v; return Number.isFinite(x) ? x : dflt; };
+  const nn = v => num(v, null);
+  // A settings object against its defaults: numbers, switches and lists of numbers by type.
+  const fixSettings = (S, D) => {
+    Object.keys(D).forEach(k=>{
+      const dv = D[k];
+      if(typeof dv === "number") S[k] = num(S[k], dv);
+      else if(typeof dv === "boolean"){ if(S[k] != null) S[k] = !!S[k]; }
+      else if(typeof dv === "string"){ if(S[k] != null) S[k] = String(S[k]); }
+      else if(Array.isArray(dv)) S[k] = (Array.isArray(S[k]) ? S[k] : dv.slice()).map((x,i)=>num(x, dv[i]!=null ? dv[i] : 0));
+    });
+    ["marginOn","initialEstimated"].forEach(k=>{ if(S[k] != null) S[k] = !!S[k]; });
+    if(S.aum != null) S.aum = num(S.aum, 0);
+  };
+  const D = defaults().settings, GD = groupDefaults().settings;
+  Object.values(root.portfolios||{}).forEach(pf=>{
+    if(!isObj(pf)) return;
+    if(isObj(pf.settings)) fixSettings(pf.settings, D);
+    if(Array.isArray(pf.trades)) pf.trades = pf.trades.filter(t=>isObj(t) && Array.isArray(t.events)).filter(t=>{
+      t.side = num(t.side, 1) < 0 ? -1 : 1;
+      t.tier = Math.min(TIERS.length-1, Math.max(0, Math.round(num(t.tier, 1))));
+      t.status = t.status==="closed" ? "closed" : "open";
+      ["mult","rUnit","aumAtOpen","last","aptr","aptrAtOpen","compounded","createdAt","lastMarkTs","closedAt","hi","lo"]
+        .forEach(k=>{ if(t[k] != null) t[k] = nn(t[k]); });
+      t.events = t.events.filter(e=>{
+        if(!isObj(e) || EVENT_TYPES.indexOf(e.type) < 0) return false;
+        e.ts = nn(e.ts);
+        if(e.ts == null) return false;
+        ["qty","price","stop","mult"].forEach(k=>{ if(e[k] != null) e[k] = nn(e[k]); });
+        if(e.type==="div"){ e.ps = nn(e.ps); if(!(e.ps > 0)) return false; }
+        if(e.stops != null) e.stops = Array.isArray(e.stops)
+          ? e.stops.filter(isObj).map(x=>({qty:nn(x.qty), price:nn(x.price)})).filter(x=>x.price!=null) : undefined;
+        if(e.stops === undefined) delete e.stops;
+        return true;
+      });
+      return t.events.some(e=>e.type==="entry");       // every trade starts from one
+    });
+    if(Array.isArray(pf.cashFlows)) pf.cashFlows = pf.cashFlows.filter(f=>{
+      if(!isObj(f) || FLOW_TYPES.indexOf(f.type) < 0) return false;
+      f.amount = nn(f.amount); f.ts = nn(f.ts);
+      if(f.aumAfter != null) f.aumAfter = nn(f.aumAfter);
+      if(f.note != null) f.note = String(f.note);
+      return f.amount != null && f.ts != null;
+    });
+  });
+  Object.values(isObj(root.groups) ? root.groups : {}).forEach(G=>{ if(isObj(G) && isObj(G.settings)) fixSettings(G.settings, GD); });
+  if(isObj(root.defs)) Object.keys(DEFS_DEFAULT).forEach(k=>{
+    if(typeof DEFS_DEFAULT[k] === "number") root.defs[k] = num(root.defs[k], DEFS_DEFAULT[k]);
+  });
+  if(isObj(root.ui)){
+    ["stopCount"].forEach(k=>{ if(root.ui[k] != null) root.ui[k] = num(root.ui[k], UI_DEFAULT[k]); });
+    if(["all","ytd","90d"].indexOf(root.ui.period) < 0) root.ui.period = "all";
+    // Hidden-part keys become class names in a generated style rule.
+    if(isObj(root.ui.hidden)) Object.keys(root.ui.hidden).forEach(k=>{ if(!/^[a-z0-9-]{1,40}$/.test(k)) delete root.ui.hidden[k]; });
+  }
+  if(root.fcTier != null) root.fcTier = Math.min(TIERS.length-1, Math.max(0, Math.round(num(root.fcTier, 1))));
+}
 function normalize(){
   // A book with no stamp predates versioning, which makes it schema 1 -- NOT whatever SCHEMA
   // happens to be now. Stamping it as current was harmless while there was nothing to migrate;
@@ -1095,10 +1166,8 @@ function normalize(){
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
   root.order = root.order.filter(n=>root.portfolios[n]);
   cleanIds();
-  // A dividend with no usable amount would turn the book into NaN; a journal note must be text.
-  Object.values(root.portfolios||{}).forEach(pf=>(pf.trades||[]).forEach(t=>{
-    if(Array.isArray(t.events)) t.events = t.events.filter(e=>e && (e.type!=="div" || (Number.isFinite(+e.ps) && +e.ps>0 && (e.ps = +e.ps))));
-  }));
+  typeClean();
+  // A journal note must be text, on a real date.
   const J = root.journal;
   root.journal = {};
   if(J && typeof J === "object") Object.keys(J).forEach(k=>{
@@ -3849,7 +3918,7 @@ function fillAvgs(t){
 }
 const shortDate = ts => new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});
 // A date that opens the calendar on its day, dotted when that day has a journal note.
-const calLink = ts => '<button class="linkbtn" onclick="openCalendar('+ts+')">'+shortDate(ts)+
+const calLink = ts => '<button class="linkbtn" onclick="openCalendar('+(+ts||0)+')">'+shortDate(ts)+
   (root.journal && root.journal[dateVal(ts)] ? ' <span class="gold" aria-hidden="true">&#9679;</span><span class="sr-only">, has a note</span>' : '')+'</button>';
 
 // Aggregates for a set of closed trades, and the tile row that renders them. Extracted so the
@@ -5366,7 +5435,7 @@ function journalLine(t){
   [["opened", S.openTs], ["closed", S.endTs]].forEach(([what, ts], i)=>{
     const k = dateVal(ts), note = root.journal[k];
     if(i===1 && k===dateVal(S.openTs)) return;
-    bits.push('<button class="linkbtn" onclick="openCalendar('+ts+')" title="Open the calendar on this day">'+shortDate(ts)+'</button> ' +
+    bits.push('<button class="linkbtn" onclick="openCalendar('+(+ts||0)+')" title="Open the calendar on this day">'+shortDate(ts)+'</button> ' +
       '<span class="muted">'+what+'</span>' + (note ? ': ' + esc(note) : ''));
   });
   return '<div style="margin-bottom:8px;font-size:12.5px;white-space:pre-wrap">'+bits.join(" &nbsp;&middot;&nbsp; ")+'</div>';
@@ -5526,6 +5595,50 @@ window.copyCoach = async () => {
   if(!$("co_out").value) buildCoach();
   try{ await navigator.clipboard.writeText($("co_out").value); $("co_msg").textContent += " · copied"; }
   catch(e){ $("co_out").select(); $("co_msg").textContent += " · selected, press Ctrl+C"; }
+};
+
+/* ========================= read me =========================
+   Opens by itself the first time this book is seen on a browser, and from Settings after that.
+   The flag is set as it opens, so closing it any way at all counts as seen. */
+const README_HTML =
+  '<div class="banner amber" style="font-size:13.5px;line-height:1.5"><b>Before you enter anything, set up Settings.</b> ' +
+    'Initial capital, R as % of AUM, the tiers, margin and allocation limits decide every size, every R and every ' +
+    'statistic. Fit them to your account first, or everything you record is measured against someone else\'s numbers.</div>' +
+  '<div class="readme">' +
+  '<div class="lbl">On every page</div><ul>' +
+    '<li><b>Accounts.</b> The buttons under the title switch between your accounts and groups. A group shows its members together and sizes each from its own equity.</li>' +
+    '<li><b>Calendar.</b> Click the clock. Each day shows what you realised, in dollars and percent; pick a day to write or read its note and see the trades opened or closed that day.</li>' +
+    '<li><b>Fast calc.</b> Type a price and a stop to see the share count at every tier. Click a tier to choose it, then <b>Send &rarr;</b> to carry the numbers into New Trade.</li>' +
+    '<li><b>(i) and underlined labels.</b> Hover over them for a one-line explanation of a field or column.</li>' +
+  '</ul>' +
+  '<div class="lbl">Tabs</div><ul>' +
+    '<li><b>Portfolio.</b> Every open position in one list, with summary figures above it. <b>Buy</b> and <b>Sell</b> add to or reduce a position (on a short, the other way round). <b>Stop</b> sets one or more stops, and is highlighted when the stops do not cover every share. &#9656; opens a position\'s detail.</li>' +
+    '<li><b>The gear (&#9881;).</b> Setup, tier, plan, notes and APTR, editable any time, and every transaction, which you can correct (marked Adj.) or remove. <b>Dividend</b> records one per share on its ex-date; <b>Override position</b> resets shares or average price.</li>' +
+    '<li><b>Update marks</b> (Portfolio). Pulls last prices with a Finnhub key (set in Data); without one, it opens a window to type a price for each symbol.</li>' +
+    '<li><b>Cash</b> (Portfolio). <b>Deposit</b> and <b>Withdraw</b> record money in and out. <b>Adjust</b> matches the app\'s cash to your broker\'s.</li>' +
+    '<li><b>New Trade.</b> Ticker, fill price, shares and stop. R and allocation are worked out and turn amber outside your settings; nothing blocks opening. Leave shares blank to take the tier\'s size, or leave the stop blank and type shares to open without one, flagged as unprotected. Setup, plan and notes are optional and can be added later in the gear.</li>' +
+    '<li><b>Closed Trades.</b> Every closed trade, newest first, with its result in R. &#9656; shows the transaction log, notes, the loss tag and the 30-day review, which falls due a month after closing. The Opened and Closed dates open the calendar on that day.</li>' +
+    '<li><b>Statistics.</b> Win rate, expectancy, results by setup, the equity curve and more, for one account at a time. All, YTD and Last 90 days filter both this and Closed Trades.</li>' +
+    '<li><b>Audit.</b> Upload a thinkorswim Transaction History CSV to compare it with your trades. Differences are listed with tick boxes, and only the ticked ones change anything when you press Apply. Below is the ledger of every transaction and cash movement.</li>' +
+    '<li><b>Data.</b> Export, copy, download or load your whole book as a file. Your book lives only in this browser, so download a backup regularly. <b>Clear all data</b> asks twice.</li>' +
+    '<li><b>Coaching export</b> (Data). Pick dates, <b>Build</b>, <b>Copy</b>, and paste into an AI chat. It carries your trades, statistics and journal, with instructions to find patterns and ask you about specific trades.</li>' +
+  '</ul>' +
+  '<div class="lbl">Settings</div><ul>' +
+    '<li><b>Accounts.</b> Create, rename and delete accounts and groups. Initial capital, margin, lot rounding and estimated tax are set per account.</li>' +
+    '<li><b>Sizing.</b> R as a percentage of AUM, the multiple for each tier, fuzziness, and max and min allocation.</li>' +
+    '<li><b>Risk warnings.</b> Max open heat and the cold-streak brake flag when crossed. They never block a trade.</li>' +
+    '<li><b>Positions.</b> The target ladder shown on positions, and how many stop rows the Stop button opens with.</li>' +
+    '<li><b>Statistics definitions.</b> What counts as a scratch, a decisive win, a disciplined loss and a stop breach.</li>' +
+    '<li><b>Display.</b> Hide money figures, gain and loss colour, and the unrealized gains figure.</li>' +
+    '<li><b>Show on screen.</b> Tick which columns and figures each panel shows.</li>' +
+    '<li><b>Setups and loss tags.</b> The lists New Trade and the loss picker offer, one per line.</li>' +
+    '<li><b>Estimated tax.</b> Turn it on per account with your short- and long-term rates. It covers FIFO lots, wash sales and dividends, and it is an estimate, not tax advice.</li>' +
+  '</ul></div>';
+const maybeReadme = () => { if(!root.ui.readmeSeen) openReadme(); };
+window.openReadme = () => {
+  root.ui.readmeSeen = true;
+  save();
+  openModal("Read me", README_HTML, "Got it", ()=>null, null, {wide:true, noCancel:true});
 };
 
 /* ========================= bindings ========================= */
@@ -5868,6 +5981,7 @@ load();
 root.fcTier = 1;
 bindSettings(); render();
 tickClock(); setInterval(tickClock, 1000);
+maybeReadme();
 if(root.finnhub && allOpenTrades().length) refreshMarks();
 setInterval(pollMarks, 60000);
 </script>

@@ -800,8 +800,11 @@ const CASES = {
     const keepT = lose({ticker:"KEEP"});
     book([keepT]); root.finnhub = "KEY";
     let saves = 0; const realSave = save; save = () => { saves++; return true; };
-    $("io").value = JSON.stringify({active:"A", portfolios:{A:{settings:{}, trades:[{id:"1", ticker:"Z", status:"open"}]}}});
-    applyImport();
+    // A book that cannot be drawn: the first render after it goes in throws.
+    $("io").value = JSON.stringify({active:"A", portfolios:{A:{settings:{}, trades:[]}}});
+    const realRender = render; let once = true;
+    render = () => { if(once){ once = false; throw new Error("cannot draw"); } return realRender(); };
+    try{ applyImport(); } finally { render = realRender; }
     check("failed import changes nothing", [state.trades.map(t=>t.ticker), saves, /nothing was imported/.test($("io_err").textContent)], [["KEEP"], 0, true]);
     // A good file goes in, and a backup without the key keeps this browser's key.
     $("io").value = JSON.stringify({active:"B", finnhub:"", portfolios:{B:{settings:defaults().settings, trades:[], cashFlows:[]}}});
@@ -1081,6 +1084,79 @@ const CASES = {
     csvClear();
   },
 
+  /* A hostile book: markup in every field that should be a number, in an event's type and in a
+     timestamp. Nothing it carries may run, on render or on a click, and the numbers come out as
+     numbers. Found in the pre-launch review (2026-11-04). */
+  hostileNumbers(){
+    window.__h = 0;
+    const evil = n => '<img src=x onerror="window.__h+='+n+'">';
+    const c = trade({ticker:"HOS", status:"closed", closedAt:T0()+3*D, events:[ev("entry",{qty:100, price:50, stop:48}, 0), ev("close",{qty:100, price:55}, 3)]});
+    const o = trade({ticker:"OPN", events:[ev("entry",{qty:10, price:20, stop:19}, 1)]});
+    book([c, o]);
+    const bad = JSON.parse(JSON.stringify(root)), pf = bad.portfolios.Trading;
+    pf.settings.tiers = [evil(1), "0.5", 0.25];
+    pf.settings.rPct = evil(1); pf.settings.maxAlloc = evil(1); pf.settings.heatCap = evil(1); pf.settings.fuzz = "abc";
+    pf.settings.maxAllocOn = "yes";
+    const hc = pf.trades.find(t=>t.ticker==="HOS");
+    hc.events.splice(1, 0, {type:"budget", mult:evil(1), ts:hc.events[0].ts+1});
+    hc.events.push({type:evil(1), ts:hc.events[1].ts+2});
+    hc.events.push({type:"stop", stop:evil(1), stops:[{qty:evil(1), price:"49"}, "junk"], ts:hc.events[0].ts+3});
+    const tsT = JSON.parse(JSON.stringify(hc)); tsT.id = "tsx"; tsT.ticker = "TSX";
+    tsT.events[0].ts = String(tsT.events[0].ts) + ');window.__h+=1;//';
+    pf.trades.push(tsT);
+    hc.closedAt = '1);window.__h+=1;//';
+    hc.side = evil(1); hc.tier = evil(1); hc.rUnit = "1000"; hc.last = evil(1);
+    pf.trades.push({id:"emptyx", ticker:"EMP", events:[]});
+    pf.cashFlows = [{type:"deposit", amount:evil(1), ts:Date.now()}, {type:evil(1), amount:5, ts:Date.now()},
+                    {type:"deposit", amount:"250", ts:String(T0()), note:"ok"}];
+    bad.defs.scratchHi = evil(1);
+    bad.ui.hidden = {"x}body{display:none": true, "pr-last": true}; bad.ui.period = evil(1); bad.fcTier = evil(1);
+    root = bad; normalize();
+    const p2 = root.portfolios.Trading, t2 = p2.trades.find(t=>t.ticker==="HOS");
+    check("settings numbers are numbers, defaults where not", [p2.settings.tiers, p2.settings.rPct, p2.settings.maxAlloc, p2.settings.fuzz, p2.settings.maxAllocOn],
+      [[1, 0.5, 0.25], 1, 25, 10, true]);
+    check("unknown event type dropped, the rest numbers", [t2.events.map(e=>e.type), t2.events.find(e=>e.type==="budget").mult, t2.side, t2.tier, t2.rUnit],
+      [["entry","budget","close","stop"], null, 1, 1, 1000]);
+    check("a timestamp that is not a number drops its event, and a trade with no entry goes", p2.trades.some(t=>t.ticker==="TSX"), false);
+    check("stop list cleaned", t2.events.find(e=>e.type==="stop").stops, [{qty:null, price:49}]);
+    check("a trade with no events dropped", p2.trades.some(t=>t.ticker==="EMP"), false);
+    check("cash: bad amounts and kinds dropped", p2.cashFlows.map(f=>[f.type, f.amount, typeof f.ts]), [["deposit", 250, "number"]]);
+    check("defs, page settings", [root.defs.scratchHi, Object.keys(root.ui.hidden), root.ui.period, root.fcTier], [0.10, ["pr-last"], "all", 1]);
+    // An image's onerror fires after the page is drawn, so what is checked is whether markup got in
+    // at all, straight after each draw; a click handler runs at once, so the counter covers those.
+    const imgs = () => document.querySelectorAll("img").length;
+    let leaked = 0;
+    for(const tb of ["portfolio","new","tally","charts","audit","settings","data"]){
+      root.tab = tb; render(); leaked += imgs();
+      if(tb==="new"){ setNT("X", "50", "48", ""); newTradeCal(); leaked += imgs(); }
+      if(tb==="tally"){ toggleLog(t2.id); leaked += imgs();
+        [...document.querySelectorAll("#closedTbl button.linkbtn")].forEach(b=>{ b.click(); closeModal(); }); }
+    }
+    gearUI(t2.id); leaked += imgs(); closeModal();
+    check("no markup got onto the page, no handler ran", [leaked, window.__h], [0, 0]);
+    clearFields();
+  },
+
+  /* The read-me: opens by itself once, then from Settings; says to set Settings up first. */
+  readme(){
+    book(); closeModal();
+    check("a fresh book has not seen it", !!root.ui.readmeSeen, false);
+    maybeReadme();
+    check("opens on first visit", [$("modal").style.display, /Before you enter anything, set up Settings/.test($("modalBody").textContent)], ["flex", true]);
+    check("no cancel, one button", [...$("modalBody").querySelectorAll("button")].map(b=>b.textContent), ["Got it"]);
+    check("covers every tab", ["Portfolio","New Trade","Closed Trades","Statistics","Audit","Data","Settings","Calendar","Fast calc"]
+      .filter(k=>$("modalBody").textContent.indexOf(k) < 0), []);
+    closeModal();
+    check("seen, even closed without the button", root.ui.readmeSeen, true);
+    maybeReadme();
+    check("not again", $("modal").style.display, "none");
+    root.tab = "settings"; render();
+    const btn = [...document.querySelectorAll("#pane-settings button")].find(b=>b.textContent==="Read me");
+    btn.click();
+    check("from Settings any time", $("modal").style.display, "flex");
+    closeModal();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();
@@ -1099,6 +1175,7 @@ window.runChecks = () => {
   const keep = root, realSave = save, realConfirm = window.confirm, realAlert = window.alert;
   save = () => true;
   window.confirm = () => true; window.alert = () => {};
+  closeModal();                      // the read-me opens by itself on a fresh page
   try{
     for(const [name, fn] of Object.entries(CASES)){
       try{ fn(); }catch(e){ failed.push(name + " threw: " + e.message); }

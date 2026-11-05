@@ -396,6 +396,13 @@ stays as it is for when it helps.
 Ruled out on the same day: a broker API, and the extension check (with the noise check, Russo
 leftovers).
 
+42. **Every number field is a number on load** (`typeClean`), so a book from elsewhere cannot
+    carry markup through one. Unknown event and cash kinds, undated records and entry-less trades
+    are dropped.
+43. **Open heat counts unstopped shares at full cost**, confirmed: the warning is the point.
+44. **A read-me** opens on a book's first visit and from Settings, and leads with setting Settings
+    up before entering data.
+
 ### Still open (2026-11-04)
 
 - **Kept open by Steve:** the themes scanning notebook; the rules panel.
