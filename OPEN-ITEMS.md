@@ -65,6 +65,19 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, exports with or without settings (V2-PLAN 50)
+
+- **"Include settings in exports"** (Display, on by default). Exports already carried every setting
+  -- the whole book less the Finnhub key -- so on changes nothing. Off, Export, Copy and Download
+  carry the data alone: trades, cash, the journal, and initial capital (the book is worked out from
+  it, so it travels as data); the file is marked `settingsLeftOut`. Importing such a file keeps this
+  browser's account and group rules, setups, tags, definitions and page preferences; an account new
+  to this browser starts from the defaults with the file's capital. The rescue copy (storage
+  failing) and the copy made before Clear all data always hold everything.
+- `v2-checks.js`: `exportSettings`. 489/489, twice in one page; five deliberate breaks, each caught.
+  Clear all data is deliberately not exercised: it would erase the stored book wherever the
+  checks run.
+
 ### 2026-11-04 — v2.0-dev, Closed Trades filters (V2-PLAN 49)
 
 - **Closed Trades filters like the ledger's**, inside the period picker: close dates (both ends

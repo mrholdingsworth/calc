@@ -1304,6 +1304,41 @@ const CASES = {
     closedClear();
   },
 
+  /* Exports carry settings unless the switch is off; a file without them keeps this book's settings. */
+  exportSettings(){
+    const t = trade({ticker:"EXP", events:[ev("entry",{qty:10, price:50, stop:48})]});
+    const pf = book([t], {initialCapital:20000, rPct:0.5});
+    root.defs.setups = ["Mine"]; root.journal["2026-01-02"] = "a note";
+    check("on by default", [ui().exportSettings, (root.tab = "settings", render(), $("s_exportSettings").checked)], [true, true]);
+    let x = JSON.parse(bookJson());
+    check("on: settings travel with the book", [x.portfolios.Trading.settings.rPct, x.defs.setups, !!x.ui, !!x.settingsLeftOut], [0.5, ["Mine"], true, false]);
+    root.ui.exportSettings = false;
+    x = JSON.parse(bookJson());
+    check("off: data only, with starting capital", [Object.keys(x.portfolios.Trading.settings).sort(), x.portfolios.Trading.settings.initialCapital,
+      "defs" in x, "ui" in x, x.settingsLeftOut, x.portfolios.Trading.trades[0].ticker, x.journal["2026-01-02"], x.finnhub],
+      [["initialCapital"], 20000, false, false, true, "EXP", "a note", ""]);
+    rescueBook();
+    const rescued = JSON.parse($("io").value);
+    check("the rescue copy is always whole", [rescued.portfolios.Trading.settings.rPct, "defs" in rescued], [0.5, true]);
+    $("io").value = ""; $("io_err").textContent = "";
+
+    // Into another book with its own settings: the trades come in, the settings here stay.
+    const file = JSON.stringify(x);
+    const other = trade({ticker:"OLD", events:[ev("entry",{qty:1, price:5, stop:4})]});
+    book([other], {initialCapital:1000, rPct:2, heatCap:7});
+    root.defs.setups = ["Theirs"]; root.ui.hideValues = true;
+    $("io").value = file; applyImport();
+    const p2 = root.portfolios.Trading;
+    check("imported data, kept settings", [p2.trades.map(t=>t.ticker), p2.settings.rPct, p2.settings.heatCap, p2.settings.initialCapital,
+      root.defs.setups, root.ui.hideValues, root.journal["2026-01-02"], "settingsLeftOut" in root],
+      [["EXP"], 2, 7, 20000, ["Theirs"], true, "a note", false]);
+    root.ui.hideValues = false;
+    // An account new to this browser starts from the defaults, with the file's capital.
+    const g = JSON.parse(file); g.portfolios.Fresh = JSON.parse(JSON.stringify(g.portfolios.Trading)); g.order.push("Fresh");
+    $("io").value = JSON.stringify(g); applyImport();
+    check("a new account takes the defaults", [root.portfolios.Fresh.settings.rPct, root.portfolios.Fresh.settings.initialCapital], [defaults().settings.rPct, 20000]);
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();

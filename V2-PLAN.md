@@ -414,6 +414,8 @@ leftovers).
     settings, both on by default. The tier picked survives the clear.
 49. **Closed Trades filters** by close dates, ticker, setup, result, side, tier, loss tag (or
     untagged losses), account and reviews due, inside the period picker.
+50. **Exports include settings by default; a switch leaves them out.** A settings-free file keeps
+    the importing browser's settings. Initial capital always travels; rescue copies are always whole.
 
 ### Still open (2026-11-04)
 

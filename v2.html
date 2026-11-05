@@ -637,6 +637,8 @@ button.small{--r:7px}
           <div class="sctl"><input type="checkbox" id="s_colourGrade"></div></div>
         <div class="srow"><label for="s_unrealOn">Unrealized gains<span class="info" data-tip="Adds open P/L at the last mark to the Portfolio summary. Off by default.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_unrealOn"></div></div>
+        <div class="srow"><label for="s_exportSettings">Include settings in exports<span class="info" data-tip="Exports, copies and downloads carry your settings with your trades. Off, they carry the data alone, and importing such a file keeps the settings already here.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_exportSettings"></div></div>
         <div class="srow"><label for="s_fcClear">Clear Fast calc after Send<span class="info" data-tip="Empties the price and stop once they are sent to New Trade. The tier you picked still goes with them.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_fcClear"></div></div>
         <div class="srow"><label for="s_toPortfolio">Go to Portfolio after opening<span class="info" data-tip="Switches to the Portfolio once a new trade opens, so you see it in the list.">i</span></label>
@@ -782,7 +784,7 @@ const lossTags = () => {
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
 const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false, ledgerOpen:true,
-                     fcClear:true, toPortfolio:true };
+                     fcClear:true, toPortfolio:true, exportSettings:true };
 
 /* ---- what each panel shows ----
    Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
@@ -1362,10 +1364,28 @@ function renderSaveAlert(){
 window.dismissMigration = () => { migratedFrom = null; renderSaveAlert(); };
 // The book as a file: everything except the Finnhub key, which is a credential, not data, and would
 // otherwise travel with every backup anyone is sent. Importing a file without one keeps the key here.
-const bookJson = () => JSON.stringify(Object.assign({}, root, {finnhub:""}), null, 1);
+// With "Include settings in exports" off (on by default) it is the data alone: trades, cash, the
+// journal -- and initial capital, which the book is worked out from, so it is data too. Account and
+// group rules, setups, tags, definitions and page preferences stay behind, and the file says so,
+// which is what tells an import to keep the settings already here. `full` is for the copies that
+// must hold everything: the rescue when storage fails, and the one made before Clear all data.
+const bookJson = full => {
+  const out = Object.assign({}, root, {finnhub:""});
+  if(full || ui().exportSettings !== false) return JSON.stringify(out, null, 1);
+  out.portfolios = {};
+  Object.keys(root.portfolios).forEach(n=>{
+    const pf = root.portfolios[n];
+    out.portfolios[n] = Object.assign({}, pf, {settings:{initialCapital: pf.settings.initialCapital, initialEstimated: pf.settings.initialEstimated}});
+  });
+  out.groups = {};
+  Object.keys(root.groups||{}).forEach(g=>{ out.groups[g] = {members: root.groups[g].members.slice()}; });
+  delete out.defs; delete out.ui;
+  out.settingsLeftOut = true;
+  return JSON.stringify(out, null, 1);
+};
 // Deliberately does not touch localStorage: this runs precisely when localStorage is refusing.
 window.rescueBook = () => {
-  $("io").value = bookJson();
+  $("io").value = bookJson(true);
   openData();
   $("io").select();
   $("io_err").className = "okmsg";
@@ -2133,6 +2153,7 @@ const SET_FIELDS = [
   ["s_colourGrade","page","colourGrade","bool"],
   ["s_unrealOn",  "page", "unrealOn",   "bool"],
   ["s_fcClear",   "page", "fcClear",    "bool"],
+  ["s_exportSettings","page","exportSettings","bool"],
   ["s_toPortfolio","page","toPortfolio","bool"],
   ["s_stopCount", "page", "stopCount",  "num"],
   ["s_lotRound",  "acct", "lotRound",   "num"],
@@ -5824,7 +5845,7 @@ const README_HTML =
     '<li><b>Statistics.</b> Win rate, expectancy, results by setup, the equity curve and more, for one account at a time. All, YTD and Last 90 days filter both this and Closed Trades.</li>' +
     '<li><b>Audit: broker file.</b> Upload a thinkorswim Transaction History CSV to compare it with your trades. Differences are listed with tick boxes, and only the ticked ones change anything when you press Apply. Orders the app has no trade for can be added as new trades, with no stop and tier A, to finish in the gear.</li>' +
     '<li><b>Audit: ledger.</b> Every transaction and cash movement, newest first, with corrections marked Adj. Filter it by dates, ticker (or &ldquo;cash&rdquo;), event, account or Adj. only to check a stretch by hand. Click its title to fold it away.</li>' +
-    '<li><b>Data.</b> Export, copy, download or load your whole book as a file. Your book lives only in this browser, so download a backup regularly. <b>Clear all data</b> asks twice.</li>' +
+    '<li><b>Data.</b> Export, copy, download or load your whole book as a file, settings included unless you switch that off in Display. Your book lives only in this browser, so download a backup regularly. <b>Clear all data</b> asks twice.</li>' +
     '<li><b>Coaching export</b> (Data). Pick dates, <b>Build</b>, <b>Copy</b>, and paste into an AI chat. It carries your trades, statistics and journal, with instructions to find patterns and ask you about specific trades.</li>' +
   '</ul>' +
   '<div class="lbl">Settings</div><ul>' +
@@ -5833,7 +5854,7 @@ const README_HTML =
     '<li><b>Risk warnings.</b> Max open heat and the cold-streak brake flag when crossed. They never block a trade.</li>' +
     '<li><b>Positions.</b> The target ladder shown on positions, and how many stop rows the Stop button opens with.</li>' +
     '<li><b>Statistics definitions.</b> What counts as a scratch, a decisive win, a disciplined loss and a stop breach.</li>' +
-    '<li><b>Display.</b> Hide money figures, gain and loss colour, and the unrealized gains figure. Also whether Fast calc empties after Send, and whether opening a trade takes you to the Portfolio (both on to start).</li>' +
+    '<li><b>Display.</b> Hide money figures, gain and loss colour, and the unrealized gains figure. Also whether Fast calc empties after Send, whether opening a trade takes you to the Portfolio, and whether exports include your settings (all on to start).</li>' +
     '<li><b>Show on screen.</b> Tick which columns and figures each panel shows.</li>' +
     '<li><b>Setups and loss tags.</b> The lists New Trade and the loss picker offer, one per line.</li>' +
     '<li><b>Estimated tax.</b> Turn it on per account with your short- and long-term rates. It covers FIFO lots, wash sales and dividends, and it is an estimate, not tax advice.</li>' +
@@ -5958,7 +5979,7 @@ function bindSettings(){
     const nTrades = Object.values(root.portfolios).reduce((n,p)=>n+p.trades.length, 0);
     const nBooks = Object.keys(root.portfolios).length;
     if(!confirm("Delete everything: "+nTrades+" trade(s) across "+nBooks+" portfolio(s), plus all settings.\n\nThis cannot be undone. Continue?")) return;
-    $("io").value = bookJson();
+    $("io").value = bookJson(true);
     if(!confirm("Last check.\n\nYour current book has been placed in the box below — copy it out now if there is any chance you want it back.\n\nErase everything?")) return;
     try{ localStorage.removeItem(KEY); }catch(e){}
     root = newRoot(); normalize(); save(); render();
@@ -5993,6 +6014,19 @@ function applyImport(){
     // memory, and the next click on anything saved it over the real one.
     const prev = root;
     if(whole && !p.finnhub && prev.finnhub) p.finnhub = prev.finnhub;   // backups leave the key out
+    // A file exported without settings brings data only: each account and group keeps the rules it
+    // has here (its starting capital comes from the file), and setups, tags, definitions and page
+    // preferences stay as they are. A name new to this browser starts from the defaults.
+    if(whole && p.settingsLeftOut){
+      const keep = JSON.parse(JSON.stringify({pfs: prev.portfolios, groups: prev.groups || {}, defs: prev.defs, ui: prev.ui}));
+      Object.keys(p.portfolios||{}).forEach(n=>{
+        const mine = keep.pfs[n] && keep.pfs[n].settings, theirs = (p.portfolios[n] && p.portfolios[n].settings) || {};
+        if(mine) p.portfolios[n].settings = Object.assign(mine, {initialCapital: theirs.initialCapital, initialEstimated: theirs.initialEstimated});
+      });
+      Object.keys(p.groups||{}).forEach(g=>{ if(keep.groups[g] && keep.groups[g].settings) p.groups[g].settings = keep.groups[g].settings; });
+      p.defs = keep.defs; p.ui = keep.ui;
+      delete p.settingsLeftOut;
+    }
     try{
       if(whole) root = p;
       else { root = JSON.parse(JSON.stringify(prev)); root.portfolios[root.active] = p; }
