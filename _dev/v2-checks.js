@@ -1260,6 +1260,50 @@ const CASES = {
     clearFields();
   },
 
+  /* Closed Trades' filters: close dates, ticker, setup, result, side, tier, loss tag, account, due. */
+  closedFilters(){
+    const C = (tk, o, openDay, closeDay, exit) => trade(Object.assign({ticker:tk, status:"closed", closedAt:T0()+closeDay*D,
+      events:[ev("entry",{qty:100, price:50, stop:(o.side||1)>0 ? 49 : 51}, openDay), ev("close",{qty:100, price:exit}, closeDay)]}, o));
+    const a = C("AAA", {tier:0, concept:"Breakout", lossTag:"violation"}, -16, -15, 40);   // -1R, closed 35 days ago: review due
+    const b = C("BBB", {side:-1, tier:2, concept:"Pullback"}, 2, 3, 40);                     // short, +1R
+    const c = C("CCC", {tier:1, concept:"Breakout"}, 4, 5, 50);                              // scratch
+    const d = C("DDD", {tier:1, concept:""}, 6, 7, 45);                                      // -0.5R, untagged
+    book([a, b, c, d]); closedClear(); root.tab = "tally"; render();
+    const shown = () => [...document.querySelectorAll("#closedTbl td.tickcell")].map(td=>td.textContent.replace(/[^A-Z]/g,"").slice(0,3)).sort();
+    const sum = () => $("closedSummary").textContent;
+    const set = (id, v) => { $(id).value = v; renderClosed(); };
+    check("all four", [shown(), /^4 trades · -0\.50R/.test(sum())], [["AAA","BBB","CCC","DDD"], true]);
+    set("ct_tk", "bb");
+    check("ticker", [shown(), /^1 of 4 trades · \+1\.00R/.test(sum())], [["BBB"], true]);
+    closedClear(); set("ct_setup", "Breakout");
+    check("setup", shown(), ["AAA","CCC"]);
+    check("setups offered from the book", [...$("ct_setup").options].map(o=>o.value), ["", "(none)", "Breakout", "Pullback"]);
+    render();
+    check("a pick survives a redraw", [$("ct_setup").value, shown()], ["Breakout", ["AAA","CCC"]]);
+    closedClear(); set("ct_res", "win");  check("wins", shown(), ["BBB"]);
+    set("ct_res", "loss");                check("losses", shown(), ["AAA","DDD"]);
+    set("ct_res", "scratch");             check("scratches", shown(), ["CCC"]);
+    closedClear(); set("ct_side", "short"); check("side", shown(), ["BBB"]);
+    closedClear(); set("ct_tier", "0");     check("tier A+", shown(), ["AAA"]);
+    closedClear(); set("ct_tag", "__none"); check("untagged losses", shown(), ["DDD"]);
+    set("ct_tag", "violation");             check("one tag", shown(), ["AAA"]);
+    closedClear(); $("ct_due").checked = true; renderClosed();
+    check("reviews due", shown(), ["AAA"]);
+    closedClear(); $("ct_from").value = dateVal(T0()+5*D); $("ct_to").value = dateVal(T0()+5*D); renderClosed();
+    check("close dates, both ends counted", shown(), ["CCC"]);
+    closedClear(); set("ct_tk", "ZZZ");
+    check("nothing matches", $("closedTbl").textContent, "Nothing matches.");
+    closedClear();
+    check("clear brings them back", shown().length, 4);
+
+    group([["A1", 100000, [C("G1", {}, 1, 2, 55)]], ["B1", 100000, [C("G2", {}, 1, 2, 45)]]]);
+    root.tab = "tally"; render();
+    check("group: pick an account", [...$("ct_acct").options].map(o=>o.value), ["", "A1", "B1"]);
+    set("ct_acct", "B1");
+    check("group: its trades only", [shown(), /^1 of 2 group trades/.test(sum())], [["G"], true]);
+    closedClear();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();
@@ -1287,6 +1331,8 @@ window.runChecks = () => {
     closeModal(); clearFields();
     csvData = null; csvOn = {}; coachPick = null; calView = null;
     if(window.ledgerClear) ["lg_from","lg_to","lg_tk","lg_ev"].forEach(id=>{ if($(id)) $(id).value = ""; });
+    ["ct_from","ct_to","ct_tk","ct_setup","ct_res","ct_side","ct_tier","ct_tag","ct_acct"].forEach(id=>{ if($(id)) $(id).value = ""; });
+    if($("ct_due")) $("ct_due").checked = false;
     root = keep; normalize();
     save = realSave; window.confirm = realConfirm; window.alert = realAlert;
     render();

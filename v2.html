@@ -455,6 +455,22 @@ button.small{--r:7px}
   <div class="card">
     <div class="panehead"><h2>Closed Trades</h2>
       <span class="periodPick"></span><span class="muted" id="closedSummary"></span></div>
+    <div class="row">
+      <div><label for="ct_from">From</label><input id="ct_from" type="date" oninput="renderClosed()"></div>
+      <div><label for="ct_to">To</label><input id="ct_to" type="date" oninput="renderClosed()"></div>
+      <div><label for="ct_tk">Ticker</label><input id="ct_tk" type="text" placeholder="any" autocomplete="off" oninput="renderClosed()" style="width:96px"></div>
+      <div id="ct_setupWrap"></div>
+      <div><label for="ct_res">Result</label><select id="ct_res" onchange="renderClosed()"><option value="">All</option>
+        <option value="win">Win</option><option value="loss">Loss</option><option value="scratch">Scratch</option></select></div>
+      <div><label for="ct_side">Side</label><select id="ct_side" onchange="renderClosed()"><option value="">All</option>
+        <option value="long">Long</option><option value="short">Short</option></select></div>
+      <div><label for="ct_tier">Tier</label><select id="ct_tier" onchange="renderClosed()"><option value="">All</option>
+        <option value="0">A+</option><option value="1">A</option><option value="2">B</option></select></div>
+      <div id="ct_tagWrap"></div>
+      <div id="ct_acctWrap"></div>
+      <label for="ct_due" style="display:flex;align-items:center;gap:6px;margin:0 0 8px"><input id="ct_due" type="checkbox" style="width:auto" onchange="renderClosed()">Review due</label>
+      <button class="small" onclick="closedClear()">Clear</button>
+    </div>
     <div class="scroll" style="margin-top:12px"><table id="closedTbl"></table></div>
   </div>
 </section>
@@ -3838,23 +3854,75 @@ function reopenLog(id){
 }
 
 /* ========================= tally ========================= */
+// Closed Trades' filters, read from their fields. The period picker sets the outer window; these
+// narrow inside it -- a stretch of close dates, a ticker, a setup, the result, side, tier, a loss
+// tag (or losses still untagged), one account of a group, or only the reviews due.
+function closedFilter(){
+  const v = id => ($(id) ? $(id).value : "");
+  const from = tsFromDateVal(v("ct_from")), to = tsFromDateVal(v("ct_to"));
+  const tk = v("ct_tk").trim().toUpperCase(), setup = v("ct_setup"), res = v("ct_res"), side = v("ct_side"),
+        tier = v("ct_tier"), tag = v("ct_tag"), acct = v("ct_acct"), due = !!($("ct_due") && $("ct_due").checked);
+  return (t, a) => {
+    const ts = closeTs(t);
+    if(from != null && dayOf(ts) < dayOf(from)) return false;
+    if(to != null && dayOf(ts) > dayOf(to)) return false;
+    if(tk && String(t.ticker).toUpperCase().indexOf(tk) < 0) return false;
+    if(setup && setupKey(t) !== setup) return false;
+    if(res){
+      const rm = derive(t).realized/t.rUnit;
+      if((isScratch(rm) ? "scratch" : rm > 0 ? "win" : "loss") !== res) return false;
+    }
+    if(side && (t.side > 0 ? "long" : "short") !== side) return false;
+    if(tier !== "" && String(t.tier) !== tier) return false;
+    if(tag === "__none"){ if(!(derive(t).realized < 0) || t.lossTag) return false; }
+    else if(tag && t.lossTag !== tag) return false;
+    if(acct && a && a !== acct) return false;
+    if(due && !reviewDue(t)) return false;
+    return true;
+  };
+}
+// The pickers whose choices come from the book, rebuilt keeping what was picked.
+function closedPicks(all){
+  const sel = (wrap, id, label, opts) => {
+    const w = $(wrap);
+    if(!w) return;
+    const was = $(id) ? $(id).value : "";
+    w.innerHTML = '<label for="'+id+'">'+label+'</label><select id="'+id+'" onchange="renderClosed()"><option value="">All</option>' +
+      opts.map(([v, t])=>'<option value="'+esc(v)+'"'+(v===was ? " selected" : "")+'>'+esc(t)+'</option>').join("") + '</select>';
+  };
+  sel("ct_setupWrap", "ct_setup", "Setup", [...new Set(all.map(setupKey))].sort().map(k=>[k, k]));
+  const tags = lossTags().map(o=>[o.v, o.t]);
+  all.forEach(t=>{ if(t.lossTag && !tags.some(x=>x[0]===t.lossTag)) tags.push([t.lossTag, t.lossTag+" (retired)"]); });
+  sel("ct_tagWrap", "ct_tag", "Loss tag", [["__none", "Untagged loss"]].concat(tags));
+  if(inGroup()) sel("ct_acctWrap", "ct_acct", "Account", groupMembers(root.active).map(m=>[m, m]));
+  else if($("ct_acctWrap")) $("ct_acctWrap").innerHTML = "";
+}
+window.closedClear = () => {
+  ["ct_from","ct_to","ct_tk","ct_setup","ct_res","ct_side","ct_tier","ct_tag","ct_acct"].forEach(id=>{ if($(id)) $(id).value = ""; });
+  if($("ct_due")) $("ct_due").checked = false;
+  renderClosed();
+};
 function renderClosed(){
   if(inGroup()) return renderGroupClosed();
   // Newest close first. The array is in the order trades were opened, which put a trade that ran
   // for weeks below the ones opened and closed while it was still running.
-  const closed = state.trades.filter(t=>t.status==="closed" && inPeriod(t)).sort((a,b)=>closeTs(b)-closeTs(a));
+  const inPer = state.trades.filter(t=>t.status==="closed" && inPeriod(t));
+  closedPicks(inPer);
+  const pass = closedFilter();
+  const closed = inPer.filter(t=>pass(t)).sort((a,b)=>closeTs(b)-closeTs(a));
   const sum = $("closedSummary");
   // The due count sits in the header so it is in view whatever the period cuts out.
   const badge = reviewsDueHtml();
   if(closed.length){
     const totR = closed.reduce((s,t)=>s+derive(t).realized/t.rUnit, 0);
-    sum.innerHTML = closed.length+" trade"+(closed.length===1?"":"s")+" &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" +
-      (badge ? " &middot; " + badge : "");
+    sum.innerHTML = closed.length+(closed.length!==inPer.length ? " of "+inPer.length : "")+" trade"+(inPer.length===1?"":"s") +
+      " &middot; <span class=\""+cls(totR)+"\">"+fmtR(totR)+"</span>" + (badge ? " &middot; " + badge : "");
   } else sum.innerHTML = badge;
 
   const tbl = $("closedTbl");
   if(!closed.length){
-    tbl.innerHTML = "<tr><td class='muted'>"+(periodStart()==null ? "No closed trades." : "No trades closed in this period.")+"</td></tr>";
+    tbl.innerHTML = "<tr><td class='muted'>"+(inPer.length ? "Nothing matches." :
+      periodStart()==null ? "No closed trades." : "No trades closed in this period.")+"</td></tr>";
     return;
   }
 
@@ -4017,7 +4085,11 @@ function statsHtml(A){
 
 // Closed group trades: the visible line is the whole group, the expansion is one row per account.
 function renderGroupClosed(){
-  const closed = scopeTrades("closed").filter(x=>inPeriod(x.t));
+  const inPer = scopeTrades("closed").filter(x=>inPeriod(x.t));
+  closedPicks(inPer.map(x=>x.t));
+  const pass = closedFilter();
+  const closed = inPer.filter(x=>pass(x.t, x.acct));
+  const allN = new Set(inPer.map(x=>x.t.gid || ("solo:"+x.t.id))).size;
   const tbl = $("closedTbl"), sum = $("closedSummary");
   const groups = {}, order = [];
   closed.forEach(x=>{
@@ -4040,12 +4112,13 @@ function renderGroupClosed(){
     return esc(m)+" <span class=\""+cls(r)+"\">"+fmtR(r)+"</span>";
   }).filter(Boolean);
   const badge = reviewsDueHtml();
-  sum.innerHTML = (order.length ? order.length+" group trade"+(order.length===1?"":"s")+
+  sum.innerHTML = (order.length ? order.length+(order.length!==allN ? " of "+allN : "")+" group trade"+(allN===1?"":"s")+
     (perAcct.length ? " &middot; "+perAcct.join(" "+VBAR+" ") : "") : "") +
     (badge ? (order.length ? " &middot; " : "")+badge : "");
 
   if(!order.length){
-    tbl.innerHTML = "<tr><td class='muted'>"+(periodStart()==null ? "No closed trades in this group yet." : "No trades closed in this period.")+"</td></tr>";
+    tbl.innerHTML = "<tr><td class='muted'>"+(inPer.length ? "Nothing matches." :
+      periodStart()==null ? "No closed trades in this group yet." : "No trades closed in this period.")+"</td></tr>";
     return;
   }
 
@@ -5747,7 +5820,7 @@ const README_HTML =
     '<li><b>Update marks</b> (Portfolio). Pulls last prices with a Finnhub key (set in Data); without one, it opens a window to type a price for each symbol.</li>' +
     '<li><b>Cash</b> (Portfolio). <b>Deposit</b> and <b>Withdraw</b> record money in and out. <b>Adjust</b> matches the app\'s cash to your broker\'s.</li>' +
     '<li><b>New Trade.</b> Ticker, fill price, shares and stop. R and allocation are worked out and turn amber outside your settings; nothing blocks opening. Leave shares blank to take the tier\'s size, or leave the stop blank and type shares to open without one, flagged as unprotected. Setup, plan and notes are optional and can be added later in the gear.</li>' +
-    '<li><b>Closed Trades.</b> Every closed trade, newest first, with its result in R. &#9656; shows the transaction log, notes, the loss tag and the 30-day review, which falls due a month after closing. The Opened and Closed dates open the calendar on that day.</li>' +
+    '<li><b>Closed Trades.</b> Every closed trade, newest first, with its result in R. &#9656; shows the transaction log, notes, the loss tag and the 30-day review, which falls due a month after closing. The Opened and Closed dates open the calendar on that day. Filter by close dates, ticker, setup, result, side, tier, loss tag (or untagged losses) or reviews due.</li>' +
     '<li><b>Statistics.</b> Win rate, expectancy, results by setup, the equity curve and more, for one account at a time. All, YTD and Last 90 days filter both this and Closed Trades.</li>' +
     '<li><b>Audit: broker file.</b> Upload a thinkorswim Transaction History CSV to compare it with your trades. Differences are listed with tick boxes, and only the ticked ones change anything when you press Apply. Orders the app has no trade for can be added as new trades, with no stop and tier A, to finish in the gear.</li>' +
     '<li><b>Audit: ledger.</b> Every transaction and cash movement, newest first, with corrections marked Adj. Filter it by dates, ticker (or &ldquo;cash&rdquo;), event, account or Adj. only to check a stretch by hand. Click its title to fold it away.</li>' +

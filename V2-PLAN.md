@@ -412,6 +412,8 @@ leftovers).
     tile (a group shows its accounts' range).
 48. **Fast calc empties after Send, and opening a trade goes to the Portfolio**: two Display
     settings, both on by default. The tier picked survives the clear.
+49. **Closed Trades filters** by close dates, ticker, setup, result, side, tier, loss tag (or
+    untagged losses), account and reviews due, inside the period picker.
 
 ### Still open (2026-11-04)
 

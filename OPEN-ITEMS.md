@@ -65,6 +65,16 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, Closed Trades filters (V2-PLAN 49)
+
+- **Closed Trades filters like the ledger's**, inside the period picker: close dates (both ends
+  counted), ticker, setup (offered from the book, Legacy included), result (win, loss, scratch by
+  the scratch band), side, tier, loss tag or "Untagged loss", account in a group view, and Review
+  due. Picks survive a redraw; the header says "n of m"; Clear resets them. Both the account and the
+  group renderers filter.
+- On the real book: 5 untagged losses (-3.24R), 24 losses, 31 reviews due.
+- `v2-checks.js`: `closedFilters`. 483/483, twice in one page; six deliberate breaks, each caught.
+
 ### 2026-11-04 — v2.0-dev, after Send and after opening (V2-PLAN 48)
 
 - **Two settings in Display, both on by default:** Fast calc empties its price and stop after Send
