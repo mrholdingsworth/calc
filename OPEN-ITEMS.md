@@ -65,6 +65,16 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, AUM and 1R always on the Portfolio (V2-PLAN 47)
+
+- **With nothing open the Portfolio showed no figures at all** (only the tax tile, if on). AUM and
+  a new **1R** tile now show either way: AUM reads "all cash, nothing open" or "cash plus positions
+  at their stops"; 1R is the dollar value of one R with its rate. A group shows the range of its
+  accounts' 1R. 1R was only a sub-line of AUM before, and only with a trade open. It can be hidden in
+  Show on screen like the other summary figures.
+- On the real book: one trade open, AUM $1,030.79 and 1R $5.15; closed out, $1,035.05 and $5.18.
+- `v2-checks.js`: `aumAndR`. 457/457, twice in one page; three deliberate breaks, each caught.
+
 ### 2026-11-04 — v2.0-dev, the broker file adds missing trades (V2-PLAN 45)
 
 - **Orders the app has no trade for at all are offered as new trades**, by Steve -- the reason for

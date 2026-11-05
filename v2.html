@@ -774,7 +774,7 @@ const SHOWABLE = [
   ["Portfolio expanded row", [["pd-entry","Entry"],["pd-istop","Initial stop"],["pd-alloc","Allocation"],
     ["pd-real","Realized"],["pd-unreal","Unrealized"],["pd-eqpl","Equity P/L"],["pd-seq","Sequence"],
     ["pd-vol","Daily vol"],["pd-targets","Targets"],["pd-plan","Plan"],["pd-notes","Notes"]]],
-  ["Portfolio summary", [["ps-heat","Open heat"],["ps-aptr","Weighted APTR"],["ps-aum","AUM"],
+  ["Portfolio summary", [["ps-heat","Open heat"],["ps-aptr","Weighted APTR"],["ps-aum","AUM"],["ps-r","1R"],
     ["ps-alloc","Allocation"],["ps-car","Cash at risk"],["ps-tax","Est. tax"],["ps-open","Open trades"],
 ["ps-stale","Stale marks"]]],
   ["Closed Trades", [["ct-side","Side"],["ct-tier","Tier"],["ct-setup","Setup"],["ct-opened","Opened"],
@@ -1405,6 +1405,7 @@ const TIPS = {
   "APTR % at entry": "APTR when the trade opened.",
   "APTR % now": "The stock's current APTR: average true range as a percentage of price.",
   "AUM": "Cash plus every open position valued at its stop. Sizing is a percentage of this.",
+  "1R": "One R in dollars: AUM times R as a percentage of AUM. Every size and result is measured in it.",
   "AUM at open": "AUM when this trade opened.",
   "Account": "The account this row belongs to.",
   "Accounts": "Accounts that took this trade.",
@@ -4763,12 +4764,30 @@ function taxTileHtml(accts){
     '<div class="r">ST '+fmt$(z.st)+VBAR+'LT '+fmt$(z.lt)+(Math.abs(div)>=0.005 ? VBAR+'Div '+fmt$(div) : '')+(on.length<accts.length ? ' &middot; '+on.length+' of '+accts.length+' accounts' : '')+'</div></div>';
 }
 
+// AUM and one R in dollars, open positions or not.
+// AUM: cash plus every open position at its stop (aumOf). It moves on a close, a trim, a stop move or
+// cash in and out, and never on the tape. No net liq, by Steve's decision: unrealised gains counted as
+// assets are what make a trader abandon a trailing stop to protect them.
+// 1R is per account -- each is its own AUM at the shared rate -- so a group shows the range.
+function aumTiles(anyOpen){
+  const accts = scope(), one = accts.length===1;
+  const eq = accts.reduce((a,x)=>a+aumOf(x), 0);
+  const Rs = accts.map(rUnitOf), lo = Math.min(...Rs), hi = Math.max(...Rs);
+  const rPct = settingsFor(accts[0] || acctInView()).rPct;
+  return '<div class="metric v-ps-aum"><div class="k">AUM</div><div class="v">'+fmt$(eq)+'</div>' +
+      '<div class="r">'+(anyOpen ? 'cash plus positions at their stops' : 'all cash, nothing open') +
+        (one ? '' : ' &middot; '+accts.length+' accounts')+'</div></div>' +
+    '<div class="metric v-ps-r"><div class="k">1R</div><div class="v">'+(one || Math.abs(hi-lo)<0.005 ? fmt$(hi) : fmt$(lo)+'&ndash;'+fmt$(hi))+'</div>' +
+      '<div class="r">'+rPct+'% of '+(one ? 'AUM' : 'each account&rsquo;s AUM')+'</div></div>';
+}
 function renderBook(open){
   const hb = $("bookBar");
   overHeat = null;
   if(!open.length){
-    const tax = taxTileHtml(scope());       // the year's tax does not stop mattering when the book is flat
-    hb.innerHTML = tax ? '<div class="statrow" style="grid-template-columns:repeat(auto-fit,minmax(146px,220px))">'+tax+'</div>' : "";
+    // Nothing open still has a size: AUM and 1R are what the next trade starts from, and the year's
+    // tax does not stop mattering when the book is flat.
+    hb.innerHTML = '<div class="statrow" style="grid-template-columns:repeat(auto-fit,minmax(146px,220px))">' +
+      aumTiles(false) + taxTileHtml(scope()) + '</div>';
     $("bookBanners").innerHTML = "";
     $("refreshBtn").innerHTML = "";
     return;
@@ -4844,19 +4863,7 @@ function renderBook(open){
             (missing ? ' &middot; <span style="color:var(--amber)">'+missing+" without APTR</span>" : "") +
             '</div></div>';
         })() +
-        (function(){
-          // AUM: cash plus every open position at its stop (aumOf). It moves on a close, a trim, a
-          // stop move or cash in and out, and never on the tape. No net liq, by Steve's decision:
-          // unrealised gains counted as assets are what make a trader abandon a trailing stop to
-          // protect them.
-          const eq = scope().reduce((a,x)=>a+aumOf(x), 0);
-          const R  = scope().length===1 ? rUnitOf(scope()[0]) : null;
-          return '<div class="metric v-ps-aum"><div class="k">AUM</div>' +
-            '<div class="v">'+fmt$(eq)+'</div>' +
-            '<div class="r">'+(R!=null
-              ? '1R = '+fmt$(R)+VBAR+settingsFor(acctInView()).rPct+'% of AUM'
-              : scope().length+' accounts')+'</div></div>';
-        })() +
+        aumTiles(true) +
         (function(){
           // Allocation and buying-power-used were two tiles reading the same number: with margin
           // off, deployed/equity and deployed/buying-power are identical. One tile, both

@@ -408,6 +408,8 @@ leftovers).
     no stop, tier A, finished in the gear. Opening with a sell is offered unticked.
 46. **The ledger is a separate, collapsible card with filters** (dates, ticker, event, account,
     Adj. only) for manual audits. The broker file's rows stay unfiltered so nothing ticked is hidden.
+47. **AUM and 1R in dollars always show on the Portfolio**, open positions or none; 1R is its own
+    tile (a group shows its accounts' range).
 
 ### Still open (2026-11-04)
 

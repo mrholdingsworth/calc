@@ -1214,6 +1214,23 @@ const CASES = {
     ledgerClear();
   },
 
+  /* AUM and 1R in dollars show whether or not anything is open. */
+  aumAndR(){
+    const tile = k => { const el = document.querySelector("#bookBar .v-ps-"+k); return el ? [el.querySelector(".v").textContent, el.querySelector(".r").textContent] : null; };
+    book([], {initialCapital:50000, rPct:1});
+    root.tab = "portfolio"; render();
+    check("nothing open: AUM", tile("aum"), ["$50,000.00", "all cash, nothing open"]);
+    check("nothing open: 1R in dollars", tile("r"), ["$500.00", "1% of AUM"]);
+    book([trade({events:[ev("entry",{qty:100, price:50, stop:48})]})], {initialCapital:50000, rPct:1});
+    root.tab = "portfolio"; render();
+    // AUM at the stop: 50,000 less the 200 the stop gives back. 1R is 1% of it.
+    check("open: AUM at the stops", tile("aum"), ["$49,800.00", "cash plus positions at their stops"]);
+    check("open: 1R beside it", tile("r"), ["$498.00", "1% of AUM"]);
+    group([["A1", 100000], ["B1", 50000]]); root.tab = "portfolio"; render();
+    check("group: the range, per account", tile("r"), ["$500.00–$1,000.00", "1% of each account’s AUM"]);
+    check("group: AUM says how many", tile("aum")[1], "all cash, nothing open · 2 accounts");
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();
