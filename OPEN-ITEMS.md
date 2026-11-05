@@ -83,6 +83,11 @@ deliberately.*
   different book and counting writes, so "starts empty", "never writes" and "no re-import" can each
   fail. 500/500, twice in one page; eight deliberate breaks, each caught.
 - Not done: republishing the old v1.3 artifact on claude.ai. Not asked for; the app runs on Pages.
+- **Missed at cutover, fixed the same day:** the page's description tag still said "Development build
+  of version 2", and a shared link's preview showed it. Now "A trade journal and portfolio tracker
+  denominated in R, with a position-size calculator. Your book stays in your browser.", with Open
+  Graph title and description to match; the review page has its own. The `released` check reads
+  them (501/501). Chat apps cache previews, so an old one can linger for a while.
 
 ### 2026-11-04 — v2.0-dev, exports with or without settings (V2-PLAN 50)
 

@@ -1343,6 +1343,9 @@ const CASES = {
   released(){
     check("no dev markers", [document.title, !!document.querySelector(".devbadge"), /version\s*\|\s*2\.0\s*$/.test(document.body.innerText.split("\n").filter(l=>/version/.test(l)).pop() || "")],
       ["RCalculator", false, true]);
+    // What a shared link's preview shows.
+    const meta = n => (document.querySelector('meta[name="'+n+'"],meta[property="'+n+'"]') || {}).content || "";
+    check("no dev wording in link previews", [/dev/i.test(meta("description")), /dev/i.test(meta("og:description")), meta("og:title")], [false, false, "RCalculator"]);
   },
 
   /* The review page: empty, never saves, loads a book on request, ignores other tabs. */

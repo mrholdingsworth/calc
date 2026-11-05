@@ -186,6 +186,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
   file's header). `compare.js` proved v2 did what v1.3 did (historical: v2 has since changed arithmetic on purpose, e.g. dividends). `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers, the read-me, the ledger filters, the AUM and 1R tiles, the after-action settings, the Closed Trades filters, settings-free exports, the release markers and review mode — 500 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers, the read-me, the ledger filters, the AUM and 1R tiles, the after-action settings, the Closed Trades filters, settings-free exports, the release markers (link previews included) and review mode — 501 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.
