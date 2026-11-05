@@ -225,15 +225,167 @@ const CASES = {
     check("single blank = whole position", legStops(80, [{pct:null, price:49}]), [{qty:null, price:49}]);
   },
 
-  /* An unstopped short blocks new trades by default; Warn lets them open. */
-  shortBlock(){
+  /* Nothing stops a trade opening (2026-11-04): no checklist, no unstopped-short block, and with
+     typed shares not even a stop. Without a stop the trade is a long, flagged as unprotected. */
+  nothingBlocks(){
     const s = trade({side:-1, last:30, events:[ev("entry",{qty:100, price:30, stop:null})]});
     const pf = book([s]); root.tab = "new"; render();
+    check("short-guard setting gone", [!!$("s_shortGuard"), "shortGuard" in pf.settings], [false, false]);
     setNT("NEW", "50", "48", "10"); openTrade();
-    check("blocked", pf.trades.length, 1);
-    pf.settings.shortGuard = "warn"; render();
-    setNT("NEW", "50", "48", "10"); openTrade();
-    check("warn opens", pf.trades.length, 2);
+    check("opens beside an unstopped short", pf.trades.length, 2);
+    setNT("NOSTOP", "20", "", "15"); openTrade();
+    const t = pf.trades[0];
+    check("opens with no stop when shares are typed", [t.ticker, t.side, t.events[0].qty, t.events[0].stop], ["NOSTOP", 1, 15, null]);
+    setNT("NOTHING", "20", "", ""); openTrade();
+    check("no stop and no shares: nothing to size, says so", [pf.trades.length, $("nt_err").textContent], [3, "Enter a price and a stop, or a price and shares."]);
+    root.portfolios.Trading.settings.shortGuard = "block"; normalize();
+    check("old setting dropped on load", "shortGuard" in root.portfolios.Trading.settings, false);
+    clearFields();
+  },
+
+  /* Dividends: per share on the shares held going into the ex-date. Cash, AUM and the trade's R. */
+  dividends(){
+    const t = trade({events:[ev("entry",{qty:100, price:50, stop:48}, 0)]});
+    const pf = book([t]);
+    const cash0 = appCash("Trading"), aum0 = aumOf("Trading");
+    const day = d => dayOf(T0() + d*D);
+    t.events.push({type:"div", ps:0.5, ts:day(3)});
+    check("100 sh x $0.50 = $50 realised", derive(t).realized, 50);
+    check("cash and AUM up by it", [appCash("Trading") - cash0, aumOf("Trading") - aum0], [50, 50]);
+    check("in the trade's R", stats(t).rm, 50/t.rUnit);
+    t.events.push(ev("trim",{qty:50, price:50}, 5), {type:"div", ps:0.5, ts:day(8)});
+    check("after a trim, half the shares: +$25", derive(t).realized, 75);
+    t.events.push(ev("trim",{qty:10, price:50}, 10), {type:"div", ps:1, ts:day(10)});
+    t.events.sort((a,b)=> a.type==="entry" ? -1 : b.type==="entry" ? 1 : a.ts-b.ts);
+    check("sold on the ex-date still collects: 50 sh", derive(t).realized, 125);
+    check("each dividend's own amount", t.events.map((e,i)=>e.type==="div" ? divAmount(t, i) : null).filter(x=>x!=null), [50, 25, 50]);
+    const sh = trade({side:-1, events:[ev("entry",{qty:10, price:30, stop:32}, 0)]});
+    sh.events.push({type:"div", ps:1, ts:day(2)});
+    check("a short pays it", derive(sh).realized, -10);
+
+    const c = trade({status:"closed", closedAt:T0()+6*D, events:[ev("entry",{qty:100, price:20, stop:19}, 0), ev("close",{qty:100, price:20}, 6)]});
+    book([c]);
+    check("ex-date on the entry day: refused", divCheck(c, 1, day(0)+5, null), "The ex-date has to be after the day the trade opened.");
+    check("after the close: nothing held", divCheck(c, 1, day(7), null), "No shares were held going into that date.");
+    check("in the future: refused", divCheck(c, 1, Date.now()+3*D, null), "An ex-date can't be in the future.");
+    check("no amount: refused", divCheck(c, NaN, day(3), null), "Enter the dividend per share.");
+    gearUI(c.id); closeModal();
+    divUI(c.id);
+    $("m_date").value = dateVal(day(3)); $("m_ps").value = "0.24"; $("modalBody").oninput();
+    check("the dialog says what it pays", $("m_note").textContent, "100 shares held · received $24.00");
+    submitModal(); closeModal();
+    const dv = c.events.find(e=>e.type==="div");
+    check("added at the start of its day, trade still closed", [dv && dv.ps, dv && dv.ts, c.status, c.events[c.events.length-1].type], [0.24, day(3), "closed", "close"]);
+    check("closed trade's R includes it", derive(c).realized, 24);
+    divUI(c.id); $("m_date").value = dateVal(day(3)); $("m_ps").value = "1"; submitModal();
+    check("one dividend per date", [$("m_err").textContent, c.events.filter(e=>e.type==="div").length], ["There is already a dividend on that date.", 1]);
+    closeModal();
+    root.tab = "tally"; render(); toggleLog(c.id);
+    check("Closed Trades log shows it", $("log_"+c.id).textContent.indexOf("$0.24 a share · $24.00") >= 0, true);
+    root.tab = "audit"; render();
+    check("ledger amount", [...document.querySelectorAll("#ledger tr")].some(r=>/div/.test(r.textContent) && /\$24\.00/.test(r.textContent)), true);
+    check("break-even, not average, once paid", /break-even/.test(avgOrBe(c, derive(c))), true);
+
+    // A broker file's dividend is the one already on the trade.
+    const csv = "Execution Time,Type,Description,Misc Fees,Commissions & Fees,Amount,Balance\n" +
+      new Date(day(5)+12*36e5).toISOString()+",DOI,Qualified Dividend - X 24.0 US$,0,0,24,1000\n";
+    const items = csvCompare(parseBrokerCsv(csv), "Trading");
+    check("file dividend matches the trade's", items.filter(it=>it.note==="Dividend").map(it=>it.kind), ["cashSame"]);
+
+    const bad = JSON.parse(JSON.stringify(root));
+    bad.portfolios.Trading.trades[0].events.push({type:"div", ps:"abc", ts:day(4)});
+    root = bad; normalize();
+    check("a dividend with no amount is dropped on load", [root.portfolios.Trading.trades[0].events.filter(e=>e.type==="div").length, Number.isFinite(bookOf("Trading"))], [1, true]);
+  },
+
+  /* The calendar: realised P/L by day in dollars and percent, one journal for every account, and the
+     dates of a closed trade opening it on their day. */
+  calendar(){
+    const c = trade({ticker:"CAL", status:"closed", closedAt:T0()+3*D, events:[ev("entry",{qty:100, price:50, stop:48}, 1), ev("close",{qty:100, price:55}, 3)]});
+    const o = trade({ticker:"OPN", events:[ev("entry",{qty:10, price:20, stop:19}, 3)]});
+    book([c, o]);
+    const k1 = dateVal(c.events[0].ts), k3 = dateVal(c.closedAt);
+    const days = calDays(["Trading"]);
+    check("closed P/L by day, with the morning's book", [days[k3].pl, days[k3].open, calPct(days[k3])], [500, 100000, 0.5]);
+    check("trades of the day", calTrades(k3).map(x=>x.t.ticker+" "+x.what).sort(), ["CAL closed", "OPN opened"]);
+
+    check("the clock opens it", [$("clock").tagName, $("clock").getAttribute("aria-label")], ["BUTTON", "Open the calendar"]);
+    $("clock").click();
+    check("a dialog with no cancel", [$("modal").style.display, !![...$("modalBody").querySelectorAll("button")].find(b=>b.textContent==="Cancel")], ["flex", false]);
+    closeModal();
+    openCalendar(c.closedAt);
+    const n = new Date(new Date(c.closedAt).getFullYear(), new Date(c.closedAt).getMonth()+1, 0).getDate();
+    check("a cell per day", document.querySelectorAll("#calBox button.calcell").length, n);
+    const cell = () => document.querySelector('#calBox [data-k="'+k3+'"]');
+    check("the day picked", cell().getAttribute("aria-pressed"), "true");
+    check("its P/L in dollars and percent", [cell().querySelector(".cv").textContent, cell().querySelector(".cp").textContent], ["$500.00", "+0.50%"]);
+    $("cal_note").value = "Sold into the gap <b>x</b>"; calType(); calKeep();
+    check("note kept", root.journal[k3], "Sold into the gap <b>x</b>");
+    calPick(k1);
+    check("another day, its own note box", $("cal_note").value, "");
+    check("the noted day says so", /has a note/.test(cell().getAttribute("aria-label")), true);
+    calPick(k3);
+    check("read it back", $("cal_note").value, "Sold into the gap <b>x</b>");
+    const mo = new Date(c.closedAt).getMonth();
+    calMove(1); calMove(-1);
+    check("months move and come back", [calView.m, document.querySelectorAll("#calBox button.calcell").length], [mo, n]);
+    $("cal_note").value = "   "; calType(); calKeep();
+    check("an emptied note is removed", k3 in root.journal, false);
+    check("arrows named", [...$("calBox").querySelectorAll("button")].filter(b=>!/[A-Za-z0-9]/.test(b.textContent) && !b.getAttribute("aria-label")).length, 0);
+    closeModal();
+
+    root.journal[k3] = "Sold into the gap <img src=x>";
+    root.tab = "tally"; render(); toggleLog(c.id);
+    const links = [...document.querySelectorAll("#closedTbl button.linkbtn")].filter(b=>b.closest("tr").id !== "log_"+c.id);
+    check("Opened and Closed open the calendar", links.length >= 2, true);
+    links[1].click();
+    check("on the close day", calView.k, k3);
+    closeModal();
+    const jl = $("log_"+c.id).innerHTML;
+    check("the trade's days carry their notes, escaped", [jl.indexOf("Sold into the gap &lt;img") >= 0, /<img/.test(jl)], [true, false]);
+
+    const bad = JSON.parse(JSON.stringify(root));
+    bad.journal = {"2026-01-02":"ok", "nope":"x", "2026-01-03":{evil:1}, "2026-01-04":"  "};
+    root = bad; normalize();
+    check("only dated text notes load", root.journal, {"2026-01-02":"ok"});
+  },
+
+  /* The coaching export: a span of closed trades, worked out, under its instructions. */
+  coach(){
+    const L = (d, r, o) => trade(Object.assign({status:"closed", closedAt:T0()+d*D, events:[
+      ev("entry",{qty:100, price:50, stop:49}, d), ev("close",{qty:100, price:50 + r*10}, d)]}, o||{}));
+    const a = L(2, -1, {ticker:"AAA", concept:"Breakout", notes:"line one\nline two", lossTag:"noise"});
+    const b = L(3, 0, {ticker:"BBB", concept:"Breakout"});
+    const c2 = L(5, 2, {ticker:"CCC", concept:"Pullback", plan:{cutIf:"loses VWAP", waitIf:"", exit:""}});
+    const old = L(-30, 1, {ticker:"OLD"});
+    book([a, b, c2, old]);
+    root.journal[dateVal(b.closedAt)] = "Chased the open";
+    root.journal[dateVal(T0()+4*D)] = "No trades, choppy";
+    const r = coachText("Trading", dayOf(T0()), dayOf(T0()+10*D));
+    const tx = r.text;
+    check("only the span", [r.n, /OLD/.test(tx)], [3, false]);
+    check("instructions first, with the follow-up ask", [tx.indexOf("You are my trading coach")===0, /What did the stock do afterward/.test(tx)], [true, true]);
+    check("summary figures", [/closed trades 3/.test(tx), /wins 1 \| losses 1 \| scratches 1/.test(tx), /total \+1\.00R \(\$1000\.00\)/.test(tx)], [true, true, true]);
+    check("by setup", /by setup: Breakout n2 win 0\.0% tot -1\.00R exp -0\.50R; Pullback n1 win 100\.0% tot \+2\.00R/.test(tx), true);
+    check("same-day round trips", /same-day round trips 3/.test(tx), true);
+    check("the trade after a loss", /trade after a loss: n1 win 0\.0% tot 0\.00R/.test(tx), true);
+    check("loss tag by name", /loss tags: Stopped by noise 1 \| untagged losses 0/.test(tx), true);
+    check("a trade line", /#1 AAA L \| Breakout \| A \| \S+ > \S+ 1d \| -1\.00R int -10\.00R \| pos -20\.0% \| in 50 out 40 stop0 49 \| E100@50 s49; C100@40/.test(tx), true);
+    check("notes on one line", /  notes: line one line two/.test(tx), true);
+    check("plan and journal beside the trade", [/  plan: cut if loses VWAP/.test(tx), /  journal \S+: Chased the open/.test(tx)], [true, true]);
+    check("other journal days", /== OTHER JOURNAL DAYS ==\n\S+: No trades, choppy/.test(tx), true);
+    check("about the size of", tx.length < 4000, true);
+
+    root.tab = "data"; render();
+    $("co_from").value = dateVal(T0()+5*D); $("co_to").value = dateVal(T0()+2*D); buildCoach();
+    check("dates the wrong way round", $("co_msg").textContent, "From is after To.");
+    $("co_from").value = dateVal(T0()); $("co_to").value = dateVal(T0()+10*D); buildCoach();
+    check("built into the box", [/^3 trades · about \d+ tokens$/.test($("co_msg").textContent), $("co_out").value===tx], [true, true]);
+    group([["A1", 100000, [L(2, 1, {ticker:"G1"})]], ["B1", 50000, [L(2, 1, {ticker:"G2"})]]]); root.tab = "data"; render();
+    check("group: one account at a time", [[...$("co_acct").options].map(o=>o.value), coachAcct()], [["A1","B1"], "A1"]);
+    setCoachAcct("B1");
+    check("the picked one", /G2/.test(coachText(coachAcct(), dayOf(T0()), dayOf(T0()+10*D)).text), true);
+    $("co_out").value = ""; $("co_from").value = ""; $("co_to").value = "";
   },
 
   /* Manual marks: one price per symbol, every account holding it. */
@@ -757,6 +909,71 @@ const CASES = {
     clearFields();
   },
 
+  /* Dividends in the estimated tax: a long's is qualified (long-term rate) only when the company
+     says so and the shares were held more than 60 of the 121 days around the ex-date, lot by lot;
+     otherwise ordinary (short-term rate). A short's comes off its short-term gain. */
+  taxDividends(){
+    const d = s => new Date(s+"T12:00:00").getTime();
+    const E = (type, qty, price, s) => ({type, qty, price, stop: type==="entry" ? price*0.9 : undefined, ts:d(s)});
+    const V = (ps, s, nq) => Object.assign({type:"div", ps, ts:dayOf(d(s))}, nq ? {nq:true} : {});
+    const T = (ticker, side, events) => trade({ticker, side, status:"closed", events, last:10, closedAt:events[events.length-1].ts});
+    const ts = [
+      // Jan 3 to the window's end, May 1: 119 days. Qualified, 100 x $1.
+      T("QQQ", 1, [E("entry",100,50,"2026-01-02"), V(1,"2026-03-02"), E("close",100,50,"2026-06-01")]),
+      // Apr 2 to Apr 20: 19 days. Ordinary, 100 x $0.50.
+      T("OOO", 1, [E("entry",100,20,"2026-04-01"), V(0.5,"2026-04-10"), E("close",100,20,"2026-04-20")]),
+      // Held long enough, but the company's dividend is not qualified: ordinary, 10 x $2.
+      T("REIT", 1, [E("entry",10,30,"2026-01-02"), V(2,"2026-03-02",true), E("close",10,30,"2026-06-01")]),
+      // A short pays 50 x $1.
+      T("SSS", -1, [E("entry",50,40,"2026-05-01"), V(1,"2026-05-05"), E("close",50,40,"2026-05-10")]),
+      // One lot, two sales: 40 sold Mar 10 (Feb 2 - Mar 10, 37 days, ordinary), 60 sold May 1 (89, qualified).
+      T("PPP", 1, [E("entry",100,10,"2026-02-01"), V(1,"2026-03-02"), E("trim",40,10,"2026-03-10"), E("close",60,10,"2026-05-01")]),
+      // Another year.
+      T("OLD", 1, [E("entry",10,10,"2025-01-02"), V(5,"2025-06-02"), E("close",10,10,"2025-12-01")])
+    ];
+    const pf = book(ts, {taxOn:true});
+    const at = new Date().toISOString(); root.taxAck = {at, k:ackCode(at)};
+    let r = taxReport(2026).Trading;
+    check("qualified 100 + 60, ordinary 50 + 20 + 40", [r.divQ, r.divO], [160, 110]);
+    check("a short's dividend comes off ST", [r.st, r.lt], [-50, 0]);
+    check("not netted against the ST loss: 160 at 15% + 110 at 22%", r.tax, 160*0.15 + 110*0.22);
+    check("the year's own only (held all through its window: qualified)", [taxReport(2025).Trading.divQ, taxReport(2025).Trading.divO], [50, 0]);
+    pf.cashFlows.push({type:"adjust", amount:5, note:"Dividend", ts:d("2026-07-01")});
+    check("a broker-file dividend with no shares behind it: ordinary", taxReport(2026).Trading.divO, 115);
+    root.tab = "portfolio"; render();
+    check("on the tile", /Div \$275\.00/.test($("bookBar").textContent), true);
+
+    // The line: Jul 2 - Aug 30 is 60 days, not more than 60, so ordinary; one more day qualifies.
+    check("days held: not the day bought, the day sold", divDaysHeld(d("2026-07-01"), d("2026-08-30"), d("2026-05-11"), d("2026-09-08")), 60);
+    book([T("B60", 1, [E("entry",10,10,"2026-07-01"), V(1,"2026-07-10"), E("close",10,10,"2026-08-30")]),
+          T("B61", 1, [E("entry",10,10,"2026-07-01"), V(1,"2026-07-10"), E("close",10,10,"2026-08-31")])], {taxOn:true});
+    root.taxAck = {at, k:ackCode(at)};
+    check("60 days ordinary, 61 qualified", [taxReport(2026).Trading.divO, taxReport(2026).Trading.divQ], [10, 10]);
+
+    // An open lot counts to today: bought 100 days ago, qualified already; bought 30 days ago, not yet.
+    const now = Date.now(), long = trade({ticker:"LNG", events:[ev("entry",{qty:10, price:10, stop:9}, -80)]});
+    long.events.push({type:"div", ps:1, ts:dayOf(now - 50*D)});
+    const young = trade({ticker:"YNG", events:[ev("entry",{qty:10, price:10, stop:9}, -10)]});
+    young.events.push({type:"div", ps:1, ts:dayOf(now - 20*D)});
+    book([long], {taxOn:true}); root.taxAck = {at, k:ackCode(at)};
+    check("open, held 100 days: qualified", taxReport(new Date(now - 50*D).getFullYear()).Trading.divQ, 10);
+    book([young], {taxOn:true}); root.taxAck = {at, k:ackCode(at)};
+    check("open, held 30 days: ordinary for now", taxReport(new Date(now - 20*D).getFullYear()).Trading.divO, 10);
+
+    // The dialog's box: unticked stores non-qualified; the gear's edit can tick it back.
+    const u = trade({ticker:"UI", events:[ev("entry",{qty:10, price:10, stop:9}, 0)]});
+    book([u]);
+    divUI(u.id);
+    check("qualified by default", $("m_qual").checked, true);
+    $("m_date").value = dateVal(T0() + 5*D); $("m_ps").value = "1"; $("m_qual").checked = false; submitModal(); closeModal();
+    const i = u.events.findIndex(e=>e.type==="div");
+    check("unticked: non-qualified", [u.events[i].nq, /non-qualified/.test(EVENT_DESC(u.events[i]))], [true, true]);
+    editEvent(u.id, i);
+    check("edit shows it", $("m_qual").checked, false);
+    $("m_qual").checked = true; submitModal(); closeModal();
+    check("ticked back", "nq" in u.events[i], false);
+  },
+
   /* The broker file (thinkorswim Transaction History). A made-up file covering every kind of row:
      a price fix, a date fix, split fills under a cent, an order the app lacks on an open trade
      (an add and a trim), one with no trade, one the file lacks, a day with two round trips logged
@@ -888,7 +1105,7 @@ window.runChecks = () => {
     }
   } finally {
     closeModal(); clearFields();
-    csvData = null; csvOn = {};
+    csvData = null; csvOn = {}; coachPick = null; calView = null;
     root = keep; normalize();
     save = realSave; window.confirm = realConfirm; window.alert = realAlert;
     render();

@@ -21,187 +21,6 @@ Running list. Newest at the top of each section.
     which narratives actually paid, which is valuable — but it is a schema change and a second
     taxonomy to maintain at entry, and the notebook is worth having on its own first.
 
-- **The pre-trade checks are Russo's, not yours — direction deferred, 2026-09-24.** The four checks
-  do not describe how Steve trades, and as a hard gate they are friction on the app's primary
-  workflow. `updateGate()` disables Open trade until `checksDone()===4`, so every trade requires
-  agreeing to someone else's checklist before it can be recorded at all.
-
-  Same problem as the **rules panel** item below: memoir content occupying the place his own system
-  should. If the checklist becomes user-defined, that item is closed by this one — a checklist at the
-  point of decision is a better home for rules than a panel you read once.
-
-  Three paths, put to him and deliberately left open:
-  1. **User-defined list, still blocking** — his rules, still gating.
-  2. **User-defined list, non-blocking** — unticked items warn instead, matching the flag-don't-block
-     stance already taken by the heat cap and the cold-streak brake.
-  3. **Removed entirely** — ticker, price, stop, open.
-
-  **The data model matters whichever way it goes.** `t.checks` is a fixed `[bool,bool,bool,bool]`,
-  and `bookStats` derives "Planned at entry %" from `t.checks.every(Boolean)`. Once the list is
-  user-defined and variable in length, that statistic compares trades taken under different
-  checklists and quietly means nothing. Store the text alongside the state — `t.checks` becomes
-  `[{text, ticked}]`, migrating the old booleans against the current four — so a trade always records
-  which questions it was actually asked.
-
-  Secondary, and only if checks survive in some form: they are also the last native controls in the
-  app, `accent-color` on a browser-default square among controls that are all `panel2` on a `line2`
-  border with a radius. `appearance:none`, a 16px box matching the button treatment, CSS-drawn tick,
-  blue fill — blue not gold, since `.chk b` already puts gold inside these labels and a gold box
-  would compete with the words beside it. Plus `.chk:has(input:checked){color:var(--tx)}` to turn the
-  gate into visible progress. Cosmetic; worthless if the checks are going away.
-
-- **A JSON export shaped for an AI to coach from.** Distinct from the existing export, which is the
-  raw `root` — settings, event logs, internal ids — and makes a model re-derive everything before it
-  can say anything. A coaching export should ship the *derived* view instead: one record per closed
-  trade carrying R multiple, days held, entry and exit, the tier and concept, the plan written at
-  entry, the loss tag, the re-trade note and the 30-day review.
-
-  The insight lives in the **pairs**, not the numbers. What you said you would do against what you
-  did; the exit against what the 30-day review later said about it; the concept claimed at entry
-  against how that concept actually performs. Those are what this book has and a broker statement
-  never will, and they are what a model can actually say something useful about. Ship the aggregates
-  too — the three win rates, days held winners vs losers, the loss-tag split, planned-at-entry % —
-  so the model is not recomputing what the app already knows.
-
-  - **Anonymise option.** A full book carries account names and dollar balances. A "normalise to R"
-    mode — no account names, no dollars, everything in R and percentages — makes it safe to paste
-    anywhere without losing anything that matters to the analysis, since R is the unit of the whole
-    system anyway.
-  - **Scope control.** Whole book, last N trades, one concept, or a date range. A year of trades is a
-    lot of tokens, and coaching is usually about a stretch, not a lifetime.
-  - Cheap next to the broker item below, and it raises the value of data already collected. If both
-    are wanted, this one first.
-
-- **Broker API integration — pull fills instead of typing them.** Two problems, and the second is
-  the one that decides whether this is worth it.
-
-  **Architecture.** The app is a static file on GitHub Pages with no server, no build step and no
-  dependencies. Most broker APIs need an OAuth redirect and a client secret held somewhere that is
-  not the browser, and will not accept cross-origin calls from an arbitrary page. Brokers differ a
-  great deal here — some expose a locally-run gateway that a browser can reach, others are
-  server-only — so this needs checking against the specific broker before anything is designed.
-  Worth being clear about the stakes either way: the Finnhub key already stored can read quotes, and
-  a broker credential can read positions and in some cases place orders. That is a different class of
-  secret to be keeping in `localStorage` on a public origin.
-
-  **A CSV import gets most of the benefit and collides with none of it.** Every broker exports trade
-  history to file. A mapper from broker rows into the event model is ordinary work inside the
-  existing architecture, needs no credentials, and removes the same typing.
-
-  **The hard part is not fetching, it is that a broker gives fills, not intent.** A statement says
-  200 shares left at 104. It cannot say whether that was a planned trim into strength or a panic, and
-  the model here is built on that difference: `entry / add / trim / close / stop`. Worse, an imported
-  trade arrives without the fields that make this book worth keeping — tier, concept, ADR, the plan
-  and its hinges, the pre-trade checks, and the R unit and equity locked at open. Those are inputs
-  from you, and no import reconstructs them.
-
-  So the realistic shape is **import fills, then attach meaning**: prices and quantities arrive
-  automatically, a review step assigns the rest. Which also means the honest version of this item is
-  "remove the typing of numbers", not "remove the journalling" — and the journalling was always the
-  part that pays.
-
-- **Interactive calendar: journal entries and daily P/L.** By some distance the largest item on this
-  list — a month grid, each day carrying its result and a note you can write.
-
-  What is derivable today, and what is not:
-  - **Realised P/L per day is free.** Closed trades carry `closedAt`, and `renderCharts` already
-    builds exactly this map (`byDay`) for the time-series charts. Lift that out and the calendar has
-    its numbers with no new storage.
-  - **Mark-to-market daily change is not.** The book has no daily equity snapshots, only marks taken
-    whenever a refresh happened to run. It cannot be reconstructed backwards. If you want it, the
-    app has to start writing a daily equity stamp from that release on, and the calendar stays
-    realised-only for everything before it. Worth deciding early — it is the one part that cannot be
-    retrofitted.
-  - **Cash movements already carry dates** (`cashFlows`, v1.1). Mark them on the calendar: a deposit
-    day explains an equity jump that was not performance, which is exactly the confusion a
-    P/L calendar would otherwise create.
-
-  Design questions:
-  - **Store.** `root.journal` keyed `YYYY-MM-DD`, global rather than per account — a journal is about
-    the trader, not the book. It should survive switching tabs.
-  - **Make the day click through.** A bare diary is worth little; a day that lists the trades closed
-    on it, with their R multiples, is worth a lot. That link is most of the value.
-  - **It would be a fourth note field**, alongside a trade's re-trade review and its 30-day review.
-    Decide how they relate before building, or the same thought gets written in three places. The
-    30-day-due count could surface on the calendar rather than only in headers.
-  - **Colour.** Resist a green/red heat map by instinct — R, not dollars, is the unit everywhere else
-    here, and a day of +0.5R on a small book should not read paler than +$800 on a large one.
-
-- **Extension check: am I chasing?** Your use of ADR differs from the memoir's, and both are worth
-  having because they measure different distances with the same unit:
-
-  | | Numerator | Question | Bad when |
-  |---|---|---|---|
-  | present (Russo) | stop distance | is my stop outside the noise? | under ~1.5 ADR |
-  | new (yours) | distance already travelled | am I late? | over ~0.5 ADR |
-
-  They are orthogonal — a well-placed stop on a chased entry, or a well-timed entry with a stop
-  sitting inside the noise, are both possible — so this adds to the vocabulary rather than replacing
-  anything. **Open question: does the 1.5-ADR floor stay?** If it goes, the "band" framing in the
-  max-stop-width item below loses one of its two edges and that entry needs rewriting.
-
-  Reference point to settle, since it changes the number:
-  - **from the day's low** (long) or high (short) — how much of a normal day's move is already behind
-    you. Most directly answers "am I chasing".
-  - **from the open** — ignores an overnight gap, which may be the point or may hide it.
-  - **from the prior close** — counts the gap as travel. Right for gap-and-go, wrong for a name that
-    gapped and then based for two hours.
-
-  Data: `refreshMarks` already receives this. Finnhub `/quote` documents `h`, `l`, `o` and `pc`
-  alongside `c`, and the code reads only `c` (see the fetch in the live-marks section). Confirm
-  against a live response, then capture the rest and the check costs no extra calls.
-
-  Two placement notes. A pre-trade check needs a quote for a ticker that is not yet a position, so
-  New Trade would fetch on ticker entry — one call, on demand. And it cannot live in Fast calc at
-  all, which has no ticker field by design; that stays a pure price-stop-tier tool.
-
-  Without a key: a manual "ADRs extended" input, or day high/low fields.
-
-- **Ruled out 2026-10-26, see Ruled out — kept here for the reasoning.** **A stop that is too
-  wide, and a size that is too small.** Two requested guards that turn out to
-  be one constraint seen from opposite ends. Both are ceilings on risk per share:
-
-  ```
-  max stop %   ->  risk/share <= (maxPct/100) * price      e.g. 5% of a $10 entry = $0.50
-  min size     ->  risk/share <= budget / minShares        e.g. $500 budget / 100 sh = $5.00
-  ```
-
-  They bind at opposite ends of the price range and cross at
-  `price = 100 * budget / (maxPct * minShares)` — $100 for a $500 budget, a 5% rule and a 100-share
-  floor. Below that the percentage rule binds, above it the share floor does. Checked: at $10 the
-  rules allow $0.50 and $5.00; at $200, $10.00 and $5.00; at $100 both give $5.00 exactly.
-
-  So do **not** build two independent warnings. Compute one number — the widest stop this trade
-  supports — and name whichever rule produced it. Simpler to read and it cannot contradict itself.
-
-  Why each matters, since the reasons differ:
-  - A stop too **wide** means a 1R win needs an implausibly large move. It is a statement about
-    whether the trade can pay, not about whether the risk is acceptable — the risk is 1R either way.
-  - A size too **small** means the position cannot be managed: a 25% trim of 8 shares is 2 shares,
-    and fixed costs stop being noise. It is about manageability, not about risk.
-
-  Watch the collision with the ADR audit. That one flags a stop *too tight* for normal noise (under
-  1.5 ADRs); this one flags *too wide*. Together they are a band, and on a volatile enough name the
-  band is empty — a 12% ADR wants a stop around 18% wide, which a 5% rule forbids. That is not two
-  warnings, it is one conclusion: **this stock is too volatile for your rules.** Say that, once.
-
-  **Depends on the extension item above.** The band has two edges only while the 1.5-ADR floor is a
-  rule you keep. Decide that first: if ADR becomes purely an extension measure, the floor goes, and
-  the max-stop-width rule stands alone with nothing to collide with.
-
-  Implementation notes: both parameters are method, not account — they belong in `GROUP_KEYS`
-  alongside `rPct`, `tiers`, `heatCap` and `coldR`. Surface in New Trade, Fast calc, and per account
-  in the group table, since a small account can fail a share floor that a large one passes. Warn,
-  never block, consistent with the heat cap. The group sizer's existing "0 — too small" line is the
-  degenerate case of the same idea and should fold into it.
-
-- **Dividends received on an open trade.** Add a per-trade dividend amount so cash paid while the
-  position is held is part of its result. Questions to settle first: does it count toward realized
-  P/L and therefore the R multiple, or sit beside it as a separate line? It is not risk-financed, so
-  letting it finance an add through the constant-risk formula would be wrong — probably it should
-  land in `events` as its own type, be excluded from the add budget, and be reported both inside
-  total return and separately. Long positions receive, shorts pay.
-
 *From the pre-1.0 review, 2026-09-01. Everything else on that list was fixed; these were deferred
 deliberately.*
 
@@ -215,17 +34,18 @@ deliberately.*
 
 - **Rules panel — rebuild around your own system.** The paraphrased seven-part "bible" was pulled
   out of the page. The original markup is parked in `_parked/bible.html` so nothing is lost.
-  Re-add later, rewritten to your own rules rather than the memoir's.
-
-  **Settle the pre-trade checks first** (see above). If that checklist becomes user-defined, it is
-  the better home for these rules — a rule you tick at the moment of decision beats a rule in a panel
-  you read once — and this item closes without separate work.
+  Re-add later, rewritten to your own rules rather than the memoir's. Left open by Steve
+  (2026-11-04). It stands alone now: there is no checklist for it to fold into.
 
 ## Ruled out
 
-- **Noise check (v1's ADR audit) — removed 2026-10-29.** It judged a stop against APTR (red under
-  1.0, amber under 1.5, the memoir's levels). Not something Steve uses. The "Extension check" idea
-  in To do mentions it only as a contrast.
+- **Pre-trade checklists of any kind — not wanted (2026-11-04).** Nothing stops a trade opening:
+  not Russo's four checks, not a list of Steve's own, not the unstopped-short block (removed with
+  its setting). The app is now primarily a portfolio tracker; Steve sizes elsewhere and keeps the
+  calculator for the times it helps. Old trades keep `t.checks`; nothing reads it.
+- **Noise and extension checks — not wanted (2026-10-29, 2026-11-04).** The noise check (v1's ADR
+  audit) judged a stop against APTR at the memoir's levels; the extension check ("am I chasing?")
+  would have measured distance travelled in APTR. Both are Russo leftovers. Do not re-propose.
 - **Max stop width — not wanted (2026-10-26).** Min allocation, a percentage of equity, covers it: a
   stop wide enough to matter at a fixed R makes the position too small, and that is what gets
   flagged. Do not re-propose without a case min allocation misses.
@@ -245,6 +65,35 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, a tracker first: nothing blocks, dividends, calendar, coaching export (V2-PLAN 38–41)
+
+- **Nothing stops a trade opening.** The unstopped-short block and its setting are gone (warnings
+  stay); with shares typed, a trade opens without a stop, as a long flagged unprotected. A group
+  still needs a stop, since it sizes each member from it.
+- **Dividends**, from the gear: an amount per share on an ex-date. It pays per share × the shares
+  held going into that day, so a trim before it pays less and one after changes nothing; a short
+  pays it. Realised, so it is in cash, AUM, the trade's P/L and R, the ledger, the equity curve and
+  break-even. A broker file's dividend already entered on its trade counts as matched.
+- **Dividends in the estimated tax**, by ex-date year. A long's is qualified (long-term rate) when
+  the company designates it (a box on the dividend, ticked by default) and the shares were held
+  more than 60 of the 121 days around the ex-date, followed lot by lot through later sales; an open
+  lot counts to today. Otherwise ordinary (short-term rate). A short's comes off its short-term
+  gain. Dividends are not netted against capital losses. A broker-file dividend kept as a cash
+  adjustment counts as ordinary. The tile adds "Div", with the split in its tooltip.
+- **Calendar**, from the clock: each day's realised P/L in dollars and as a percentage of the book
+  that morning, a journal note per day (one journal for every account, `root.journal`), and the
+  trades opened and closed that day. A closed trade's Opened and Closed dates open it on that day,
+  dotted when a note exists, and its expanded row shows both days' notes. On the real book the days
+  sum to the realised total exactly ($31.56).
+- **Coaching export** (Data): a date span of one account's closed trades as text, under a "you are
+  my trading coach" brief that asks for patterns both ways and follow-up questions about specific
+  trades. Summary first (win rate, expectancy, profit factor, by setup / tier / side / days held /
+  weekday, the trade after a loss, loss tags, plans and reviews written), then one line per trade
+  with its events, and its plan, notes, loss tag, review and the journal for its days. The real
+  book's 48 trades come to about 3,700 tokens.
+- `v2-checks.js`: `nothingBlocks` (replacing `shortBlock`), `dividends`, `taxDividends`,
+  `calendar`, `coach` — 413/413, twice in one page. Thirty-three deliberate breaks, each caught.
+
 ### 2026-10-29 — v2.0-dev, Audit: the broker file (V2-PLAN 34–37)
 
 Built from two real thinkorswim Transaction History exports, after Steve settled the questions they
@@ -252,8 +101,7 @@ raised. Upload on the Audit tab; the file is read in the browser and goes nowher
 
 - **Nothing changes until approved.** Every difference is a row; only ticked rows apply, after a
   confirm, each tagged Adj. with what it was. The file is evidence of fills, not of intent, which is
-  why an order that would open a trade is flagged rather than created (the "intent" point in the
-  broker-sync item above still holds).
+  why an order that would open a trade is flagged rather than created.
 - **Read against the 10-22 book:** 50 orders from 55 fills; in the overlap, 22 identical, 2 real
   price fixes (GRAL close $138.29 → $138.65, ASST close $28.20 → $28.21), 8 under a cent offered
   unticked, SNXX 10/07 held back (two broker round trips, one app trade); after 10/22, the DOCS

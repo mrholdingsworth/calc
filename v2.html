@@ -151,6 +151,24 @@ h1,h2,h3{margin:0;font-weight:600;letter-spacing:-.01em}
 .clock .c{color:var(--gold)}
 .clock .n{color:var(--gold);font-size:12px;font-weight:700;margin-top:3px;
           max-width:300px;margin-left:auto}
+/* The clock is the calendar's button, so it keeps the look of a clock. */
+button.clock{background:none;border:0;padding:0;color:inherit;font:inherit;white-space:normal;border-radius:6px}
+.clock .t,.clock .d,.clock .n{display:block}
+button.clock:hover .d{color:var(--gold)}
+button.linkbtn{background:none;border:0;padding:0;color:inherit;font:inherit;border-radius:3px;
+  text-decoration:underline dotted var(--mut);text-underline-offset:3px}
+button.linkbtn:hover{color:var(--gold)}
+.calgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+.calwd{font-size:10.5px;color:var(--mut);text-align:center;padding:2px 0}
+button.calcell{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:56px;padding:4px 5px;
+  border-radius:8px;border:1px solid var(--line);font-size:11px;white-space:nowrap;overflow:hidden;min-width:0}
+.calcell.empty{border:0}
+button.calcell.sel{border-color:var(--gold)}
+.calcell.today .cd{color:var(--gold)}
+.calcell .cd{font-weight:700}
+.calcell .cn{color:var(--gold);font-size:8px;margin-left:3px;vertical-align:middle}
+.calcell .cp,.calcell .cv{font-family:var(--mono);font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:560px){ .calcell .cv{display:none} }
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 20px;margin-bottom:14px}
 .head{font-size:10.5px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.1em;margin-bottom:10px}
@@ -321,7 +339,7 @@ button.small{--r:7px}
        above a block that is pinned on every tab, and measuring it is what made that obvious. -->
   <div class="mast" style="align-items:flex-start;gap:12px">
     <div class="logo" role="heading" aria-level="1"><span class="gold">R</span>Calculator<span class="devbadge">2.0-dev</span></div>
-    <div class="clock" id="clock" aria-live="off" style="margin-left:auto"></div>
+    <button type="button" class="clock" id="clock" onclick="openCalendar()" title="Open the calendar" aria-label="Open the calendar" style="margin-left:auto"></button>
   </div>
   <div class="tabs" id="tabs" style="margin:6px 0 0"></div>
 
@@ -539,8 +557,6 @@ button.small{--r:7px}
           <div class="sctl"><input type="checkbox" id="s_maxAllocOn"><input id="s_maxAlloc" aria-label="Max allocation, percent of AUM" type="number" step="1" min="1"><span class="suffix">%</span></div></div>
         <div class="srow"><label for="s_minAllocOn">Min allocation<span class="info" data-tip="Marks a suggested size below this share of AUM as under the minimum.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_minAllocOn"><input id="s_minAlloc" aria-label="Min allocation, percent of AUM" type="number" step="0.5" min="0.1"><span class="suffix">%</span></div></div>
-        <div class="srow"><label for="s_shortGuard">Unstopped short<span class="info" data-tip="What a short position with shares no stop covers does to new trades in that account. Block refuses new trades there until a stop covers it; Warn only flags it.">i</span></label>
-          <div class="sctl"><select id="s_shortGuard"><option value="block">Block new trades</option><option value="warn">Warn only</option></select></div></div>
       </div>
 
       <div class="setbox">
@@ -623,6 +639,18 @@ button.small{--r:7px}
     </div>
     <textarea id="io" aria-label="Book as JSON" style="margin-top:14px;min-height:96px;font-family:var(--mono);font-size:11.5px" placeholder="Your whole book, as JSON."></textarea>
     <div class="err" id="io_err" aria-live="polite"></div>
+  </div>
+  <div class="card">
+    <div class="panehead"><h2>Coaching export</h2></div>
+    <div class="row">
+      <div id="co_acctWrap"></div>
+      <div><label for="co_from">From</label><input id="co_from" type="date"></div>
+      <div><label for="co_to">To</label><input id="co_to" type="date"></div>
+      <button class="small" onclick="buildCoach()">Build</button>
+      <button class="small" onclick="copyCoach()">Copy</button>
+    </div>
+    <textarea id="co_out" aria-label="Coaching export" readonly style="margin-top:10px;min-height:120px;font-family:var(--mono);font-size:11.5px"></textarea>
+    <div class="muted" id="co_msg" role="status"></div>
   </div>
 </section>
 
@@ -770,16 +798,14 @@ function defaults(){
                       heatCap:5, coldR:3, heatOn:true, coldOn:true,
                       targetsOn:true, targets:[1,2],
                       fuzz:10, maxAllocOn:false, maxAlloc:25, minAllocOn:false, minAlloc:2,
-                      shortGuard:"block",
                       taxOn:false, taxST:22, taxLT:15 }, trades:[] };
 }
 // The ruleset a group owns on behalf of its members. Equity, positions and statistics stay with
 // each account; only these are shared. Lot rounding is NOT here: it is per account, like margin,
 // and in a group it is set per member in the members table rather than through the shared fields.
-// shortGuard: what an unstopped short does to new trades in its account -- "block" or "warn".
 const GROUP_KEYS = ["rPct","tiers","heatCap","coldR","heatOn","coldOn",
                     "targetsOn","targets",
-                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc","shortGuard"];
+                    "fuzz","maxAllocOn","maxAlloc","minAllocOn","minAlloc"];
 function groupDefaults(){
   const d = defaults().settings, g = {};
   GROUP_KEYS.forEach(k=>{ g[k] = Array.isArray(d[k]) ? d[k].slice() : d[k]; });
@@ -923,7 +949,6 @@ function unprotected(accts){
 }
 // Unstopped short shares that stop new trades in this account: none when its ruleset says Warn
 // only. The default is Block, because an unstopped short has no worst case for AUM to stand on.
-const shortBlock = acct => settingsFor(acct).shortGuard === "warn" ? 0 : unprotected([acct]).short;
 const rUnitOf = acct => aumOf(acct) * settingsFor(acct).rPct/100;
 // "group" = a group tab with no member drilled into. Everything else behaves as a single account.
 const inGroup = () => isGroup(root.active) && !root.focus;
@@ -1070,6 +1095,15 @@ function normalize(){
   Object.keys(root.portfolios).forEach(n=>{ if(root.order.indexOf(n)<0) root.order.push(n); });
   root.order = root.order.filter(n=>root.portfolios[n]);
   cleanIds();
+  // A dividend with no usable amount would turn the book into NaN; a journal note must be text.
+  Object.values(root.portfolios||{}).forEach(pf=>(pf.trades||[]).forEach(t=>{
+    if(Array.isArray(t.events)) t.events = t.events.filter(e=>e && (e.type!=="div" || (Number.isFinite(+e.ps) && +e.ps>0 && (e.ps = +e.ps))));
+  }));
+  const J = root.journal;
+  root.journal = {};
+  if(J && typeof J === "object") Object.keys(J).forEach(k=>{
+    if(/^\d{4}-\d{2}-\d{2}$/.test(k) && typeof J[k] === "string" && J[k].trim()) root.journal[k] = J[k];
+  });
   const d = defaults().settings;
   Object.values(root.portfolios).forEach(pf=>{
     if(!pf.settings) pf.settings = defaults().settings;
@@ -1150,8 +1184,9 @@ function normalize(){
   delete root.defs.reviewDays;          // was a setting; the review is a fixed 30 days now
   // The noise check (v1's ADR audit) is gone, and its settings with it.
   delete root.defs.aptrTight; delete root.defs.aptrFloor;
-  Object.values(root.portfolios||{}).forEach(pf=>{ if(pf.settings) delete pf.settings.noiseOn; });
-  Object.values(root.groups||{}).forEach(G=>{ if(G && G.settings) delete G.settings.noiseOn; });
+  // Nothing stops a trade opening (2026-11-04): the unstopped-short block went with its setting.
+  Object.values(root.portfolios||{}).forEach(pf=>{ if(pf.settings){ delete pf.settings.noiseOn; delete pf.settings.shortGuard; } });
+  Object.values(root.groups||{}).forEach(G=>{ if(G && G.settings){ delete G.settings.noiseOn; delete G.settings.shortGuard; } });
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
   root.ui.hidden = Object.assign({}, root.ui.hidden);     // never the shared default object
@@ -1465,6 +1500,9 @@ function derive(t){
       realized += t.side*(e.price-avg)*q;
       Q -= q;
     } else if(e.type==="stop") stops = stopsFrom(e);
+    // A dividend is per share, on the shares held going into its ex-date: cash in for a long, out
+    // for a short. Realised, so it lands in the book (cash, AUM, sizing) and in the trade's R.
+    else if(e.type==="div") realized += t.side*(e.ps||0)*Q;
     else if(e.type==="adjust"){
       if(e.qty!=null) Q = e.qty;
       if(e.price!=null) avg = e.price;
@@ -1883,15 +1921,17 @@ window.closeModal = () => {
    error string to keep the dialog open, or null to close, save and render. */
 let modalOk = null, modalInput = null, modalReturn = null;
 const mv = id => $(id) ? $(id).value : "";
-function openModal(title, body, okLabel, onOk, onInput){
+function openModal(title, body, okLabel, onOk, onInput, opts){
+  opts = opts || {};
   // Remember the opener once: the gear reopens itself after a correction, and focus should still
   // go back to the row's button, not to a button inside the dialog that no longer exists.
   if($("modal").style.display !== "flex") modalReturn = document.activeElement;
   $("modalTitle").innerHTML = title;
   $("modalBody").innerHTML = body + '<div id="m_note" class="calsub"></div><div class="err" id="m_err" role="alert"></div>' +
     '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
-    '<button onclick="closeModal()">Cancel</button>' +
+    (opts.noCancel ? '' : '<button onclick="closeModal()">Cancel</button>') +
     '<button class="primary" id="m_ok">' + okLabel + '</button></div>';
+  document.querySelector(".modalcard").style.maxWidth = opts.wide ? "640px" : "";
   modalOk = onOk; modalInput = onInput || null;
   $("modal").style.display = "flex";
   applyTips($("modalBody"));
@@ -1962,7 +2002,6 @@ const SET_FIELDS = [
   ["s_target0",   "rule", "targets.0",  "num"],
   ["s_target1",   "rule", "targets.1",  "num"],
   ["s_setups",    "defs", "setups",     "lines"],
-  ["s_shortGuard","rule", "shortGuard", "str"],
   ["s_lotOn",     "acct", "lotOn",      "bool"],
   ["s_fuzz",      "rule", "fuzz",       "num"],
   ["s_maxAllocOn","rule", "maxAllocOn", "bool"],
@@ -2652,8 +2691,6 @@ function newTradeCal(){
     warns.push("Allocation "+(q*P/eq*100).toFixed(1)+"% under the "+rule.minAlloc+"% min");
   $("nt_warn").innerHTML = warns.join("<br>");
   $("nt_warn").style.display = warns.length ? "" : "none";
-  const blk = shortBlock(acct);
-  if(blk) $("nt_err").textContent = "Blocked: "+fmtQ(blk)+" short share"+(blk===1?"":"s")+" in this account have no stop.";
   return q;
 }
 
@@ -2711,13 +2748,15 @@ function openTrade(){
   if(inGroup()) return openGroupTrade();
   const tk = $("nt_tk").value.trim().toUpperCase();
   const P = pnum($("nt_entry").value), S = pnum($("nt_stop").value);
-  const side = ntSide(), ti = ntTier();
+  // Nothing stops a trade opening. A stop sizes the trade and says which side it is; without one,
+  // typed shares open a long with no stop, flagged as unprotected like any other.
+  const typedQ = pnum($("nt_qty").value), noStop = isNaN(S) && P>0 && typedQ>0;
+  const side = noStop ? 1 : ntSide(), ti = ntTier();
   const calQ = newTradeCal();
   const aptr = pnum($("nt_aptr").value);
-  const q = $("nt_qty").value ? pnum($("nt_qty").value) : calQ;
+  const q = $("nt_qty").value ? typedQ : calQ;
   if(!tk){ $("nt_err").textContent = "Enter a ticker first."; return; }
-  if(calQ==null){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a valid entry and stop first."; return; }
-  if(shortBlock(acctInView())) return;              // newTradeCal has already said why
+  if(calQ==null && !noStop){ if(!$("nt_err").textContent) $("nt_err").textContent = "Enter a price and a stop, or a price and shares."; return; }
   if(!q || q<=0){ $("nt_err").textContent = "Share quantity must be positive."; return; }
   state.trades.unshift({
     id: Date.now()+""+Math.floor(Math.random()*1e4),
@@ -2729,7 +2768,7 @@ function openTrade(){
     rUnit: rUnitNow(), aumAtOpen: aumOf(acctInView()), status:"open", last:P,
     plan: ntPlan(), notes: mv("nt_notes").trim(),   // optional; the gear edits both later
     checks: [],
-    events: [{type:"entry", qty:q, price:P, stop:S, ts:Date.now()}],
+    events: [{type:"entry", qty:q, price:P, stop:isNaN(S) ? null : S, ts:Date.now()}],
     createdAt: Date.now(), lastMarkTs: Date.now()
   });
 
@@ -3059,7 +3098,7 @@ window.setQty = n => {
 // Average for a position nothing has been added to or trimmed from; once something has, the
 // figure that matters is the whole trade's break-even, and the label says so. A buy preview is an
 // add by definition, so it always reads break-even: 10 at $10 then 10 at $20 is break-even $15.
-const touched = t => t.events.some(e=>e.type==="add" || e.type==="trim");
+const touched = t => t.events.some(e=>e.type==="add" || e.type==="trim" || e.type==="div");
 const avgOrBe = (t, d) => touched(t)
   ? "break-even <b>"+fmtP(beStop(t, d))+"</b>" : "average <b>"+fmtP(d.avg)+"</b>";
 
@@ -3189,6 +3228,7 @@ const EVENT_DESC = e => {
   if(e.type==="trim"||e.type==="close") return fmtQ(e.qty)+" @ "+fmtP(e.price);
   if(e.type==="stop")   return stopDesc(e);
   if(e.type==="budget") return "risk &rarr; "+e.mult+"R";
+  if(e.type==="div")    return fmtP(e.ps||0)+" a share"+(e.nq ? " &middot; non-qualified" : "");
   if(e.type==="adjust") return [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null,
                                 e.price!=null?"avg &rarr; "+fmtP(e.price):null,
                                 e.stop!=null?"stop &rarr; "+fmtP(e.stop):null].filter(Boolean).join(" &middot; ");
@@ -3208,7 +3248,7 @@ window.gearUI = id => {
   const d = derive(t);
   const rows = t.events.map((e,i)=>
     "<tr><td>"+new Date(e.ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"})+"</td>" +
-    "<td>"+e.type+adjPill(e)+"</td><td>"+EVENT_DESC(e)+"</td>" +
+    "<td>"+e.type+adjPill(e)+"</td><td>"+(e.type==="div" ? divDesc(e, divAmount(t, i)) : EVENT_DESC(e))+"</td>" +
     "<td class='num' style='white-space:nowrap'>" +
       '<button class="small" onclick="editEvent(\''+t.id+'\','+i+')">Edit</button> ' +
       (e.type==="entry" ? "" :
@@ -3269,6 +3309,7 @@ window.gearUI = id => {
     '<div class="lbl" style="margin-top:16px">Transactions</div>' +
     '<div class="scroll"><table><tr><th>Date</th><th>Event</th><th>Detail</th><th></th></tr>'+rows+'</table></div>' +
     '<div class="row" style="margin-top:8px">' +
+      '<button class="small" onclick="divUI(\''+t.id+'\')">Dividend</button>' +
       '<button class="small" onclick="overrideUI(\''+t.id+'\')">Override position</button>' +
       '<button class="small danger" style="margin-left:auto" onclick="deleteTrade(\''+t.id+'\')">Delete trade</button>' +
     '</div>',
@@ -3298,6 +3339,58 @@ window.gearUI = id => {
       // render() rebuilds the closed table shut; put this trade's row back open where it was.
       if(t.status==="closed") setTimeout(()=>reopenLog(inGroup() ? (t.gid || "solo:"+t.id) : t.id), 0);
       return null;
+    });
+};
+
+/* ---- dividends ----
+   Entered as an amount per share on an ex-date, never as a lump: what it pays is per share times the
+   shares held going into that day, so a trim before it pays less and a trim after it changes nothing.
+   Stored at the start of the day so it replays ahead of anything traded that day -- a sale on the
+   ex-date still collects, a purchase does not. */
+const heldBefore = (t, day) => derive(Object.assign({}, t, {events: t.events.filter(e=>e.type!=="div" && dayOf(e.ts) < day)})).Q;
+// What one dividend event paid (signed: a short pays it).
+const divAmount = (t, i) => { const se = derive(t).series; return se[i].realized - (i ? se[i-1].realized : 0); };
+const divDesc = (e, a) => fmtP(e.ps||0)+" a share &middot; "+fmt$(a)+(e.nq ? " &middot; non-qualified" : "");
+const divQualBox = on => '<div class="row" style="margin-top:8px;align-items:center">' +
+  '<input id="m_qual" type="checkbox" style="width:auto"'+(on?" checked":"")+'><label for="m_qual" style="margin:0">Qualified' +
+  '<span class="info" data-tip="Untick for a dividend the company does not designate as qualified, such as most REITs. A qualified one is still taxed as ordinary unless the shares were held more than 60 days around the ex-date.">i</span></label></div>';
+function divCheck(t, ps, ts, self){
+  if(isNaN(ps) || ps<=0) return "Enter the dividend per share.";
+  if(ts==null || isNaN(ts)) return "Enter the ex-date.";
+  if(dayOf(ts) > today0()) return "An ex-date can't be in the future.";
+  const e0 = t.events.find(e=>e.type==="entry");
+  if(e0 && dayOf(ts) <= dayOf(e0.ts)) return "The ex-date has to be after the day the trade opened.";
+  if(heldBefore(t, dayOf(ts)) <= 1e-9) return "No shares were held going into that date.";
+  if(t.events.some(e=>e!==self && e.type==="div" && dayOf(e.ts)===dayOf(ts))) return "There is already a dividend on that date.";
+  return null;
+}
+window.divUI = id => {
+  const t = getTrade(id);
+  if(!t) return;
+  openModal("Dividend &mdash; " + esc(t.ticker),
+    '<div class="row">' +
+      '<div style="flex:1"><label for="m_date">Ex-date</label><input id="m_date" type="date" value="'+dateVal(Date.now())+'"></div>' +
+      '<div style="flex:1"><label for="m_ps">Per share</label><input id="m_ps" type="number" step="any" min="0"></div>' +
+    '</div>' + divQualBox(true),
+    "Add dividend",
+    () => {
+      const ts = tsFromDateVal(mv("m_date"), Date.now()), ps = pnum(mv("m_ps"));
+      const bad = divCheck(t, ps, ts, null);
+      if(bad) return bad;
+      const dv = {type:"div", ps, ts:dayOf(ts)};
+      if(!$("m_qual").checked) dv.nq = true;
+      t.events.push(dv);
+      t.events.sort((a,b)=> a.type==="entry" ? -1 : b.type==="entry" ? 1 : a.ts-b.ts);
+      syncStatus(t);
+      syncCompound(t, acctOf(id));
+      reopenGear(id);
+      return null;
+    },
+    () => {
+      const ts = tsFromDateVal(mv("m_date"), Date.now()), ps = pnum(mv("m_ps")), el = $("m_note");
+      if(!el) return;
+      const q = (ts==null || isNaN(ts)) ? 0 : heldBefore(t, dayOf(ts));
+      el.innerHTML = fmtQ(q) + " shares held" + (ps>0 ? " &middot; " + (t.side>0 ? "received " : "paid ") + "<b>" + fmt$(ps*q) + "</b>" : "");
     });
 };
 
@@ -3360,8 +3453,10 @@ window.editEvent = (id, i) => {
   else if(type==="trim" || type==="close") body += num("Shares","m_q",e.qty) + num("Price","m_p",e.price);
   else if(type==="budget")                 body += num("Risk budget (R)","m_m",e.mult,"0.25");
   else if(type==="adjust")                 body += num("Shares","m_q",e.qty) + num("Average price","m_p",e.price);
+  else if(type==="div")                    body += num("Per share","m_ps",e.ps);
   body += '</div>';
   if(type==="entry") body += '<div class="row" style="margin-top:8px">' + num("Stop at entry","m_s",e.stop) + '</div>';
+  if(type==="div")   body += divQualBox(!e.nq);
   if(type==="stop")  body += '<div class="lbl" style="margin-top:10px">Shares at price &mdash; blank covers the whole position</div>' +
                              '<div id="stopRows"></div>' +
                              '<button class="small" onclick="addStopRow()">Add a stop</button>';
@@ -3398,6 +3493,12 @@ window.editEvent = (id, i) => {
         if(isNaN(q) && isNaN(p)) return "Enter a position size or an average price.";
         e.qty = isNaN(q) ? null : q;
         e.price = isNaN(p) ? null : p;
+      } else if(type==="div"){
+        const ps = pnum(mv("m_ps"));
+        const bad = divCheck(t, ps, ts, e);
+        if(bad) return bad;
+        e.ps = ps;
+        if($("m_qual").checked) delete e.nq; else e.nq = true;
       } else if(type==="stop"){
         const rows = readStopRows().filter(r=>r.p!=="" && !isNaN(+r.p));
         if(!rows.length) return "Enter at least one stop price.";
@@ -3405,7 +3506,7 @@ window.editEvent = (id, i) => {
         if(stops.length===1 && stops[0].qty==null){ e.stop = stops[0].price; delete e.stops; }
         else { e.stops = stops; delete e.stop; }
       }
-      e.ts = ts;
+      e.ts = type==="div" ? dayOf(ts) : ts;
       // Keep the ORIGINAL, not the previous edit: "was" should answer what it started as.
       if(!e.adj){ e.was = before; e.adj = true; }
       // Events are replayed in array order, so a re-dated one has to be moved to keep the log and
@@ -3670,6 +3771,7 @@ function renderClosed(){
         det = fmtQ(e.qty)+" @ "+fmtP(e.price);
       } else if(e.type==="stop") det = stopDesc(e);
       else if(e.type==="budget") det = "risk &rarr; "+e.mult+"R";
+      else if(e.type==="div"){ const a = t.side*(e.ps||0)*Q2; real2 += a; det = divDesc(e, a); }
       else if(e.type==="adjust"){
         if(e.qty!=null) Q2 = e.qty; if(e.price!=null) avg2 = e.price;
         det = [e.qty!=null?"pos &rarr; "+fmtQ(e.qty):null, e.price!=null?"avg &rarr; "+fmtP(e.price):null,
@@ -3691,7 +3793,7 @@ function renderClosed(){
         (due?" <span class='revdot' title='30-day review due' aria-hidden='true'>&#9679;</span><span class='sr-only'>30-day review due</span>":"")+
         (t.notes?" <span class='muted' title='Has notes' aria-hidden='true'>&#9998;</span><span class='sr-only'>has notes</span>":"")+"</td>" +
       "<td class='v-ct-side'>"+(t.side>0?"L":"S")+"</td><td class='v-ct-tier'>"+TIERS[t.tier]+"</td><td class='v-ct-setup"+(t.legacySetup?" legacy":"")+"'>"+setupHtml(t)+"</td>" +
-      "<td class='num v-ct-opened'>"+shortDate(S.openTs)+"</td><td class='num v-ct-closed'>"+shortDate(S.endTs)+"</td>" +
+      "<td class='num v-ct-opened'>"+calLink(S.openTs)+"</td><td class='num v-ct-closed'>"+calLink(S.endTs)+"</td>" +
       "<td class='num v-ct-days'>"+S.days+"</td>" +
       "<td class='num v-ct-entry'>"+(F.entry==null?"&mdash;":fmtP(F.entry))+"</td><td class='num v-ct-exit'>"+(F.exit==null?"&mdash;":fmtP(F.exit))+"</td>" +
       "<td class='num v-ct-1r'>"+fmt$(t.rUnit)+"</td>" +
@@ -3713,6 +3815,7 @@ function renderClosed(){
         "<button class='small' id='cg_"+t.id+"' style='display:none' title='Details, history and corrections' onclick=\"gearUI('"+t.id+"')\">&#9881;</button></td></tr>" +
     "<tr id='log_"+t.id+"' style='display:none'><td colspan='18' style='padding:10px 8px 14px;background:rgba(0,0,0,.18)'>" +
       (planRow ? "<div class='muted' style='margin-bottom:8px'>Plan at entry: "+planRow+"</div>" : "") +
+      journalLine(t) +
       "<div class='scroll'><table><tr><th>Date</th><th>Event</th><th>Detail</th><th class='num'>Pos after</th><th class='num'>Avg after</th><th class='num'>Realized R</th></tr>"+evRows+"</table></div>" +
       "<div class='split' style='margin-top:12px'>" +
         "<div><div class='lbl'>Notes</div>" +
@@ -3745,6 +3848,9 @@ function fillAvgs(t){
   return { entry: iq ? iv/iq : null, exit: oq ? ov/oq : null };
 }
 const shortDate = ts => new Date(ts).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});
+// A date that opens the calendar on its day, dotted when that day has a journal note.
+const calLink = ts => '<button class="linkbtn" onclick="openCalendar('+ts+')">'+shortDate(ts)+
+  (root.journal && root.journal[dateVal(ts)] ? ' <span class="gold" aria-hidden="true">&#9679;</span><span class="sr-only">, has a note</span>' : '')+'</button>';
 
 // Aggregates for a set of closed trades, and the tile row that renders them. Extracted so the
 // tally and the statistics panel show the same numbers from the same code.
@@ -4061,10 +4167,9 @@ function groupSizeRows(P, S, side, ti){
     const qR = den>0 ? Math.round(budget/den) : 0;
     const free = bpFree(m);
     const aum = aumOf(m);
-    const blocked = shortBlock(m);
     return { m, px, den, R, mult, budget, q, qR, free, capped:z.walls.length>0, walls:z.walls, under:z.under, cost:q*px, aum,
-             alloc: aum>0 ? q*px/aum*100 : 0, blocked,
-             on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 || blocked>0 };
+             alloc: aum>0 ? q*px/aum*100 : 0,
+             on: memberIn(m), wrongSide: side*(px-S) <= 0, skipped: q<=0 };
   });
 }
 
@@ -4144,9 +4249,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   rows.forEach((r,i)=>{
     const tr = $("grow_"+i); if(!tr) return;
     tr.style.opacity = (!r.on || r.skipped) ? ".5" : "";
-    $("gq_"+i).innerHTML = r.blocked
-      ? "<span style='color:var(--red)'>blocked</span>"
-      : r.skipped
+    $("gq_"+i).innerHTML = r.skipped
       ? "<span class='muted'>0 &mdash; too small</span>"
       : "<b style='color:var(--gold)'>"+fmtQ(r.q)+"</b>";
     const px = $("gfill_"+i); if(px) px.style.color = (gPx[r.m]>0) ? "var(--gold)" : "";
@@ -4165,8 +4268,7 @@ function paintGroupCalc(rows, P, S, side, ti){
   const overridden = rows.some(r=>Math.abs(r.px-P)>1e-9);
 
   const badRows = rows.filter(r=>r.on && !r.skipped && r.wrongSide);
-  const skipped = rows.filter(r=>r.on && r.skipped && !r.blocked);
-  const blockedRows = rows.filter(r=>r.on && r.blocked);
+  const skipped = rows.filter(r=>r.on && r.skipped);
   const cappedRows = rows.filter(r=>r.on && !r.skipped && r.capped);
   const underRows = rows.filter(r=>r.on && !r.skipped && r.under);
   const lines = [];
@@ -4174,8 +4276,6 @@ function paintGroupCalc(rows, P, S, side, ti){
   if(badRows.length) lines.push('<span style="color:var(--amber)">Fill past the stop: '+
     badRows.map(r=>esc(r.m)+" ("+fmtP(r.px)+")").join(", ")+"</span>");
   if(skipped.length) lines.push('<span style="color:var(--amber)">0 shares, not opened: '+skipped.map(r=>esc(r.m)).join(", ")+"</span>");
-  if(blockedRows.length) lines.push('<span style="color:var(--red)">Blocked, unstopped short: '+
-    blockedRows.map(r=>esc(r.m)+" ("+fmtQ(r.blocked)+" sh)").join(", ")+"</span>");
   if(underRows.length) lines.push('<span style="color:var(--amber)">Under the minimum allocation: '+
     underRows.map(r=>esc(r.m)+" ("+r.alloc.toFixed(1)+"%)").join(", ")+"</span>");
   if(cappedRows.length) lines.push('<span style="color:var(--amber)">Held back: '+
@@ -4398,6 +4498,14 @@ window.gCloseUI = gid => {
      replacement shares' basis, so it comes back when they are sold. Holding-period tacking, IRAs,
      options and the like are not modelled.
    - Short- and long-term net against each other within the calendar year; a net loss is no tax.
+   - Dividends, by ex-date year. A long's is taxed at the long-term rate when qualified: the company
+     designates it so (the dividend's own box, on by default) AND the shares were held more than 60
+     days of the 121 that start 60 days before the ex-date, lot by lot, first in first out -- an
+     open lot counts to today, so a dividend can become qualified as the position is held.
+     Otherwise it is ordinary income at the short-term rate. A dividend a short pays is a cost of
+     the short sale and comes off its short-term gain. Dividends do not net against capital losses.
+     A broker file's dividend recorded as a cash adjustment has no shares behind it, so it is
+     counted as ordinary.
 
    Acceptance is stored with a check code beside its timestamp, so the flag cannot be switched on
    by typing "true" into an export, and the JSON still records when it was accepted. */
@@ -4407,7 +4515,7 @@ const taxOn = acct => { const pf = root.portfolios[acct]; return !!(pf && pf.set
 
 // FIFO lots and the sale pieces matched against them, for one trade.
 function taxLots(t){
-  let lots = []; const made = [], pieces = [];
+  let lots = []; const made = [], pieces = [], divs = [];
   t.events.forEach((e,i)=>{
     if(e.type==="entry" || e.type==="add"){
       const L = {id:t.id+"#"+i, ticker:String(t.ticker).toUpperCase(), side:t.side, qty:e.qty, orig:e.qty,
@@ -4421,6 +4529,10 @@ function taxLots(t){
         L.qty -= take; q -= take;
         if(L.qty <= 1e-9){ L.gone = e.ts; lots.shift(); }       // when the last of the lot was sold
       }
+    } else if(e.type==="div"){
+      // The lots held going into the ex-date, at what each held then. Later sales are matched to
+      // them in taxReport, once every piece is known.
+      divs.push({ts:e.ts, ps:e.ps||0, nq:!!e.nq, side:t.side, held:lots.filter(L=>L.qty>1e-9).map(L=>({L, qty:L.qty}))});
     } else if(e.type==="adjust"){
       // An override is not a purchase: the remaining shares fold into one lot at the stated size
       // and price, keeping the oldest date, and it can never be a wash replacement.
@@ -4431,22 +4543,30 @@ function taxLots(t){
                        price: e.price!=null ? e.price : avg, ts: lots.length ? lots[0].ts : e.ts, deferred:0, room:0}] : [];
     }
   });
-  return {made, pieces};
+  return {made, pieces, divs};
 }
 
+// The qualified-dividend holding test: days held inside the window, not counting the day bought,
+// counting the day sold.
+const DIV_HOLD = 60;
+function divDaysHeld(bought, end, w0, w1){
+  const from = Math.max(dayOf(bought) + 864e5, dayOf(w0)), to = Math.min(dayOf(end), dayOf(w1));
+  return to >= from ? Math.round((to - from)/864e5) + 1 : 0;
+}
 function taxReport(year){
   year = year || new Date().getFullYear();
-  const pieces = [], buys = [];
+  const pieces = [], buys = [], divs = [];
   Object.keys(root.portfolios).forEach(acct=>root.portfolios[acct].trades.forEach(t=>{
     const r = taxLots(t);
     r.pieces.forEach(p=>{ p.acct = acct; pieces.push(p); });
     r.made.forEach(L=>buys.push(L));
+    r.divs.forEach(d=>{ d.acct = acct; divs.push(d); });
   }));
   pieces.sort((a,b)=>a.ts-b.ts);
   const inSale = {};
   pieces.forEach(p=>{ (inSale[p.sale] = inSale[p.sale] || new Set()).add(p.lot.id); });
   const out = {};
-  const acc = a => out[a] || (out[a] = {st:0, lt:0, washed:0});
+  const acc = a => out[a] || (out[a] = {st:0, lt:0, washed:0, divQ:0, divO:0});
   pieces.forEach(p=>{
     const L = p.lot;
     const basisAdd = L.deferred * p.qty / L.orig;                 // a wash loss carried into these shares
@@ -4470,11 +4590,39 @@ function taxReport(year){
     if(L.side > 0 && p.ts - L.ts > 365*864e5) a.lt += gain; else a.st += gain;
     a.washed += p.disallowed;
   });
+  // Dividends. Each lot's shares held into the ex-date are followed through their sales after it;
+  // what is still held runs to today.
+  const byLot = {};
+  pieces.forEach(p=>{ (byLot[p.lot.id] = byLot[p.lot.id] || []).push(p); });
+  divs.forEach(dv=>{
+    if(new Date(dv.ts).getFullYear() !== year) return;
+    const a = acc(dv.acct);
+    if(dv.side < 0){ a.st -= dv.ps * dv.held.reduce((s,h)=>s+h.qty, 0); return; }
+    const w0 = dv.ts - DIV_HOLD*864e5, w1 = dv.ts + DIV_HOLD*864e5;
+    dv.held.forEach(h=>{
+      let left = h.qty;
+      const ends = [];
+      (byLot[h.L.id]||[]).filter(p=>p.ts >= dv.ts).forEach(p=>{
+        if(left <= 1e-9) return;
+        const take = Math.min(left, p.qty); ends.push([take, p.ts]); left -= take;
+      });
+      if(left > 1e-9) ends.push([left, Date.now()]);
+      ends.forEach(([q, end])=>{
+        const amt = dv.ps * q;
+        if(!dv.nq && divDaysHeld(h.L.ts, end, w0, w1) > DIV_HOLD) a.divQ += amt; else a.divO += amt;
+      });
+    });
+  });
+  Object.keys(root.portfolios).forEach(acct=>cashFlows(acct).forEach(f=>{
+    if(f.type==="adjust" && f.note==="Dividend" && new Date(f.ts).getFullYear()===year) acc(acct).divO += flowSigned(f);
+  }));
   Object.keys(out).forEach(acct=>{
     const a = out[acct], S = root.portfolios[acct].settings;
     let st = a.st, lt = a.lt;
     if(st < 0 && lt > 0){ lt += st; st = 0; } else if(lt < 0 && st > 0){ st += lt; lt = 0; }
-    a.tax = Math.max(0, st)*(S.taxST||0)/100 + Math.max(0, lt)*(S.taxLT||0)/100;
+    a.div = a.divQ + a.divO;
+    a.tax = Math.max(0, st)*(S.taxST||0)/100 + Math.max(0, lt)*(S.taxLT||0)/100 +
+            Math.max(0, a.divO)*(S.taxST||0)/100 + Math.max(0, a.divQ)*(S.taxLT||0)/100;
   });
   return out;
 }
@@ -4515,11 +4663,13 @@ function refreshBtnHtml(staleN, hasKey){
 function taxTileHtml(accts){
   const on = accts.filter(taxOn);
   if(!on.length) return "";
-  const rep = taxReport(), z = {st:0, lt:0, washed:0, tax:0};
-  on.forEach(a=>{ const r = rep[a]; if(r) ["st","lt","washed","tax"].forEach(k=>{ z[k] += r[k]; }); });
-  return '<div class="metric v-ps-tax" title="Estimate only, not tax advice.'+(z.washed>0.005 ? ' Includes '+stripTags(fmt$(z.washed))+' of losses disallowed as wash sales.' : '')+'">' +
+  const rep = taxReport(), z = {st:0, lt:0, washed:0, tax:0, divQ:0, divO:0};
+  on.forEach(a=>{ const r = rep[a]; if(r) ["st","lt","washed","tax","divQ","divO"].forEach(k=>{ z[k] += r[k]; }); });
+  const div = z.divQ + z.divO;
+  return '<div class="metric v-ps-tax" title="Estimate only, not tax advice.'+(z.washed>0.005 ? ' Includes '+stripTags(fmt$(z.washed))+' of losses disallowed as wash sales.' : '')+
+    (Math.abs(div)>=0.005 ? ' Dividends: '+stripTags(fmt$(z.divQ))+' qualified, '+stripTags(fmt$(z.divO))+' ordinary.' : '')+'">' +
     '<div class="k">Est. tax YTD</div><div class="v">'+fmt$(z.tax)+'</div>' +
-    '<div class="r">ST '+fmt$(z.st)+VBAR+'LT '+fmt$(z.lt)+(on.length<accts.length ? ' &middot; '+on.length+' of '+accts.length+' accounts' : '')+'</div></div>';
+    '<div class="r">ST '+fmt$(z.st)+VBAR+'LT '+fmt$(z.lt)+(Math.abs(div)>=0.005 ? VBAR+'Div '+fmt$(div) : '')+(on.length<accts.length ? ' &middot; '+on.length+' of '+accts.length+' accounts' : '')+'</div></div>';
 }
 
 function renderBook(open){
@@ -4572,8 +4722,7 @@ function renderBook(open){
   $("bookBanners").innerHTML =
     (unp.long || unp.short ? '<div class="banner amber">Unprotected: ' +
       [unp.long ? fmtQ(unp.long)+" long share"+(unp.long===1?"":"s")+" with no stop, counted at a $0 stop" : null,
-       unp.short ? fmtQ(unp.short)+" short share"+(unp.short===1?"":"s")+" with no stop, no limit on the loss" +
-         (accts.some(a=>shortBlock(a)>0) ? " &mdash; new trades blocked" : "") : null]
+       unp.short ? fmtQ(unp.short)+" short share"+(unp.short===1?"":"s")+" with no stop, no limit on the loss" : null]
         .filter(Boolean).join(" &middot; ") + ".</div>" : "") +
     (overCap ? '<div class="banner red">Open heat '+heatR.toFixed(2)+"R"+(inG ? " in "+esc(worstHeat.a) : "")+
       " against a "+cap+"R cap. Not blocked.</div>" : "") +
@@ -4684,6 +4833,7 @@ function render(){
   if(tab==="tally")  renderClosed();
   if(tab==="charts") renderCharts(chartTrades());
   if(tab==="audit"){ renderCsv(); renderLedger(); }
+  if(tab==="data")   renderCoach();
 
   const os = $("openSummary");
   if(os) os.textContent = open.length ? open.length+" open" : "none open";
@@ -4735,7 +4885,7 @@ function renderLedger(){
         '<td class="num">'+(e.qty!=null?fmtQ(e.qty):"&mdash;")+'</td>' +
         '<td class="num">'+(e.price!=null?fmtP(e.price):"&mdash;")+'</td>' +
         '<td class="num">'+(e.type==="stop" ? stopDesc(e) : (e.stop!=null?fmtP(e.stop):"&mdash;"))+'</td>' +
-        '<td class="num">&mdash;</td>' +
+        (e.type==="div" ? (a=>'<td class="num '+cls(a)+'">'+fmt$(a)+'</td>')(divAmount(r.t, r.i)) : '<td class="num">&mdash;</td>') +
         '<td>'+adjPill(e)+'</td></tr>';
     }).join("") + '</table>';
 }
@@ -4900,9 +5050,12 @@ function csvCompare(f, acct){
   });
 
   // Cash. A movement already in the app -- same kind, same amount, within three days -- is a match.
-  const flows = cashFlows(acct);
+  // A dividend already entered on its trade counts too, within the week between ex-date and payment.
+  const flows = cashFlows(acct), divs = [];
+  pf.trades.forEach(t=>t.events.forEach((e, i)=>{ if(e.type==="div") divs.push({ts:e.ts, amount:divAmount(t, i)}); }));
   const known = c => flows.some(x=>x.type===c.type && Math.abs(flowSigned(x) - flowSigned(c)) < 0.005 &&
-    Math.abs(dayGap(x.ts, c.ts)) <= 3 && (c.type!=="adjust" || x.note===c.note));
+    Math.abs(dayGap(x.ts, c.ts)) <= 3 && (c.type!=="adjust" || x.note===c.note)) ||
+    (c.note==="Dividend" && divs.some(x=>Math.abs(x.amount - c.amount) < 0.005 && Math.abs(dayGap(x.ts, c.ts)) <= 7));
   const cashItem = (key, c, on) => items.push(Object.assign({key, kind: known(c) ? "cashSame" : "cash", on}, c, {c}));
   f.cash.forEach(c=>cashItem("f|"+c.type+"|"+c.ts+"|"+c.amount, c, true));
   if(Math.abs(f.fees) >= 0.005)    cashItem("fees", {type:"adjust", amount:f.fees,    note:"Broker fees", ts:f.last}, false);
@@ -5098,6 +5251,282 @@ function chartTrades(){
   return root.portfolios[a].trades.filter(t=>t.status==="closed" && inPeriod(t))
     .sort((x,y)=>closeTs(x)-closeTs(y));
 }
+
+/* ========================= calendar =========================
+   Opened from the clock. A month of days, each with what was realised that day (trims, closes and
+   dividends, from the same records the book is summed from) in dollars and as a percentage of the
+   book that morning, and a note of the day's own. Notes are about the trader, not a book, so there
+   is one journal for every account: root.journal, keyed YYYY-MM-DD in local time. The P/L follows
+   whatever is in view -- one account, or a group's members together. */
+let calView = null;                      // {y, m, k}: the month shown and the day selected
+
+function calDays(accts){
+  const steps = []; let book = 0;
+  accts.forEach(a=>{ const B = bookSteps(a); book += B.start; steps.push(...B.steps); });
+  steps.sort((x,y)=>x.ts - y.ts);
+  const days = {};
+  steps.forEach(s=>{
+    const k = dateVal(s.ts);
+    const o = days[k] || (days[k] = {pl:0, open:book});
+    o.pl += s.pl; book += s.flow + s.pl;
+  });
+  return days;
+}
+// Trades that opened or closed on a day, across whatever is in view.
+function calTrades(k){
+  const out = [];
+  scope().forEach(a=>(root.portfolios[a].trades||[]).forEach(t=>{
+    if(!t.events.length) return;
+    if(dateVal(t.events[0].ts)===k) out.push({a, t, what:"opened"});
+    if(t.status==="closed" && dateVal(closeTs(t))===k) out.push({a, t, what:"closed"});
+  }));
+  return out;
+}
+const calPct = o => o.open>0 ? o.pl/o.open*100 : null;
+const fmtPct = v => (v>0?"+":"") + v.toFixed(2) + "%";
+
+window.openCalendar = ts => {
+  const d = new Date(ts==null ? Date.now() : ts);
+  calView = {y:d.getFullYear(), m:d.getMonth(), k:dateVal(d.getTime())};
+  openModal("Calendar", '<div id="calBox"></div>', "Done", ()=>{ calKeep(); return null; }, null, {wide:true, noCancel:true});
+  renderCal();
+};
+window.calMove = n => {
+  calKeep();
+  const d = new Date(calView.y, calView.m + n, 1);
+  calView.y = d.getFullYear(); calView.m = d.getMonth();
+  renderCal();
+};
+window.calPick = k => {
+  calKeep();
+  calView.k = k;
+  const p = k.split("-").map(Number);
+  calView.y = p[0]; calView.m = p[1]-1;
+  renderCal();
+  const b = document.querySelector('#calBox [data-k="'+k+'"]');
+  if(b) b.focus();
+};
+// The note is kept as it is typed, and written to storage when the box is left or the day changes.
+window.calType = () => {
+  const ta = $("cal_note");
+  if(!ta || !calView) return;
+  const v = ta.value;
+  if(v.trim()) root.journal[calView.k] = v; else delete root.journal[calView.k];
+};
+function calKeep(){ if($("cal_note")){ calType(); save(); } }
+
+function renderCal(){
+  const box = $("calBox");
+  if(!box || !calView) return;
+  const {y, m, k} = calView;
+  const days = calDays(scope());
+  const first = new Date(y, m, 1), lead = first.getDay(), n = new Date(y, m+1, 0).getDate();
+  const today = dateVal(Date.now());
+  const month = first.toLocaleDateString(undefined, {month:"long", year:"numeric"});
+  let cells = "";
+  for(let i=0; i<lead; i++) cells += '<div class="calcell empty" aria-hidden="true"></div>';
+  for(let dd=1; dd<=n; dd++){
+    const key = dateVal(new Date(y, m, dd).getTime()), o = days[key], note = root.journal[key];
+    const pl = o && Math.abs(o.pl) >= 0.005 ? o : null, pct = pl ? calPct(pl) : null;
+    const label = new Date(y, m, dd).toLocaleDateString(undefined, {weekday:"long", month:"long", day:"numeric"}) +
+      (pl ? ", " + stripTags(fmt$(pl.pl)) + (pct!=null ? ", " + fmtPct(pct) : "") : "") + (note ? ", has a note" : "");
+    cells += '<button type="button" class="calcell'+(key===k?" sel":"")+(key===today?" today":"")+'" data-k="'+key+'"' +
+      ' aria-label="'+esc(label)+'"'+(key===k?' aria-pressed="true"':' aria-pressed="false"')+' onclick="calPick(\''+key+'\')">' +
+      '<span class="cd">'+dd+(note ? '<span class="cn" aria-hidden="true">&#9679;</span>' : '')+'</span>' +
+      (pl ? '<span class="cp '+cls(pl.pl)+'">'+(pct!=null ? fmtPct(pct) : "")+'</span><span class="cv '+cls(pl.pl)+'">'+fmt$(pl.pl)+'</span>' : '') +
+      '</button>';
+  }
+  const sel = days[k], selPl = sel && Math.abs(sel.pl) >= 0.005 ? sel : null;
+  const tr = calTrades(k), many = scope().length > 1;
+  const trades = tr.map(x=>{
+    const rm = x.what==="closed" ? derive(x.t).realized/x.t.rUnit : null;
+    return '<div><span style="font-family:var(--mono);font-weight:600">'+esc(x.t.ticker)+'</span> ' +
+      '<span class="muted">'+(x.t.side>0?"long":"short")+' '+x.what+(many ? ' &middot; '+esc(x.a) : '')+'</span>' +
+      (rm!=null ? ' <span class="'+clsR(rm)+'">'+fmtR(rm)+'</span>' : '')+'</div>';
+  }).join("");
+  box.innerHTML =
+    '<div class="row" style="align-items:center;margin-bottom:8px">' +
+      '<button class="small" onclick="calMove(-1)" title="Previous month" aria-label="Previous month">&lsaquo;</button>' +
+      '<div style="flex:1;text-align:center;font-weight:600">'+esc(month)+'</div>' +
+      '<button class="small" onclick="calMove(1)" title="Next month" aria-label="Next month">&rsaquo;</button>' +
+      '<button class="small" onclick="calPick(\''+today+'\')">Today</button>' +
+    '</div>' +
+    '<div class="calgrid" role="group" aria-label="'+esc(month)+'">' +
+      ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(w=>'<div class="calwd" aria-hidden="true">'+w+'</div>').join("") + cells +
+    '</div>' +
+    '<div class="lbl" style="margin-top:12px">'+esc(new Date(tsFromDateVal(k)).toLocaleDateString(undefined, {weekday:"short", month:"short", day:"numeric", year:"numeric"}))+
+      (selPl ? ' &middot; <span class="'+cls(selPl.pl)+'">'+fmt$(selPl.pl)+(calPct(selPl)!=null ? ' &middot; '+fmtPct(calPct(selPl)) : '')+'</span>' : '')+'</div>' +
+    (trades ? '<div style="margin:4px 0 8px;font-size:13px">'+trades+'</div>' : '') +
+    '<textarea id="cal_note" aria-label="Note for this day" oninput="calType()" onchange="calKeep()" style="min-height:96px">'+esc(root.journal[k]||"")+'</textarea>';
+}
+
+// A closed trade's own days, with the note written on each, for its expanded row.
+function journalLine(t){
+  const S = stats(t), bits = [];
+  [["opened", S.openTs], ["closed", S.endTs]].forEach(([what, ts], i)=>{
+    const k = dateVal(ts), note = root.journal[k];
+    if(i===1 && k===dateVal(S.openTs)) return;
+    bits.push('<button class="linkbtn" onclick="openCalendar('+ts+')" title="Open the calendar on this day">'+shortDate(ts)+'</button> ' +
+      '<span class="muted">'+what+'</span>' + (note ? ': ' + esc(note) : ''));
+  });
+  return '<div style="margin-bottom:8px;font-size:12.5px;white-space:pre-wrap">'+bits.join(" &nbsp;&middot;&nbsp; ")+'</div>';
+}
+
+/* ========================= coaching export =========================
+   A span of closed trades, already worked out, as one block of text to paste into an AI chat with
+   its instructions on top. The model gets results in R, the plan, notes, reviews and the day's
+   journal beside each trade, plus the aggregates the app already computes, so it spends its tokens
+   on patterns rather than arithmetic. One account at a time: a group's members carry the same
+   trades, and pooling them would count every idea twice. */
+let coachPick = null;
+function coachAcct(){
+  if(!inGroup()) return acctInView();
+  const m = groupMembers(root.active);
+  return m.indexOf(coachPick) >= 0 ? coachPick : (m[0] || null);
+}
+window.setCoachAcct = v => { coachPick = v; };
+function renderCoach(){
+  const pick = $("co_acctWrap");
+  if(!pick) return;
+  const acct = coachAcct();
+  pick.innerHTML = inGroup()
+    ? '<label for="co_acct">Account</label><select id="co_acct" onchange="setCoachAcct(this.value)">' +
+        groupMembers(root.active).map(m=>'<option value="'+esc(m)+'"'+(m===acct?" selected":"")+'>'+esc(m)+'</option>').join("") + '</select>'
+    : "";
+  if(!$("co_from").value) $("co_from").value = dateVal(Date.now() - 90*864e5);
+  if(!$("co_to").value) $("co_to").value = dateVal(Date.now());
+}
+
+const COACH_BRIEF = [
+  "You are my trading coach. Below is my own record of closed trades for one account over a span I chose, worked out by my journal app, with summary statistics first.",
+  "",
+  "What I want from you:",
+  "1. Find the patterns, positive and negative: what pays and what costs me, by setup, tier, side, holding time, day of the week, and what I do after a loss. Cite trades by their # number.",
+  "2. Keep what the numbers show apart from what you infer, and say which is which.",
+  "3. Then ask me follow-up questions about specific trades or clusters the data cannot explain on its own -- for example: \"Trade #12 was closed for a scratch the same day it was opened. What did the stock do afterward, and why did you close it so quickly?\" Ask before you assume.",
+  "4. Be direct and specific. No generic trading advice, no strategy lectures, no encouragement filler.",
+  "",
+  "How to read it:",
+  "- R is my risk unit: 1R is the dollar loss I accept per trade at full size. A trade's R is its realised result over 1R for the account. \"int\" is the result over what that position was built to lose at its first stop.",
+  "- Scratch: a result between {lo}R and {hi}R. Tiers size a trade at a multiple of 1R: {tiers}.",
+  "- Events: E entry, A add, T trim, C close, qty@price; s = stop at entry; S> = stop moved to; D = dividend per share; adj = a position override.",
+  "- Dates are YYYY-MM-DD in my time zone. \"journal\" lines are what I wrote in my daily journal on that day."
+].join("\n");
+
+function coachText(acct, from, to){
+  const pf = root.portfolios[acct], set = settingsFor(acct), D0 = defs();
+  const list = (pf.trades||[]).filter(t=>t.status==="closed" && dayOf(closeTs(t)) >= from && dayOf(closeTs(t)) <= to)
+    .sort((a,b)=>closeTs(a)-closeTs(b));
+  const r2s = v => (v>0?"+":"") + v.toFixed(2);
+  const usd = v => (v<0?"-":"") + "$" + Math.abs(v).toFixed(2);
+  const pc = (a, b) => b ? (a/b*100).toFixed(1) + "%" : "-";
+  const rows = list.map(t=>({t, S:stats(t)}));
+  rows.forEach(x=>{ x.rm = x.S.rm; x.same = dateVal(x.S.openTs)===dateVal(x.S.endTs); });
+  const isLoss = rm => rm < D0.scratchLo, isWin = rm => rm > D0.scratchHi;
+
+  // Grouped results: count, wins, total R, expectancy.
+  const by = (key) => {
+    const g = {};
+    rows.forEach(x=>{ const k = key(x); (g[k] = g[k] || []).push(x.rm); });
+    return Object.keys(g).sort((a,b)=>g[b].length-g[a].length).map(k=>{
+      const a = g[k], tot = a.reduce((s,v)=>s+v,0);
+      return k+" n"+a.length+" win "+pc(a.filter(isWin).length, a.length)+" tot "+r2s(tot)+"R exp "+r2s(tot/a.length)+"R";
+    }).join("; ");
+  };
+  const A = bookStats(list), tot$ = list.reduce((s,t)=>s+derive(t).realized, 0);
+  const wins = rows.filter(x=>isWin(x.rm)), losses = rows.filter(x=>isLoss(x.rm));
+  const avg = (a, f) => a.length ? a.reduce((s,x)=>s+f(x),0)/a.length : 0;
+  const grossW = wins.reduce((s,x)=>s+x.rm,0), grossL = -losses.reduce((s,x)=>s+x.rm,0);
+  const sameDay = rows.filter(x=>x.same);
+  const held = x => x.S.days<=1 ? "1d" : x.S.days<=5 ? "2-5d" : x.S.days<=20 ? "6-20d" : "21d+";
+  const wd = x => new Date(x.S.openTs).toLocaleDateString("en-US", {weekday:"short"});
+  // What came next after a loss: the trade opened after the most recent close before it.
+  const byOpen = (pf.trades||[]).filter(t=>t.status==="closed").map(t=>({t, open:t.events[0].ts, close:closeTs(t), rm:derive(t).realized/t.rUnit}));
+  const afterLoss = rows.filter(x=>{
+    const prev = byOpen.filter(y=>y.t!==x.t && y.close <= x.S.openTs).sort((a,b)=>b.close-a.close)[0];
+    return prev && isLoss(prev.rm);
+  });
+  const tagName = v => { const o = lossTags().find(o=>o.v===v); return o ? o.t : v; };
+  const tagged = losses.filter(x=>x.t.lossTag);
+  const tagCount = {}; tagged.forEach(x=>{ const n = tagName(x.t.lossTag); tagCount[n] = (tagCount[n]||0) + 1; });
+  const planned = rows.filter(x=>{ const p = x.t.plan||{}; return (p.cutIf||p.waitIf||p.exit||"").trim(); }).length;
+  const dueN = rows.filter(x=>daysBetween(x.S.endTs, Date.now()) >= REVIEW_DAYS()).length;
+  const revN = rows.filter(x=>daysBetween(x.S.endTs, Date.now()) >= REVIEW_DAYS() && (x.t.review30||"").trim()).length;
+
+  const out = [];
+  out.push(COACH_BRIEF.replace("{lo}", D0.scratchLo).replace("{hi}", D0.scratchHi)
+    .replace("{tiers}", TIERS.map((n,i)=>n+" "+set.tiers[i]+"R").join(", ")));
+  out.push("", "== SUMMARY ==",
+    "Span " + dateVal(from) + " to " + dateVal(to) + " | closed trades " + list.length,
+    "wins " + wins.length + " | losses " + losses.length + " | scratches " + A.scratch + " | win rate " + pc(wins.length, list.length) +
+      " | avg win " + r2s(avg(wins, x=>x.rm)) + "R | avg loss " + r2s(avg(losses, x=>x.rm)) + "R",
+    "total " + r2s(A.tot) + "R (" + usd(tot$) + ") | expectancy " + r2s(list.length ? A.tot/list.length : 0) + "R" +
+      " | profit factor " + (grossL ? (grossW/grossL).toFixed(2) : "-") +
+      " | best " + r2s(rows.length ? Math.max(...rows.map(x=>x.rm)) : 0) + "R | worst " + r2s(rows.length ? Math.min(...rows.map(x=>x.rm)) : 0) + "R",
+    "days held: winners avg " + avg(wins, x=>x.S.days).toFixed(1) + ", losers avg " + avg(losses, x=>x.S.days).toFixed(1) +
+      " | same-day round trips " + sameDay.length + " (total " + r2s(sameDay.reduce((s,x)=>s+x.rm,0)) + "R)",
+    "by setup: " + (by(x=>setupKey(x.t)) || "-"),
+    "by tier: " + (by(x=>TIERS[x.t.tier]||"?") || "-"),
+    "by side: " + (by(x=>x.t.side>0 ? "long" : "short") || "-"),
+    "by days held: " + (by(held) || "-"),
+    "by weekday opened: " + (by(wd) || "-"),
+    "trade after a loss: n" + afterLoss.length + " win " + pc(afterLoss.filter(x=>isWin(x.rm)).length, afterLoss.length) +
+      " tot " + r2s(afterLoss.reduce((s,x)=>s+x.rm,0)) + "R",
+    "loss tags: " + (Object.keys(tagCount).map(k=>k+" "+tagCount[k]).join(", ") || "none") + " | untagged losses " + (losses.length - tagged.length),
+    "plan written at entry " + planned + "/" + list.length + " | 30-day reviews written " + revN + "/" + dueN + " due");
+
+  out.push("", "== TRADES (oldest close first) ==");
+  const used = new Set();
+  rows.forEach((x, i)=>{
+    const t = x.t, S = x.S, F = fillAvgs(t), e0 = t.events.find(e=>e.type==="entry");
+    const ev = t.events.map(e=>{
+      if(e.type==="entry") return "E"+e.qty+"@"+e.price+(e.stop!=null ? " s"+e.stop : "");
+      if(e.type==="add")   return "A"+e.qty+"@"+e.price;
+      if(e.type==="trim")  return "T"+e.qty+"@"+e.price;
+      if(e.type==="close") return "C"+e.qty+"@"+e.price;
+      if(e.type==="stop")  return "S>"+stopsFrom(e).map(s=>(s.qty!=null ? s.qty+"@" : "")+s.price).join("/");
+      if(e.type==="div")   return "D"+e.ps;
+      if(e.type==="adjust") return "adj";
+      return null;
+    }).filter(Boolean).join("; ");
+    const lines = ["#"+(i+1)+" "+t.ticker+" "+(t.side>0?"L":"S")+" | "+setupKey(t)+" | "+(TIERS[t.tier]||"?")+" | "+
+      dateVal(S.openTs)+" > "+dateVal(S.endTs)+" "+S.days+"d | "+r2s(x.rm)+"R"+(S.rmInt!=null ? " int "+r2s(S.rmInt)+"R" : "")+
+      (S.posPct!=null ? " | pos "+(S.posPct>0?"+":"")+S.posPct.toFixed(1)+"%" : "")+
+      " | in "+(F.entry!=null ? +F.entry.toFixed(4) : "-")+" out "+(F.exit!=null ? +F.exit.toFixed(4) : "-")+
+      (e0 && e0.stop!=null ? " stop0 "+e0.stop : " no stop")+" | "+ev];
+    const p = t.plan||{}, plan = [p.cutIf ? "cut if "+p.cutIf : null, p.waitIf ? "wait if "+p.waitIf : null, p.exit ? "exit "+p.exit : null].filter(Boolean);
+    if(plan.length) lines.push("  plan: "+plan.join("; "));
+    if((t.notes||"").trim()) lines.push("  notes: "+t.notes.trim());
+    if(t.lossTag) lines.push("  loss tag: "+tagName(t.lossTag));
+    if((t.review30||"").trim()) lines.push("  30-day review: "+t.review30.trim());
+    [dateVal(S.openTs), dateVal(S.endTs)].forEach((k, j)=>{
+      if(j===1 && k===dateVal(S.openTs)) return;
+      if(root.journal[k]){ lines.push("  journal "+k+": "+root.journal[k].trim()); used.add(k); }
+    });
+    out.push(lines.join("\n").replace(/\r?\n(?!  )/g, " "));
+  });
+  const rest = Object.keys(root.journal).filter(k=>!used.has(k) && k >= dateVal(from) && k <= dateVal(to)).sort();
+  if(rest.length){
+    out.push("", "== OTHER JOURNAL DAYS ==");
+    rest.forEach(k=>out.push(k+": "+root.journal[k].trim().replace(/\r?\n/g, " ")));
+  }
+  return {text: out.join("\n"), n: list.length};
+}
+window.buildCoach = () => {
+  const acct = coachAcct(), msg = $("co_msg");
+  const from = tsFromDateVal($("co_from").value), to = tsFromDateVal($("co_to").value);
+  if(!acct){ msg.textContent = "No account."; return; }
+  if(from==null || to==null){ msg.textContent = "Enter both dates."; return; }
+  if(dayOf(from) > dayOf(to)){ msg.textContent = "From is after To."; return; }
+  const r = coachText(acct, dayOf(from), dayOf(to));
+  $("co_out").value = r.text;
+  msg.textContent = r.n + " trade" + (r.n===1?"":"s") + " · about " + Math.round(r.text.length/4).toLocaleString() + " tokens";
+};
+window.copyCoach = async () => {
+  if(!$("co_out").value) buildCoach();
+  try{ await navigator.clipboard.writeText($("co_out").value); $("co_msg").textContent += " · copied"; }
+  catch(e){ $("co_out").select(); $("co_msg").textContent += " · selected, press Ctrl+C"; }
+};
 
 /* ========================= bindings ========================= */
 function bindSettings(){
@@ -5385,9 +5814,9 @@ function tickClock(){
   const c = '<span class="c">:</span>';
   const note = DATE_NOTES[p(d.getMonth()+1)+"-"+p(d.getDate())];
   el.innerHTML =
-    '<div class="t">'+p(d.getHours())+c+p(d.getMinutes())+c+p(d.getSeconds())+'</div>' +
-    '<div class="d">'+d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"})+'</div>' +
-    (note ? '<div class="n">'+esc(note)+'</div>' : "");
+    '<span class="t">'+p(d.getHours())+c+p(d.getMinutes())+c+p(d.getSeconds())+'</span>' +
+    '<span class="d">'+d.toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"})+'</span>' +
+    (note ? '<span class="n">'+esc(note)+'</span>' : "");
 }
 
 // Mark the rail link for whichever section is currently nearest the top of the viewport.

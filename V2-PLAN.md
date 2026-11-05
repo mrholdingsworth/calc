@@ -376,19 +376,38 @@ transfer and a dividend).
     unticked adjustment above, so it never lands in stock cash by accident. Assignment and expiry
     rows have not been seen; any row type not understood is listed as not read.
 
-### Still open (2026-10-29)
+### Settled 2026-11-04: a tracker first
 
+Steve now sizes trades another way, so the app is primarily a portfolio tracker; the calculator
+stays as it is for when it helps.
+
+38. **Nothing stops a trade opening.** No checklist (Russo's or his own), no unstopped-short block
+    (setting removed). Typed shares open a trade without a stop, as a long, flagged unprotected.
+39. **Dividends are per share, on an ex-date**, entered from the gear: per share × shares held going
+    into that day, long receives and short pays. Realised -- cash, AUM for sizing, the position's
+    P/L and R. In the estimated tax: qualified (long-term rate) only when designated and held more
+    than 60 of the 121 days around the ex-date; otherwise ordinary; a short's reduces its gain.
+40. **The clock opens a calendar**: realised P/L per day in dollars and percent of the morning's
+    book, a note per day (one journal for all accounts), the day's trades; a closed trade's dates
+    link to it.
+41. **A coaching export** of a chosen span: instructions, aggregates and one line per trade, so an
+    AI can find patterns and ask about specific trades without recomputing anything.
+
+Ruled out on the same day: a broker API, and the extension check (with the noise check, Russo
+leftovers).
+
+### Still open (2026-11-04)
+
+- **Kept open by Steve:** the themes scanning notebook; the rules panel.
 - **Tuning, kept for now:** open heat in R. Then cutover (phase 11), last.
 
 Closed since this list was first written: the sizing pipeline (decisions 1, 4 and 12 — one sizer,
 `tierSize`); `bpUsed` (22 — cost for cash, mark for margin); initial stop as a sizing basis
 (rejected with net liq and trade price under 1–2: size from AUM at the current stop); the
 tier-selector question (12); the Closed Trades / Statistics / 30-day review pass (25–30);
-unrealised gains (31); the ADR and Loss audit revisit (32); fuzziness (33); the CSV import (34–37).
-
-Built on a reading Steve has not yet confirmed: the pre-trade checkboxes are removed, as the later
-outline says (III.B), rather than moved into the gear as the un-outlined ideas document had it.
-Old trades keep `t.checks`.
+unrealised gains (31); the ADR and Loss audit revisit (32); fuzziness (33); the CSV import (34–37);
+the pre-trade checkboxes (38: removed, confirmed by Steve -- nothing blocks a trade, and no checklist
+moves into the gear).
 
 ---
 
@@ -687,7 +706,8 @@ As set out in section 0.
   — *this stock is too volatile for your rules* — not two warnings.
 - **Untouched, still open.** Top themes, the interactive calendar, dividends, the extension check,
   recomputation cost, `render()` cost, per-account collapse state (moot after phase 3), naming the
-  app, the rules panel.
+  app, the rules panel. *(2026-11-04: the calendar and dividends are built, 39–40; the extension
+  check is ruled out; naming is done, 23.)*
 - **New, created by v2.** Decisions 10–12 above — split stops versus the protected basis, open
   heat's unit, and what fuzziness measures — plus the Closed Trades / Statistics / 30-day review
   pass deferred to after this.

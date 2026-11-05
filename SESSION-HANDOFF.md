@@ -19,7 +19,7 @@ own key is empty, and on demand from Data › Re-import from v1; it never writes
 
 1. `OPEN-ITEMS.md` — To do, Ruled out, then Decided/done newest-first. Reasons, not just changes.
 2. `V2-PLAN.md` — the **"Settled 2026-10-26"**, **"2026-10-27"** and **"2026-10-28"** and **"2026-10-29"**
-   sections first (decisions 1–37): they record Steve's answers and
+   sections first (decisions 1–41): they record Steve's answers and
    supersede anything earlier in the file that disagrees, including the outline document.
 3. This file.
 4. `WEAKNESSES.md` (the register) and `REVIEW-2026-10-26.md` only when you need the history of a
@@ -142,6 +142,14 @@ from that); a field needs a `<label for>` or `aria-label`; a toggle carries `ari
 `aria-pressed`; an explainer goes in `TIPS` or an `.info` bubble and becomes a description
 automatically. The `a11y` case fails on a nameless field or symbol button on any tab.
 
+**Nothing blocks a trade opening.** Warnings flag; nothing refuses. A new guard is a warning line,
+never a return from `openTrade`. The app is a tracker first now.
+
+**A dividend is an event, `{type:"div", ps, ts}`,** stored at the start of its ex-date. Anything that
+replays events (`derive`, the Closed Trades log) must count it: `side × ps × shares held`. Anything
+that walks fills (`fillAvgs`, the broker-file matcher) skips it; `taxLots` records the lots held into
+it, and `taxReport` follows them through later sales for the 60-day test. `nq:true` = not qualified.
+
 **A broker file proposes; the user disposes.** `csvCompare` only reads, `csvProjected` works on a
 copy, and `csvApply` applies what its approval function passes -- the screen passes the ticks. A new
 kind of difference gets a row and a box, never a silent fix. Text from the file is `esc()`'d like
@@ -150,6 +158,7 @@ any stored string; nothing from it is written into a handler (boxes carry their 
 ## Waiting on Steve, not on work
 
 - Cutover, once everything else is done. Open heat in R may still be tuned.
+- Kept open by Steve, not to be built unasked: the themes scanning notebook, the rules panel.
 - The broker file has only seen thinkorswim's Transaction History. Assignment and expiry rows have
   not appeared yet; when a file has them they list as not read, and that is the next sample to ask for.
 
@@ -167,6 +176,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
   file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, a sweep of every show/hide item, and the broker file — 342 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar and the coaching export — 413 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.
