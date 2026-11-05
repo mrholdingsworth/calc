@@ -65,6 +65,15 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, after Send and after opening (V2-PLAN 48)
+
+- **Two settings in Display, both on by default:** Fast calc empties its price and stop after Send
+  (the tier picked stays, since New Trade opens at it and opening resets it), and opening a trade --
+  one account or a group -- switches to the Portfolio. A trade that does not open stays on New
+  Trade. `root.ui.fcClear`, `root.ui.toPortfolio`.
+- `v2-checks.js`: `afterActions`; `handoff` now types the prices before each send. 465/465, twice
+  in one page; five deliberate breaks, each caught.
+
 ### 2026-11-04 — v2.0-dev, AUM and 1R always on the Portfolio (V2-PLAN 47)
 
 - **With nothing open the Portfolio showed no figures at all** (only the tax tile, if on). AUM and

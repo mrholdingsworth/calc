@@ -621,6 +621,10 @@ button.small{--r:7px}
           <div class="sctl"><input type="checkbox" id="s_colourGrade"></div></div>
         <div class="srow"><label for="s_unrealOn">Unrealized gains<span class="info" data-tip="Adds open P/L at the last mark to the Portfolio summary. Off by default.">i</span></label>
           <div class="sctl"><input type="checkbox" id="s_unrealOn"></div></div>
+        <div class="srow"><label for="s_fcClear">Clear Fast calc after Send<span class="info" data-tip="Empties the price and stop once they are sent to New Trade. The tier you picked still goes with them.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_fcClear"></div></div>
+        <div class="srow"><label for="s_toPortfolio">Go to Portfolio after opening<span class="info" data-tip="Switches to the Portfolio once a new trade opens, so you see it in the list.">i</span></label>
+          <div class="sctl"><input type="checkbox" id="s_toPortfolio"></div></div>
       </div>
     </div>
 
@@ -761,7 +765,8 @@ const lossTags = () => {
    About the person and the screen, never about a book. On root for the reason register #1 records:
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
-const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false, ledgerOpen:true };
+const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false, ledgerOpen:true,
+                     fcClear:true, toPortfolio:true };
 
 /* ---- what each panel shows ----
    Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
@@ -2111,6 +2116,8 @@ const SET_FIELDS = [
   ["s_hideValues","page", "hideValues", "bool"],
   ["s_colourGrade","page","colourGrade","bool"],
   ["s_unrealOn",  "page", "unrealOn",   "bool"],
+  ["s_fcClear",   "page", "fcClear",    "bool"],
+  ["s_toPortfolio","page","toPortfolio","bool"],
   ["s_stopCount", "page", "stopCount",  "num"],
   ["s_lotRound",  "acct", "lotRound",   "num"],
   ["s_taxST",     "acct", "taxST",      "num"],
@@ -2328,6 +2335,9 @@ window.fcToNewTrade = () => {
   // and sizing stays on screen while the fill is recorded.
   setTab("new");
   newTradeCal();
+  // Sent is done with: the calculator empties for the next idea (a setting, on by default). The tier
+  // stays -- New Trade opens at it, and opening is what resets it.
+  if(ui().fcClear !== false){ $("fc_price").value = ""; $("fc_stop").value = ""; renderFastCalc(); }
   setTimeout(()=>$("nt_tk").focus(), 60);
 };
 // Stop below the price is a long, above it a short. One rule, used by Fast calc and New Trade
@@ -2866,6 +2876,7 @@ function openTrade(){
 
   root.fcTier = 1;                   // the next trade starts from A, whatever this one was
   clearNewTrade();
+  if(ui().toPortfolio !== false) root.tab = "portfolio";    // see it in the list (a setting, on by default)
   save(); render();
 }
 
@@ -4403,6 +4414,7 @@ function openGroupTrade(){
   });
   root.fcTier = 1;                           // the next trade starts from A, whatever this one was
   clearNewTrade();                           // a fill belongs to the trade it came from
+  if(ui().toPortfolio !== false) root.tab = "portfolio";
   save(); render();
 }
 
@@ -5726,7 +5738,7 @@ const README_HTML =
   '<div class="lbl">On every page</div><ul>' +
     '<li><b>Accounts.</b> The buttons under the title switch between your accounts and groups. A group shows its members together and sizes each from its own equity.</li>' +
     '<li><b>Calendar.</b> Click the clock. Each day shows what you realised, in dollars and percent; pick a day to write or read its note and see the trades opened or closed that day.</li>' +
-    '<li><b>Fast calc.</b> Type a price and a stop to see the share count at every tier. Click a tier to choose it, then <b>Send &rarr;</b> to carry the numbers into New Trade.</li>' +
+    '<li><b>Fast calc.</b> Type a price and a stop to see the share count at every tier. Click a tier to choose it, then <b>Send &rarr;</b> to carry the numbers into New Trade; Fast calc then empties for the next one.</li>' +
     '<li><b>(i) and underlined labels.</b> Hover over them for a one-line explanation of a field or column.</li>' +
   '</ul>' +
   '<div class="lbl">Tabs</div><ul>' +
@@ -5748,7 +5760,7 @@ const README_HTML =
     '<li><b>Risk warnings.</b> Max open heat and the cold-streak brake flag when crossed. They never block a trade.</li>' +
     '<li><b>Positions.</b> The target ladder shown on positions, and how many stop rows the Stop button opens with.</li>' +
     '<li><b>Statistics definitions.</b> What counts as a scratch, a decisive win, a disciplined loss and a stop breach.</li>' +
-    '<li><b>Display.</b> Hide money figures, gain and loss colour, and the unrealized gains figure.</li>' +
+    '<li><b>Display.</b> Hide money figures, gain and loss colour, and the unrealized gains figure. Also whether Fast calc empties after Send, and whether opening a trade takes you to the Portfolio (both on to start).</li>' +
     '<li><b>Show on screen.</b> Tick which columns and figures each panel shows.</li>' +
     '<li><b>Setups and loss tags.</b> The lists New Trade and the loss picker offer, one per line.</li>' +
     '<li><b>Estimated tax.</b> Turn it on per account with your short- and long-term rates. It covers FIFO lots, wash sales and dividends, and it is an estimate, not tax advice.</li>' +

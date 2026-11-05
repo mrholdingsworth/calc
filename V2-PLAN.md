@@ -410,6 +410,8 @@ leftovers).
     Adj. only) for manual audits. The broker file's rows stay unfiltered so nothing ticked is hidden.
 47. **AUM and 1R in dollars always show on the Portfolio**, open positions or none; 1R is its own
     tile (a group shows its accounts' range).
+48. **Fast calc empties after Send, and opening a trade goes to the Portfolio**: two Display
+    settings, both on by default. The tier picked survives the clear.
 
 ### Still open (2026-11-04)
 

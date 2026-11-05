@@ -140,8 +140,9 @@ const CASES = {
   /* Send carries the selected tier's count, and New Trade sizes like the range. */
   handoff(){
     book(); render();
-    $("fc_price").value = "50"; $("fc_stop").value = "48";
+    // Each send empties Fast calc (on by default), so each is typed afresh.
     [[0,"500"],[1,"250"],[2,"125"]].forEach(([i, want])=>{
+      $("fc_price").value = "50"; $("fc_stop").value = "48";
       root.fcTier = i; renderFastCalc(); fcToNewTrade();
       check("send tier " + TIERS[i], $("nt_qty").value, want);
     });
@@ -1229,6 +1230,34 @@ const CASES = {
     group([["A1", 100000], ["B1", 50000]]); root.tab = "portfolio"; render();
     check("group: the range, per account", tile("r"), ["$500.00–$1,000.00", "1% of each account’s AUM"]);
     check("group: AUM says how many", tile("aum")[1], "all cash, nothing open · 2 accounts");
+  },
+
+  /* After Send, Fast calc empties (keeping the tier); after opening, the Portfolio is shown. Both
+     settings, both on by default. */
+  afterActions(){
+    book(); root.tab = "portfolio"; render();
+    check("both on by default", [ui().fcClear, ui().toPortfolio, $("s_fcClear").checked, $("s_toPortfolio").checked], [true, true, true, true]);
+    $("fc_price").value = "50"; $("fc_stop").value = "48"; root.fcTier = 2; renderFastCalc();
+    fcToNewTrade();
+    check("Send fills New Trade and empties Fast calc", [$("nt_entry").value, $("nt_stop").value, $("fc_price").value, $("fc_stop").value, root.tab],
+      ["50", "48", "", "", "new"]);
+    check("the tier picked is kept for the trade", root.fcTier, 2);
+    $("nt_tk").value = "AFT"; openTrade();
+    check("opens at that tier, then the Portfolio", [state.trades[0].ticker, state.trades[0].tier, root.tab], ["AFT", 2, "portfolio"]);
+    root.tab = "new"; render(); setNT("", "20", "19", "5"); openTrade();
+    check("a trade that did not open stays on New Trade", root.tab, "new");
+
+    root.ui.fcClear = false; root.ui.toPortfolio = false;
+    $("fc_price").value = "30"; $("fc_stop").value = "29"; renderFastCalc(); fcToNewTrade();
+    check("off: Fast calc keeps its numbers", [$("fc_price").value, $("fc_stop").value], ["30", "29"]);
+    $("nt_tk").value = "STAY"; openTrade();
+    check("off: stays on New Trade", [state.trades[0].ticker, root.tab], ["STAY", "new"]);
+    clearFc();
+
+    group([["A1", 100000], ["B1", 50000]]); root.tab = "new"; render();
+    setNT("GRP", "50", "48", ""); openGroupTrade();
+    check("a group's open goes to the Portfolio too", root.tab, "portfolio");
+    clearFields();
   },
 
   /* Small things that each broke once. */
