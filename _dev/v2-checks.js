@@ -1004,6 +1004,11 @@ const CASES = {
       row(7, 0, "TRD", "SOLD -1 XYZ 100 (Weeklys) 16 OCT 26 12 PUT @.42 CBOE", 42, 1415, -0.01, -0.65),
       row(8, 0, "CRC", "Tfr out", -50, 1365),
       row(8, 5, "DOI", "Qualified Dividend - SOMECO 0.39 US$", 0.39, 1365.39),
+      row(7, 30, "TRD", "BOT +10 HHH @5", -50, 1365),                            // a round trip the app lacks
+      row(8, 30, "TRD", "SOLD -10 HHH @6", 60, 1425),
+      row(8, 40, "TRD", "SOLD -5 III @20", 100, 1525),                           // opens with a sell
+      row(7, 50, "TRD", "BOT +5 JJJ @10", -50, 1475),
+      row(8, 50, "TRD", "SOLD -8 JJJ @11", 88, 1563),                            // past zero
       row(8, 9, "JRN", "Something new", 0, 1365.39),
       row(9, -600, "BAL", "Cash balance at the start of business day", 0, 1234.5)
     ].join("\r\n") + "\r\n";
@@ -1015,7 +1020,7 @@ const CASES = {
 
     const f = parseBrokerCsv(text);
     const cc = f.orders.find(o=>o.tk==="CCC");
-    check("split fills are one order", [f.fills, f.orders.length, cc.qty, cc.fills, cc.price], [14, 13, 8, 2, 7.835]);
+    check("split fills are one order", [f.fills, f.orders.length, cc.qty, cc.fills, cc.price], [19, 18, 8, 2, 7.835]);
     check("fraction, no leading zero", (o=>[o.qty, o.price, o.dir])(f.orders.find(o=>o.tk==="EEE")), [0.5, 0.82, 1]);
     check("option counted, not read", [f.optRows, f.optCash, f.orders.some(o=>o.tk==="XYZ")], [1, 41.34, false]);
     check("stock fees", f.fees, -0.01);
@@ -1041,7 +1046,10 @@ const CASES = {
     check("a different day is a fix", [kinds("BBB"), items.find(it=>it.tk==="BBB" && it.kind==="fix").date], [["same","fix*"], true]);
     check("under a cent unticked; add and trim on the open trade", kinds("CCC"), ["sub", "add:add*", "add:trim*"]);
     check("a short's entry is a sell", kinds("DDD"), ["same"]);
-    check("no open trade: flagged only", kinds("EEE"), ["new"]);
+    check("no trade at all: offered as a new one, ticked", kinds("EEE"), ["newtrade*"]);
+    check("a round trip is one closed trade", [kinds("HHH"), (it=>[it.orders.map(x=>x.as), it.held])(items.find(it=>it.tk==="HHH"))], [["newtrade*"], [["entry","close"], 0]]);
+    check("opening with a sell: offered unticked", [kinds("III"), items.find(it=>it.tk==="III").side], [["newtrade"], -1]);
+    check("past zero stays flagged, the buy is offered", kinds("JJJ"), ["new", "newtrade*"]);
     check("not in the file: flagged only", kinds("FFF"), ["app"]);
     check("two round trips logged as one: no fixes", [kinds("GGG"), csvTickable(items.find(it=>it.tk==="GGG"))], [["clash"], false]);
     check("cash offered: transfers and dividend ticked, fees and options not",
@@ -1053,7 +1061,12 @@ const CASES = {
 
     csvOn = {rem:true};
     const n = csvApply(f, "Trading", csvIsOn);
-    check("approved rows applied", n, 8);
+    check("approved rows applied", n, 11);
+    const hhh = root.portfolios.Trading.trades.find(t=>t.ticker==="HHH");
+    check("imported: closed, no stop, tier A, from the file", [hhh.status, hhh.events[0].stop, hhh.tier, hhh.src, hhh.events.every(e=>e.adj && e.src==="file"), derive(hhh).realized],
+      ["closed", null, 1, "file", true, 10]);
+    check("imported open trade", (t=>[t.status, derive(t).Q, t.last])(root.portfolios.Trading.trades.find(t=>t.ticker==="JJJ")), ["open", 5, 10]);
+    check("the unticked short is not imported", root.portfolios.Trading.trades.some(t=>t.ticker==="III"), false);
     const aaa = trades[0].events[1];
     check("fix keeps what it was", [aaa.price, aaa.adj, aaa.src, aaa.was.price], [11.25, true, "file", 11]);
     check("date moved to the broker's", trades[1].events[1].ts, Date.parse(day(3, 5)));
@@ -1062,7 +1075,7 @@ const CASES = {
     const again = csvCompare(f, "Trading");
     check("read again: nothing left to apply but what was declined",
       again.filter(it=>csvTickable(it)).map(it=>it.kind+":"+(it.note||it.tk)).sort(),
-      ["cash:Broker fees", "cash:Option cash", "sub:CCC"]);
+      ["cash:Broker fees", "cash:Option cash", "newtrade:III", "sub:CCC"]);
     check("ledger tags the cash adjustment", cashFlows("Trading").filter(x=>x.type==="adjust").map(x=>x.note), ["Dividend", "Match broker balance"]);
 
     // On screen: boxes named, Apply counts only ticked rows, and is off with none.
@@ -1071,8 +1084,8 @@ const CASES = {
     root.tab = "audit"; render();
     const boxes = [...document.querySelectorAll("#csvOut input[data-k]")];
     const applyBtn = () => [...document.querySelectorAll("#csvOut button")].find(b=>/^Apply/.test(b.textContent));
-    check("a box for every offer, each named", [boxes.length, boxes.filter(b=>!b.getAttribute("aria-label")).length], [11, 0]);
-    check("apply counts ticked", applyBtn().textContent, "Apply 7");
+    check("a box for every offer, each named", [boxes.length, boxes.filter(b=>!b.getAttribute("aria-label")).length], [15, 0]);
+    check("apply counts ticked", applyBtn().textContent, "Apply 10");
     [...document.querySelectorAll("#csvOut input[data-k]:checked")].forEach(b=>csvTick(Object.assign(b, {checked:false})));
     check("apply off with nothing ticked", [applyBtn().textContent, applyBtn().disabled], ["Apply 0", true]);
     // The tag is split: whole, it would end the page script this file is compiled into.
@@ -1157,6 +1170,50 @@ const CASES = {
     closeModal();
   },
 
+  /* The ledger: its own card, collapsible and remembered, filtered by date, ticker, event, account
+     and Adj. for a manual audit. */
+  ledgerFilters(){
+    const a = trade({ticker:"AAA", status:"closed", closedAt:T0()+3*D, events:[ev("entry",{qty:10, price:50, stop:48}, 1), ev("close",{qty:10, price:55}, 3)]});
+    const b = trade({ticker:"BBB", events:[ev("entry",{qty:5, price:20, stop:19}, 2), ev("trim",{qty:2, price:22, adj:true, was:{type:"trim", qty:2, price:21}}, 4)]});
+    const pf = book([a, b]);
+    pf.cashFlows.push({type:"deposit", amount:500, ts:T0()+1*D, note:""}, {type:"adjust", amount:-0.03, ts:T0()+5*D, note:"fees"});
+    root.tab = "audit"; ledgerClear(); render();
+    const n = () => document.querySelectorAll("#ledger tr").length - 1;
+    const sum = () => $("auditSummary").textContent;
+    check("everything, newest first", [n(), sum()], [6, "6 transactions · 2 adjusted"]);
+    check("its own card, apart from the broker file", [$("ledgerBox").closest(".card") !== $("csvOut").closest(".card"), $("ledgerBox").tagName], [true, "DETAILS"]);
+    $("lg_tk").value = "aa"; renderLedger();
+    check("ticker, any case", [n(), sum()], [2, "2 of 6 transactions"]);
+    $("lg_tk").value = "cash"; renderLedger();
+    check("cash by its own name", n(), 2);
+    ledgerClear(); $("lg_ev").value = "trim"; renderLedger();
+    check("one kind of event", [n(), /BBB/.test($("ledger").textContent)], [1, true]);
+    $("lg_ev").value = "cash"; renderLedger();
+    check("all cash", n(), 2);
+    $("lg_ev").value = "c:deposit"; renderLedger();
+    check("deposits only", n(), 1);
+    ledgerClear(); $("lg_from").value = dateVal(T0()+2*D); $("lg_to").value = dateVal(T0()+3*D); renderLedger();
+    check("a stretch of dates, both ends counted", n(), 2);
+    ledgerClear(); $("lg_adj").checked = true; renderLedger();
+    check("adjusted only: the edited trim and the cash adjustment", [n(), sum()], [2, "2 of 6 transactions · 2 adjusted"]);
+    $("lg_tk").value = "ZZZ"; renderLedger();
+    check("nothing matches", $("ledger").textContent, "Nothing matches.");
+    ledgerClear();
+    check("clear brings it all back", n(), 6);
+    $("ledgerBox").open = false; ledgerToggle($("ledgerBox"));
+    check("collapsed is remembered", root.ui.ledgerOpen, false);
+    render();
+    check("and stays collapsed through a render", $("ledgerBox").open, false);
+    $("ledgerBox").open = true; ledgerToggle($("ledgerBox"));
+    group([["A1", 100000, [trade({ticker:"G1", events:[ev("entry",{qty:1, price:10, stop:9}, 1)]})]],
+           ["B1", 100000, [trade({ticker:"G2", events:[ev("entry",{qty:1, price:10, stop:9}, 1)]})]]]);
+    root.tab = "audit"; render();
+    check("a group can pick an account", [...$("lg_acct").options].map(o=>o.value), ["", "A1", "B1"]);
+    $("lg_acct").value = "B1"; renderLedger();
+    check("and the pick holds through a redraw", [$("lg_acct").value, n(), /G2/.test($("ledger").textContent)], ["B1", 1, true]);
+    ledgerClear();
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();
@@ -1183,6 +1240,7 @@ window.runChecks = () => {
   } finally {
     closeModal(); clearFields();
     csvData = null; csvOn = {}; coachPick = null; calView = null;
+    if(window.ledgerClear) ["lg_from","lg_to","lg_tk","lg_ev"].forEach(id=>{ if($(id)) $(id).value = ""; });
     root = keep; normalize();
     save = realSave; window.confirm = realConfirm; window.alert = realAlert;
     render();

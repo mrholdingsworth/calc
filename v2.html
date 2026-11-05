@@ -166,6 +166,9 @@ button.calcell{display:flex;flex-direction:column;align-items:flex-start;gap:1px
 button.calcell.sel{border-color:var(--gold)}
 .calcell.today .cd{color:var(--gold)}
 .calcell .cd{font-weight:700}
+.ledgerbox{border:0;padding:0;margin:0}
+.ledgerbox > summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;color:var(--tx)}
+.ledgerbox > summary h2{font-size:15px;font-weight:600;display:inline}
 .readme ul{margin:4px 0 12px;padding-left:18px}
 .readme li{margin:5px 0;font-size:13px;line-height:1.45}
 .readme .lbl{margin-top:12px}
@@ -510,14 +513,33 @@ button.small{--r:7px}
 
 <section class="tabpane" id="pane-audit">
   <div class="card">
-    <div class="panehead"><h2>Audit</h2><span class="muted" id="auditSummary"></span></div>
+    <div class="panehead"><h2>Broker file</h2></div>
     <div class="row" style="margin-bottom:8px">
-      <div><label for="csvFile">Broker file</label><input id="csvFile" type="file" accept=".csv,text/csv" onchange="readCsv(this)"></div>
+      <div><label for="csvFile">Transaction History CSV</label><input id="csvFile" type="file" accept=".csv,text/csv" onchange="readCsv(this)"></div>
       <div id="csvAcctWrap"></div>
     </div>
     <div id="csvMsg" class="muted" role="status"></div>
     <div id="csvOut"></div>
-    <div class="scroll" id="ledger"></div>
+  </div>
+  <div class="card">
+    <details id="ledgerBox" class="ledgerbox" open ontoggle="ledgerToggle(this)">
+      <summary><h2>Ledger</h2> <span class="muted" id="auditSummary"></span></summary>
+      <div class="row" style="margin:10px 0">
+        <div><label for="lg_from">From</label><input id="lg_from" type="date" oninput="renderLedger()"></div>
+        <div><label for="lg_to">To</label><input id="lg_to" type="date" oninput="renderLedger()"></div>
+        <div><label for="lg_tk">Ticker</label><input id="lg_tk" type="text" placeholder="any" autocomplete="off" oninput="renderLedger()" style="width:96px"></div>
+        <div><label for="lg_ev">Event</label><select id="lg_ev" onchange="renderLedger()">
+          <option value="">All</option><option value="entry">Entry</option><option value="add">Add</option>
+          <option value="trim">Trim</option><option value="close">Close</option><option value="stop">Stop</option>
+          <option value="div">Dividend</option><option value="budget">Budget</option><option value="adjust">Override</option>
+          <option value="cash">Cash, all</option><option value="c:deposit">Deposit</option>
+          <option value="c:withdraw">Withdrawal</option><option value="c:adjust">Cash adjustment</option></select></div>
+        <div id="lg_acctWrap"></div>
+        <label for="lg_adj" style="display:flex;align-items:center;gap:6px;margin:0 0 8px"><input id="lg_adj" type="checkbox" style="width:auto" onchange="renderLedger()">Adj. only</label>
+        <button class="small" onclick="ledgerClear()">Clear</button>
+      </div>
+      <div class="scroll" id="ledger"></div>
+    </details>
   </div>
 </section>
 
@@ -739,7 +761,7 @@ const lossTags = () => {
    About the person and the screen, never about a book. On root for the reason register #1 records:
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
-const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false };
+const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false, ledgerOpen:true };
 
 /* ---- what each panel shows ----
    Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
@@ -4913,22 +4935,67 @@ function render(){
    Every transaction in the book, newest first, across whatever is in view. A transaction edited
    from the gear or corrected from a broker file carries an "Adj." tag, with what it was in the
    tooltip. */
+// The ledger's filters, read from their fields: a manual audit narrows it to a stretch of dates, a
+// ticker (or "cash"), one kind of transaction, one account, or only what was adjusted.
+function ledgerFilter(isAdj){
+  const v = id => ($(id) ? $(id).value : "");
+  const from = tsFromDateVal(v("lg_from")), to = tsFromDateVal(v("lg_to"));
+  const tk = v("lg_tk").trim().toUpperCase(), ev = v("lg_ev"), acct = v("lg_acct");
+  const adjOnly = !!($("lg_adj") && $("lg_adj").checked);
+  return x => {
+    if(from != null && dayOf(x.ts) < dayOf(from)) return false;
+    if(to != null && dayOf(x.ts) > dayOf(to)) return false;
+    if(tk && String(x.e ? x.t.ticker : "CASH").toUpperCase().indexOf(tk) < 0) return false;
+    if(ev){
+      if(ev==="cash"){ if(!x.f) return false; }
+      else if(ev.indexOf("c:")===0){ if(!x.f || "c:"+x.f.type !== ev) return false; }
+      else if(!x.e || x.e.type !== ev) return false;
+    }
+    if(acct && x.acct !== acct) return false;
+    if(adjOnly && !isAdj(x)) return false;
+    return true;
+  };
+}
+window.ledgerClear = () => {
+  ["lg_from","lg_to","lg_tk","lg_ev","lg_acct"].forEach(id=>{ if($(id)) $(id).value = ""; });
+  if($("lg_adj")) $("lg_adj").checked = false;
+  renderLedger();
+};
+// Open or shut is remembered, like the other page preferences.
+window.ledgerToggle = el => {
+  if((ui().ledgerOpen !== false) === el.open) return;
+  root.ui.ledgerOpen = el.open; save();
+};
+
 function renderLedger(){
   const box = $("ledger"), sum = $("auditSummary");
   if(!box) return;
   // Every transaction means the cash too: a deposit, a withdrawal and a broker-drift adjustment
   // each move the book exactly as a trade does, and a ledger without them cannot be reconciled.
   // A cash adjustment is an adjustment by definition, so it carries the Adj. tag.
-  const rows = [];
-  scope().forEach(acct=>{
-    (root.portfolios[acct].trades||[]).forEach(t=>t.events.forEach((e,i)=>rows.push({acct, t, e, i, ts:e.ts})));
-    cashFlows(acct).forEach(f=>rows.push({acct, f, ts:f.ts}));
+  const lb = $("ledgerBox");
+  if(lb && lb.open !== (ui().ledgerOpen !== false)) lb.open = ui().ledgerOpen !== false;
+  const accts = scope(), pick = $("lg_acctWrap");
+  if(pick){
+    const was = $("lg_acct") ? $("lg_acct").value : "";
+    pick.innerHTML = accts.length > 1
+      ? '<label for="lg_acct">Account</label><select id="lg_acct" onchange="renderLedger()"><option value="">All</option>' +
+          accts.map(a=>'<option value="'+esc(a)+'"'+(a===was?" selected":"")+'>'+esc(a)+'</option>').join("") + '</select>'
+      : "";
+  }
+  const all = [];
+  accts.forEach(acct=>{
+    (root.portfolios[acct].trades||[]).forEach(t=>t.events.forEach((e,i)=>all.push({acct, t, e, i, ts:e.ts})));
+    cashFlows(acct).forEach(f=>all.push({acct, f, ts:f.ts}));
   });
-  const adj = rows.filter(x=>x.e ? x.e.adj : x.f.type==="adjust").length;
-  if(sum) sum.textContent = rows.length
-    ? rows.length + (rows.length===1 ? " transaction" : " transactions") +
+  const isAdj = x => x.e ? !!x.e.adj : x.f.type==="adjust";
+  const rows = all.filter(ledgerFilter(isAdj));
+  const adj = rows.filter(isAdj).length, filtered = rows.length !== all.length;
+  if(sum) sum.textContent = all.length
+    ? (filtered ? rows.length + " of " + all.length : all.length) + (all.length===1 ? " transaction" : " transactions") +
       (adj ? " · " + adj + " adjusted" : "") : "";
-  if(!rows.length){ box.innerHTML = '<div class="muted">No transactions yet.</div>'; return; }
+  if(!all.length){ box.innerHTML = '<div class="muted">No transactions yet.</div>'; return; }
+  if(!rows.length){ box.innerHTML = '<div class="muted">Nothing matches.</div>'; return; }
   rows.sort((a,b)=>b.ts - a.ts);
   const g = inGroup();
   const FLOW = {deposit:"deposit", withdraw:"withdrawal", adjust:"adjustment"};
@@ -5098,8 +5165,8 @@ function csvCompare(f, acct){
       items.push({key, kind, ts:o.ts, tk:o.tk, dir:o.dir, o, x, date, qty, price: price || sub, on: kind==="fix"});
       return;
     }
-    // Not in the app. It belongs to a trade that was open on that day, if there was one; a new trade
-    // is only flagged, because the file has no stop or tier to open it with.
+    // Not in the app. It belongs to a trade that was open on that day, if there was one; if not, it
+    // is grouped into a trade of its own below.
     const t = pf.trades.filter(t=>String(t.ticker).toUpperCase()===o.tk && t.events.length &&
         dayOf(t.events[0].ts) <= dayOf(o.ts) && (t.status==="open" || dayOf(t.closedAt||0) >= dayOf(o.ts)))
       .sort((a,b)=>b.events[0].ts - a.events[0].ts)[0];
@@ -5118,6 +5185,33 @@ function csvCompare(f, acct){
     if(eTo[j] == null) items.push({key:"a|"+x.t.id+"|"+x.e.ts, kind:"app", ts:x.e.ts, tk:x.tk, dir:x.dir, x, t:x.t});
   });
 
+  // Orders with no trade in the app at all become trades of their own, if approved. Per ticker, in
+  // time order: the first opens a trade on its side, the same side adds, the other side trims and
+  // then closes it, and the next order after a close opens another. A trade the file opens with a
+  // sell is offered unticked: it may be a short, or the tail of a position bought before the file
+  // starts. An order that would take a position past zero stays flagged.
+  const lone = {};
+  items.filter(it=>it.kind==="new" && !it.t).forEach(it=>(lone[it.tk] = lone[it.tk] || []).push(it));
+  Object.keys(lone).forEach(tk=>{
+    let cur = null, held = 0;
+    lone[tk].sort((a,b)=>a.ts-b.ts).forEach(it=>{
+      const o = it.o;
+      if(!cur){
+        cur = {key:"n|"+tk+"|"+o.ts, kind:"newtrade", ts:o.ts, tk, side:o.dir, orders:[], on:o.dir > 0};
+        held = 0; items.push(cur);
+      }
+      if(o.dir === cur.side){ cur.orders.push({o, as: cur.orders.length ? "add" : "entry"}); held = r6(held + o.qty); }
+      else if(o.qty <= held + 1e-6){
+        held = r6(held - o.qty);
+        cur.orders.push({o, as: held <= 1e-6 ? "close" : "trim"});
+        if(held <= 1e-6){ cur.held = 0; cur = null; }
+      } else return;
+      it.kind = "grouped";
+    });
+    if(cur) cur.held = held;
+  });
+  for(let i = items.length - 1; i >= 0; i--) if(items[i].kind === "grouped") items.splice(i, 1);
+
   // Cash. A movement already in the app -- same kind, same amount, within three days -- is a match.
   // A dividend already entered on its trade counts too, within the week between ex-date and payment.
   const flows = cashFlows(acct), divs = [];
@@ -5132,7 +5226,7 @@ function csvCompare(f, acct){
   return items;
 }
 const csvIsOn = it => csvOn[it.key] != null ? csvOn[it.key] : !!it.on;
-const csvTickable = it => it.kind==="fix" || it.kind==="sub" || it.kind==="add" || it.kind==="cash";
+const csvTickable = it => it.kind==="fix" || it.kind==="sub" || it.kind==="add" || it.kind==="newtrade" || it.kind==="cash";
 
 // Applies the rows `on` approves, to whatever root is now. Returns how many it applied. "rem" -- the
 // broker's balance -- goes last, so it is only what the other approved rows did not explain.
@@ -5153,6 +5247,18 @@ function csvApply(f, acct, on){
     } else if(it.kind==="add"){
       it.t.events.push({type:it.as, qty:it.o.qty, price:it.o.price, ts:it.o.ts, adj:true, src:"file"});
       touched.add(it.t);
+    } else if(it.kind==="newtrade"){
+      // No stop, tier A, no setup: the file knows the fills and nothing else, and the gear is where
+      // the rest goes. Every transaction says where it came from.
+      const first = it.orders[0].o, last = it.orders[it.orders.length-1].o, S = settingsFor(acct);
+      const t = { id: freshId(), ticker: it.tk, side: it.side, concept: "", tier: 1, mult: S.tiers[1],
+                  aptr: null, aptrAtOpen: null, rUnit: rUnitOf(acct), aumAtOpen: aumOf(acct), status: "open",
+                  last: last.price, plan: {}, notes: "", checks: [], src: "file",
+                  events: it.orders.map(x=>Object.assign({type:x.as, qty:x.o.qty, price:x.o.price, ts:x.o.ts, adj:true, src:"file"},
+                                                         x.as==="entry" ? {stop:null} : {})),
+                  createdAt: first.ts, lastMarkTs: last.ts };
+      pf.trades.unshift(t);
+      touched.add(t);
     } else if(it.kind==="cash"){
       pf.cashFlows.push({type:it.type, amount:it.amount, note:it.note, ts:it.ts, src:"file",
                          aumAfter: r2(bookOf(acct) + flowSigned(it))});
@@ -5257,20 +5363,25 @@ function renderCsv(){
                 it.price ? "price &rarr; "+fmtP(it.o.price) + (it.kind==="sub" ? ' <span class="muted">&lt;1&cent;</span>' : "") : null]
                .filter(Boolean).join(" &middot; ");
     else if(it.kind==="add")  change = "log as " + it.as + gear(it.t);
-    else if(it.kind==="new")  change = (it.t ? "more than the position" : "not in app &mdash; no open trade") + gear(it.t);
+    else if(it.kind==="new")  change = (it.t ? "more than the position" : "not in app &mdash; more than the position") + gear(it.t);
+    else if(it.kind==="newtrade"){
+      broker = it.orders.map(x=>side(x.o.dir)+" "+fill(x.o.qty, x.o.price)).join("<br>");
+      change = "new trade, " + (it.held > 1e-6 ? "open " + fq(it.held) + " sh" : "closed") +
+        (it.side < 0 ? ' <span style="color:var(--amber)">&mdash; opens with a sell: a short?</span>' : "");
+    }
     else if(it.kind==="app")  change = "not in file" + gear(it.t);
     else if(it.kind==="clash"){
       broker = it.b.map(o=>side(o.dir)+" "+fill(o.qty, o.price)).join("<br>");
       app = it.a.map(x=>x.e.type+" "+fill(x.e.qty, x.e.price)).join("<br>");
       change = it.b.length+" orders vs "+it.a.length+" &mdash; fix in gear" + gear(it.t);
     }
-    const what = it.tk + " " + shortDate(it.ts) + " " + (it.kind==="add" ? "log as " + it.as : "correction");
+    const what = it.tk + " " + shortDate(it.ts) + " " + (it.kind==="add" ? "log as " + it.as : it.kind==="newtrade" ? "add as a new trade" : "correction");
     return '<tr><td>'+box(it, what)+'</td><td>'+shortDate(it.ts)+'</td>' +
       '<td style="font-family:var(--mono);font-weight:600">'+esc(it.tk)+'</td>' +
-      '<td>'+(it.kind==="clash" ? "" : side(it.dir))+'</td>' +
+      '<td>'+(it.kind==="clash" ? "" : it.kind==="newtrade" ? (it.side > 0 ? "Long" : "Short") : side(it.dir))+'</td>' +
       '<td class="num">'+broker+'</td><td class="num">'+app+'</td><td>'+change+'</td></tr>';
   };
-  const RANK = {fix:0, add:1, sub:2, clash:3, new:4, app:5};
+  const RANK = {fix:0, add:1, newtrade:2, sub:3, clash:4, new:5, app:6};
   const trades = items.filter(it=>RANK[it.kind]!=null).sort((a,b)=>RANK[a.kind]-RANK[b.kind] || a.ts-b.ts);
   const same = items.filter(it=>it.kind==="same");
   const head = '<table><tr><th><span class="sr-only">Approve</span></th><th>Date</th><th>Ticker</th><th>Side</th>' +
@@ -5619,7 +5730,8 @@ const README_HTML =
     '<li><b>New Trade.</b> Ticker, fill price, shares and stop. R and allocation are worked out and turn amber outside your settings; nothing blocks opening. Leave shares blank to take the tier\'s size, or leave the stop blank and type shares to open without one, flagged as unprotected. Setup, plan and notes are optional and can be added later in the gear.</li>' +
     '<li><b>Closed Trades.</b> Every closed trade, newest first, with its result in R. &#9656; shows the transaction log, notes, the loss tag and the 30-day review, which falls due a month after closing. The Opened and Closed dates open the calendar on that day.</li>' +
     '<li><b>Statistics.</b> Win rate, expectancy, results by setup, the equity curve and more, for one account at a time. All, YTD and Last 90 days filter both this and Closed Trades.</li>' +
-    '<li><b>Audit.</b> Upload a thinkorswim Transaction History CSV to compare it with your trades. Differences are listed with tick boxes, and only the ticked ones change anything when you press Apply. Below is the ledger of every transaction and cash movement.</li>' +
+    '<li><b>Audit: broker file.</b> Upload a thinkorswim Transaction History CSV to compare it with your trades. Differences are listed with tick boxes, and only the ticked ones change anything when you press Apply. Orders the app has no trade for can be added as new trades, with no stop and tier A, to finish in the gear.</li>' +
+    '<li><b>Audit: ledger.</b> Every transaction and cash movement, newest first, with corrections marked Adj. Filter it by dates, ticker (or &ldquo;cash&rdquo;), event, account or Adj. only to check a stretch by hand. Click its title to fold it away.</li>' +
     '<li><b>Data.</b> Export, copy, download or load your whole book as a file. Your book lives only in this browser, so download a backup regularly. <b>Clear all data</b> asks twice.</li>' +
     '<li><b>Coaching export</b> (Data). Pick dates, <b>Build</b>, <b>Copy</b>, and paste into an AI chat. It carries your trades, statistics and journal, with instructions to find patterns and ask you about specific trades.</li>' +
   '</ul>' +

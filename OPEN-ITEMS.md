@@ -65,6 +65,28 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — v2.0-dev, the broker file adds missing trades (V2-PLAN 45)
+
+- **Orders the app has no trade for at all are offered as new trades**, by Steve -- the reason for
+  only flagging them (no stop, no tier) went when nothing blocked a trade opening. Per ticker, in
+  time order: the first order opens a trade, same-side orders add, the other side trims then closes,
+  and an order after a close opens the next. One row and one box per trade. It comes in with no stop,
+  tier A, no setup, every transaction tagged "Added from the broker file"; tier, setup and stop are
+  finished in the gear. A trade the file opens with a sell is offered unticked (a short, or a
+  position bought before the file starts); an order that would take a position past zero stays
+  flagged.
+- **On the real export against the 10-22 book:** the 13 flagged orders became 7 trades -- SSPC, two
+  SQQQ round trips and GTLB closed; KSS, CLF and S open. With them and the ticked fixes applied, app
+  cash is $480.17 against the broker's $480.56; the 39 cents left are the unticked sub-cent prices
+  and SNXX, which the balance row covers.
+- **The ledger is its own card**, below the broker file, and folds away (remembered, `root.ui.ledgerOpen`).
+  For a manual audit it filters by dates (both ends counted), ticker (any case; "cash" for cash
+  movements), event (each trade event type, all cash, or deposits, withdrawals or cash adjustments),
+  account in a group view, and Adj. only; the header says "n of m". The broker file's own rows are
+  not filtered: a hidden row that is ticked would still apply.
+- `v2-checks.js`: the broker-file case gains a round trip, a sell-first trade and a past-zero sale;
+  `ledgerFilters` is new. 449/449, twice in one page; twelve deliberate breaks, each caught.
+
 ### 2026-11-04 — v2.0-dev, pre-launch review: number fields, the read-me, open heat (V2-PLAN 42–44)
 
 - **Security, found in the pre-launch review:** text had always been escaped on its way to the

@@ -403,6 +403,12 @@ leftovers).
 44. **A read-me** opens on a book's first visit and from Settings, and leads with setting Settings
     up before entering data.
 
+45. **The broker file adds missing trades** (supersedes the "flagged, no box" for an order that
+    would start a trade in 36). Orders with no trade in the app group into trades, one tick each;
+    no stop, tier A, finished in the gear. Opening with a sell is offered unticked.
+46. **The ledger is a separate, collapsible card with filters** (dates, ticker, event, account,
+    Adj. only) for manual audits. The broker file's rows stay unfiltered so nothing ticked is hidden.
+
 ### Still open (2026-11-04)
 
 - **Kept open by Steve:** the themes scanning notebook; the rules panel.
