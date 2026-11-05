@@ -4,8 +4,8 @@
    returns. Any difference is a change in arithmetic; an empty diff means a phase moved the
    presentation and left the numbers alone.
 
-       https://mrholdingsworth.github.io/calc/          (v1.3)
-       https://mrholdingsworth.github.io/calc/v2.html   (v2)
+       https://mrholdingsworth.github.io/calc/_parked/v1.3.html   (v1.3, parked at the 2.0 cutover)
+       https://mrholdingsworth.github.io/calc/                    (v2)
 
    It reads nothing from storage and writes nothing to it: the fixture below replaces `root` in
    memory for the duration of the call and the original is put back in a `finally`. That swap is
@@ -19,7 +19,7 @@
        py -I -c "
        import io
        h=io.open('_dev/compare.js',encoding='utf-8').read()
-       for src,dst in [('index.html','_dev/_probe_v1.html'),('v2.html','_dev/_probe_v2.html')]:
+       for src,dst in [('_parked/v1.3.html','_dev/_probe_v1.html'),('index.html','_dev/_probe_v2.html')]:
            s=io.open(src,encoding='utf-8').read(); i=s.rindex('<\/script>')   # see note below
            io.open(dst,'w',encoding='utf-8',newline='\n').write(s[:i]+h+s[i:])
        "

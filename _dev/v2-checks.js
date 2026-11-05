@@ -11,7 +11,7 @@
        py -I -c "
        import io
        h=io.open('_dev/v2-checks.js',encoding='utf-8').read()
-       s=io.open('v2.html',encoding='utf-8').read(); i=s.rindex('</'+'script>')
+       s=io.open('index.html',encoding='utf-8').read(); i=s.rindex('</'+'script>')
        io.open('_dev/_probe_checks.html','w',encoding='utf-8',newline='\n').write(s[:i]+h+s[i:])
        "
 
@@ -1339,6 +1339,51 @@ const CASES = {
     check("a new account takes the defaults", [root.portfolios.Fresh.settings.rPct, root.portfolios.Fresh.settings.initialCapital], [defaults().settings.rPct, 20000]);
   },
 
+  /* Released as 2.0: no development markers. */
+  released(){
+    check("no dev markers", [document.title, !!document.querySelector(".devbadge"), /version\s*\|\s*2\.0\s*$/.test(document.body.innerText.split("\n").filter(l=>/version/.test(l)).pop() || "")],
+      ["RCalculator", false, true]);
+  },
+
+  /* The review page: empty, never saves, loads a book on request, ignores other tabs. */
+  reviewMode(){
+    const realSave = save;                      // the harness stubs save; review mode is about the real one
+    const t = trade({ticker:"REV", events:[ev("entry",{qty:10, price:50, stop:48})]});
+    book([t]);
+    const file = JSON.stringify(root);
+    // A stand-in for this browser's storage, holding a book and counting writes, so "starts empty"
+    // and "never writes" are about review mode and not about a harness page that has no storage.
+    const d0 = Object.getOwnPropertyDescriptor(window, "localStorage");
+    let writes = 0;
+    Object.defineProperty(window, "localStorage", {configurable:true, writable:true,
+      value:{getItem:()=>file.replace(/"REV"/g, '"V1X"'), setItem(){ writes++; }, removeItem(){ writes++; }}});
+    REVIEW = true;
+    try{
+      save = window.__realSave || realSave;
+      load();
+      check("starts empty, whatever this browser holds", [Object.values(root.portfolios).reduce((n,p)=>n+p.trades.length, 0), Object.keys(root.portfolios)], [0, ["Trading"]]);
+      check("never writes", [save(), writes], [true, 0]);
+      renderSaveAlert();
+      check("says so", /Review copy: nothing here is saved/.test($("saveAlert").textContent), true);
+      reviewPrompt();
+      check("asks for a book", [$("modalTitle").textContent, !!$("rv_file"), !!$("rv_text")], ["Load a book to review", true, true]);
+      check("bad text refused", reviewLoad("not a book"), "That isn't an export from this app.");
+      check("empty refused", reviewLoad("  "), "Choose a file or paste a book.");
+      closeModal();
+      check("loaded", [reviewLoad(file), root.portfolios.Trading.trades.map(x=>x.ticker), root.tab], [null, ["REV"], "portfolio"]);
+      const other = JSON.parse(file); other.portfolios.Trading.trades = [];
+      window.dispatchEvent(new StorageEvent("storage", {key:KEY, newValue:JSON.stringify(other)}));
+      check("another tab's save is ignored", root.portfolios.Trading.trades.length, 1);
+      reimportV1();
+      check("no re-import from this browser", root.portfolios.Trading.trades.map(x=>x.ticker), ["REV"]);
+      check("still nothing written", writes, 0);
+    } finally {
+      REVIEW = false; save = realSave;
+      if(d0) Object.defineProperty(window, "localStorage", d0); else delete window.localStorage;
+      renderSaveAlert();
+    }
+  },
+
   /* Small things that each broke once. */
   misc(){
     book();
@@ -1355,6 +1400,7 @@ const CASES = {
 window.runChecks = () => {
   passed = 0; failed = [];
   const keep = root, realSave = save, realConfirm = window.confirm, realAlert = window.alert;
+  window.__realSave = realSave;
   save = () => true;
   window.confirm = () => true; window.alert = () => {};
   closeModal();                      // the read-me opens by itself on a fresh page

@@ -2,24 +2,28 @@
 
 Orientation for a session picking this up cold. Deliberately does **not** repeat the backlog or the
 maths: `OPEN-ITEMS.md` is the running list and the decision record, `V2-PLAN.md` holds the v2
-decisions, `README.md` is what v1.3 does and why. This file is the layer between them — where things
+decisions, `README.md` is the public description. This file is the layer between them — where things
 are, what must not be broken, and what is waiting on Steve rather than on work.
 
-**Two builds, both live.** Rewritten 2026-10-26 for v2.
+**v2.0 is live** (cutover 2026-11-04).
 
 | | file | URL | storage key |
 |---|---|---|---|
-| v1.3 — what Steve trades from | `index.html` | <https://mrholdingsworth.github.io/calc/> | `rcalc.v1` |
-| v2.0-dev — in development | `v2.html` | <https://mrholdingsworth.github.io/calc/v2.html> | `rcalc.v2` |
+| 2.0 — the app | `index.html` | <https://mrholdingsworth.github.io/calc/> | `rcalc.v2` |
+| review page | `review/index.html` | <https://mrholdingsworth.github.io/calc/review/> → `/calc/?review` | none |
+| old v2 address | `v2.html` | forwards to `/calc/` | — |
+| v1.3, parked | `_parked/v1.3.html` | <https://mrholdingsworth.github.io/calc/_parked/v1.3.html> | `rcalc.v1` |
 
-**`index.html` is not edited until cutover** (V2-PLAN section 0). v2 reads the v1 book once when its
-own key is empty, and on demand from Data › Re-import from v1; it never writes to `rcalc.v1`.
+The app reads the v1 book once when `rcalc.v2` is empty, and on demand from Data › Re-import from v1;
+it never writes to `rcalc.v1`, which stays as the rollback (open the parked v1.3). **Review mode**
+(`REVIEW`, from `?review`) starts empty, never reads or writes storage, ignores other tabs, and asks
+for a book instead of showing the read-me -- one file serves both, so they cannot drift.
 
 ## Read in this order
 
 1. `OPEN-ITEMS.md` — To do, Ruled out, then Decided/done newest-first. Reasons, not just changes.
 2. `V2-PLAN.md` — the **"Settled 2026-10-26"**, **"2026-10-27"** and **"2026-10-28"** and **"2026-10-29"**
-   sections first (decisions 1–50): they record Steve's answers and
+   sections first (decisions 1–51): they record Steve's answers and
    supersede anything earlier in the file that disagrees, including the outline document.
 3. This file.
 4. `WEAKNESSES.md` (the register) and `REVIEW-2026-10-26.md` only when you need the history of a
@@ -44,15 +48,16 @@ commit -> push -> poll the live URL until it serves the pushed file
 - Poll by hashing the live file against the local one; Pages takes 15–45s. Do not conclude "not
   live" from a manual check or two.
 - Bump the version in the footer and add a Decided/done entry to `OPEN-ITEMS.md` per change.
-- The v1.3 artifact (`https://claude.ai/artifact/NkoxRCYRTPZFrVwi1aAofb`) is **not** republished
-  until cutover. v2 has no artifact.
+- Poll `https://mrholdingsworth.github.io/calc/` (index.html) now, not `v2.html`.
+- The v1.3 artifact (`https://claude.ai/artifact/NkoxRCYRTPZFrVwi1aAofb`) was not republished at
+  cutover: Steve has not asked for it, and the app now runs on Pages. Ask before publishing it.
 
-## Map of `v2.html`
+## Map of `index.html`
 
 Section banners (`/* ===== name ===== */`), in file order: state, format, core math, tiny SVG
 charts, portfolios, settings, fast calc, cash in and out, new trade, trade card, trade actions,
 tally, charts & statistics, group mode, book bar, render, audit ledger, bindings, live marks, clock,
-boot. `grep -n '^/\* =' v2.html` prints them with line numbers.
+boot. `grep -n '^/\* =' index.html` prints them with line numbers.
 
 Where the load-bearing pieces live:
 
@@ -162,14 +167,14 @@ any stored string; nothing from it is written into a handler (boxes carry their 
 
 ## Waiting on Steve, not on work
 
-- Cutover, once everything else is done. Open heat in R may still be tuned.
+- Open heat in R may still be tuned.
 - Kept open by Steve, not to be built unasked: the themes scanning notebook, the rules panel.
 - The broker file has only seen thinkorswim's Transaction History. Assignment and expiry rows have
   not appeared yet; when a file has them they list as not read, and that is the next sample to ask for.
 
 ## Working conventions
 
-In memory as `r-calculator-conventions`: edit `v2.html` with Edit/Write rather than shell
+In memory as `r-calculator-conventions`: edit `index.html` with Edit/Write rather than shell
 heredocs (they eat backslashes); `py` for Python; verify in the browser pane programmatically —
 build state on `root`, call `render()`, assert on the DOM, wrap test code in
 `try{…}catch(e){({err:e.message})}`, and re-navigate after every edit. The pane serves the file as a
@@ -178,9 +183,9 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
 - **Measure, don't eyeball.** Compare against a hand-computed figure and state the comparison.
 - **Reproduce a reported bug before theorising.**
 - **Two harnesses, both in `_dev/`, both run from a gitignored probe copy** (build command in each
-  file's header). `compare.js` proves v2 still does what v1.3 did. `v2-checks.js` proves v2 still
+  file's header). `compare.js` proved v2 did what v1.3 did (historical: v2 has since changed arithmetic on purpose, e.g. dividends). `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers, the read-me, the ledger filters the AUM and 1R tiles the after-action settings the Closed Trades filters and settings-free exports — 489 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers, the read-me, the ledger filters, the AUM and 1R tiles, the after-action settings, the Closed Trades filters, settings-free exports, the release markers and review mode — 500 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.

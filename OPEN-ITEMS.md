@@ -65,6 +65,25 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-04 — 2.0 released: cutover, and the review page (V2-PLAN 51)
+
+- **Cutover.** v1.3 is parked at `_parked/v1.3.html` (it still reads `rcalc.v1`, so it is also the
+  rollback); v2 is `index.html` at `/calc/`; `v2.html` forwards bookmarks to `/calc/`, keeping
+  `?review` and the hash. The title, the masthead pill and the version line no longer say dev: 2.0.
+  Re-import from v1's wording no longer calls the book a development copy. README rewritten for
+  2.0; `_dev` tools repointed at `index.html` and `_parked/v1.3.html`.
+- **What each browser needs once:** where `rcalc.v2` is empty the app reads the v1 book by itself
+  (with the "moved" banner); where v2 was used for testing, Data › Re-import from v1 replaces the
+  test book with the live one.
+- **Review page** `/calc/review/` (forwards to `/calc/?review`): starts empty whatever the browser
+  holds, never reads or writes storage (save is a no-op, Clear all data cannot touch it, another
+  tab's save is ignored, Re-import from v1 is hidden), shows "Review copy: nothing here is saved",
+  and opens a Load-a-book prompt (file or paste) instead of the read-me. One app file serves both.
+- `v2-checks.js`: `released`, `reviewMode` -- the review case plants a stand-in storage holding a
+  different book and counting writes, so "starts empty", "never writes" and "no re-import" can each
+  fail. 500/500, twice in one page; eight deliberate breaks, each caught.
+- Not done: republishing the old v1.3 artifact on claude.ai. Not asked for; the app runs on Pages.
+
 ### 2026-11-04 — v2.0-dev, exports with or without settings (V2-PLAN 50)
 
 - **"Include settings in exports"** (Display, on by default). Exports already carried every setting

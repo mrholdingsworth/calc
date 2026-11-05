@@ -416,6 +416,9 @@ leftovers).
     untagged losses), account and reviews due, inside the period picker.
 50. **Exports include settings by default; a switch leaves them out.** A settings-free file keeps
     the importing browser's settings. Initial capital always travels; rescue copies are always whole.
+51. **Cutover done, and a review page.** `/calc/review/` forwards to `/calc/?review`: the same app,
+    starting empty, reading and writing no storage, ignoring other tabs, and asking for a book to
+    load instead of showing the read-me. For sharing and reviewing other people's exports.
 
 ### Still open (2026-11-04)
 
@@ -705,7 +708,9 @@ separately, per his deferral.
 
 ### 11 — Cutover
 
-As set out in section 0.
+As set out in section 0. **Done 2026-11-04:** v1.3 parked at `_parked/v1.3.html`, v2 became
+`index.html`, `v2.html` forwards to `/calc/`, dev markers removed (title, masthead pill, version line
+2.0). The artifact was not republished.
 
 ---
 
