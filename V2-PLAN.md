@@ -420,6 +420,13 @@ leftovers).
     starting empty, reading and writing no storage, ignoring other tabs, and asking for a book to
     load instead of showing the read-me. For sharing and reviewing other people's exports.
 
+52. **Statistics panels are chosen, hoverable and expandable.** Hidden panels are not computed;
+    new panels (month, weekday, days held, streaks, rolling expectancy, R vs days held) start off;
+    R per trade joins P/L per trade.
+
+53. **The rolling window is a setting; a panel opens on a click anywhere but a mark; the period
+    adds Month and Week to date and a Custom From-To range** (ui.periodFrom / periodTo).
+
 ### Still open (2026-11-04)
 
 - **Kept open by Steve:** the themes scanning notebook; the rules panel.

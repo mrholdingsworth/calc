@@ -168,6 +168,19 @@ button.calcell.sel{border-color:var(--gold)}
 .ledgerbox{border:0;padding:0;margin:0}
 .ledgerbox > summary{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;color:var(--tx)}
 .ledgerbox > summary h2{font-size:15px;font-weight:600;display:inline}
+/* Statistics panels: the whole panel opens it larger, a highlighted mark and a value tip under the pointer. */
+#pane-charts .spanel{cursor:zoom-in}
+#pane-charts .spanel:hover{border-color:var(--line2)}
+button.ptitle{background:none;border:0;padding:0;font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;
+  cursor:zoom-in;text-align:left;white-space:normal}
+svg.chart [data-pv]{cursor:pointer}
+svg.chart rect[data-pv]:hover, svg.chart rect[data-pv].on{stroke:#fff;stroke-width:1.5}
+svg.chart .pt:hover .dot, svg.chart .pt.on .dot{stroke:#fff;stroke-width:2;r:5}
+#chartTip{position:fixed;z-index:60;display:none;pointer-events:none;background:var(--panel2);border:1px solid var(--line2);
+  border-radius:6px;padding:3px 8px;font:12px var(--mono);color:var(--tx);white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,.45)}
+.chartbig svg.chart{height:auto!important;width:100%}
+.periodPick input.pdate{width:auto;padding:4px 7px;font-size:13px}
+.chartbig table{font-size:14px}
 .readme ul{margin:4px 0 12px;padding-left:18px}
 .readme li{margin:5px 0;font-size:13px;line-height:1.45}
 .readme .lbl{margin-top:12px}
@@ -484,43 +497,71 @@ button.small{--r:7px}
       <div class="statrow" id="stats2" style="margin-bottom:12px"></div>
       <div class="statrow" id="deepStats"></div>
       <div class="split" style="margin-top:10px">
-        <div class="metric" style="padding:10px 12px">
+        <div class="metric spanel" style="padding:10px 12px">
           <div class="k">By tier</div>
           <div class="scroll"><table id="tierTbl"></table></div>
         </div>
-        <div class="metric" style="padding:10px 12px">
+        <div class="metric spanel" style="padding:10px 12px">
           <div class="k">By setup</div>
           <div class="scroll"><table id="conceptTbl"></table></div>
+        </div>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">By month</div>
+          <div class="scroll"><table id="monthTbl"></table></div>
+        </div>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">By weekday opened</div>
+          <div class="scroll"><table id="dowTbl"></table></div>
+        </div>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">By days held</div>
+          <div class="scroll"><table id="holdTbl"></table></div>
+        </div>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">Streaks and what follows</div>
+          <div class="scroll"><table id="streakTbl"></table></div>
         </div>
       </div>
       <div class="lbl" style="margin-top:18px">Distribution &amp; normalised return</div>
       <div class="split">
-        <div class="metric" style="padding:10px 12px">
+        <div class="metric spanel" style="padding:10px 12px">
           <div class="k">R multiples &mdash; losses left, gains right</div>
           <svg class="chart" id="histChart" viewBox="0 0 560 130"></svg>
         </div>
-        <div class="metric" style="padding:10px 12px">
+        <div class="metric spanel" style="padding:10px 12px">
           <div class="k">Cumulative R over trades</div>
           <svg class="chart" id="curveChart" viewBox="0 0 560 130"></svg>
         </div>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">Rolling expectancy, last <span id="rollN">10</span> trades</div>
+          <svg class="chart" id="rollChart" viewBox="0 0 560 130"></svg>
+        </div>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">R against days held</div>
+          <svg class="chart" id="scatterChart" viewBox="0 0 560 130"></svg>
+        </div>
       </div>
-
       <div class="lbl" style="margin-top:16px">Profit &amp; loss</div>
       <div class="split">
-        <div class="metric" style="padding:10px 12px">
+        <div class="metric spanel" style="padding:10px 12px">
           <div class="k">P/L per trade, in order closed</div>
           <svg class="chart" id="plBars" viewBox="0 0 560 130"></svg>
         </div>
-        <div class="metric" style="padding:10px 12px">
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">R per trade, in order closed</div>
+          <svg class="chart" id="rBars" viewBox="0 0 560 130"></svg>
+        </div>
+      </div>
+      <div class="lbl" style="margin-top:16px">Equity</div>
+      <div class="split">
+        <div class="metric spanel" style="padding:10px 12px">
           <div class="k">P/L % of starting book, over time</div>
           <svg class="chart" id="plPct" viewBox="0 0 560 130"></svg>
         </div>
-      </div>
-
-      <div class="lbl" style="margin-top:16px">Equity</div>
-      <div class="metric" style="padding:10px 12px">
-        <div class="k">Equity curve over time</div>
-        <svg class="chart" id="eqCurve" viewBox="0 0 560 130" style="height:150px"></svg>
+        <div class="metric spanel" style="padding:10px 12px">
+          <div class="k">Equity curve over time</div>
+          <svg class="chart" id="eqCurve" viewBox="0 0 560 130"></svg>
+        </div>
       </div>
     </div>
   </div>
@@ -620,6 +661,8 @@ button.small{--r:7px}
         <div class="head">Statistics definitions</div>
         <div class="srow"><label for="s_scratchLo">Scratch band<span class="info" data-tip="A result between these two edges counts as neither a win nor a loss.">i</span></label>
           <div class="sctl"><input id="s_scratchLo" aria-label="Scratch band lower edge, R" type="number" step="0.01"><span class="suffix">to</span><input id="s_scratchHi" aria-label="Scratch band upper edge, R" type="number" step="0.01"><span class="suffix">R</span></div></div>
+        <div class="srow"><label for="s_rollN">Rolling window<span class="info" data-tip="How many of the latest trades the rolling expectancy chart averages at each point.">i</span></label>
+          <div class="sctl"><input id="s_rollN" type="number" step="1" min="2"><span class="suffix">trades</span></div></div>
         <div class="srow"><label for="s_winR">Decisive win<span class="info" data-tip="A closed trade at or above this many R counts as decisive.">i</span></label>
           <div class="sctl"><input id="s_winR" type="number" step="0.25" min="0.25"><span class="suffix">R</span></div></div>
         <div class="srow"><label for="s_lossDisc">Loss discipline<span class="info" data-tip="A loss held at or inside this many R of the risk it was opened with counts as disciplined. Measured in internal R, so size does not flatter it.">i</span></label>
@@ -744,7 +787,7 @@ const VBAR = '<span class="vbar">|</span>';
    already closed. That is deliberate -- a definition should apply uniformly, or the figure it
    produces is not a rate of anything. */
 const DEFS_DEFAULT = {
-  scratchLo:-0.05, scratchHi:0.10, winR:1,
+  scratchLo:-0.05, scratchHi:0.10, winR:1, rollN:10,
   breachR:-1.25, lossDisc:1.2,
 
   // The user's own tags. A tag removed later stays on the trades carrying it, marked retired.
@@ -783,7 +826,7 @@ const lossTags = () => {
    the collapse map lived on pf.settings and in a group wrote onto whichever member happened to be
    first. Seven more preferences on that object would have been that bug seven times over. */
 const UI_DEFAULT = { hideValues:false, colourGrade:true, stopCount:1, hidden:{}, period:"all", unrealOn:false, ledgerOpen:true,
-                     fcClear:true, toPortfolio:true, exportSettings:true };
+                     fcClear:true, toPortfolio:true, exportSettings:true, shown:{} };
 
 /* ---- what each panel shows ----
    Every part that can be hidden, by panel: [key, label, selector]. Hiding is one generated style
@@ -807,22 +850,33 @@ const SHOWABLE = [
     ["st-exp","Expectancy"],["st-avg","Avg win | loss"],["st-disc","Loss discipline"],["st-tags","Tagged losses"],
     ["st-noise","Noise stopouts"],["st-viol","Rule violations"],
     ["st-days","Avg days held"],["st-rpd","R per day"],["st-dd","Max drawdown"],["st-ls","Long | short"]]],
-  ["Statistics charts", [["sc-hist","R distribution","#pane-charts .metric:has(#histChart)"],
-    ["sc-curve","Cumulative R","#pane-charts .metric:has(#curveChart)"],
-    ["sc-plbars","P/L per trade","#pane-charts .metric:has(#plBars)"],
-    ["sc-plpct","P/L %","#pane-charts .metric:has(#plPct)"],
-    ["sc-eq","Equity curve","#pane-charts .metric:has(#eqCurve)"],
-    ["sc-tier","By tier","#pane-charts .metric:has(#tierTbl)"],
-    ["sc-setup","By setup","#pane-charts .metric:has(#conceptTbl)"]]],
+  // A fourth element true: off until switched on (kept in ui.shown, not ui.hidden).
+  ["Statistics charts", [["sc-hist","R distribution","#pane-charts .spanel:has(#histChart)"],
+    ["sc-curve","Cumulative R","#pane-charts .spanel:has(#curveChart)"],
+    ["sc-plbars","P/L per trade","#pane-charts .spanel:has(#plBars)"],
+    ["sc-rbars","R per trade","#pane-charts .spanel:has(#rBars)"],
+    ["sc-plpct","P/L %","#pane-charts .spanel:has(#plPct)"],
+    ["sc-eq","Equity curve","#pane-charts .spanel:has(#eqCurve)"],
+    ["sc-tier","By tier","#pane-charts .spanel:has(#tierTbl)"],
+    ["sc-setup","By setup","#pane-charts .spanel:has(#conceptTbl)"],
+    ["sc-month","By month","#pane-charts .spanel:has(#monthTbl)", true],
+    ["sc-weekday","By weekday opened","#pane-charts .spanel:has(#dowTbl)", true],
+    ["sc-hold","By days held","#pane-charts .spanel:has(#holdTbl)", true],
+    ["sc-streak","Streaks","#pane-charts .spanel:has(#streakTbl)", true],
+    ["sc-roll","Rolling expectancy","#pane-charts .spanel:has(#rollChart)", true],
+    ["sc-scatter","Days held against R","#pane-charts .spanel:has(#scatterChart)", true]]],
   ["New Trade", [["nt-setup","Setup and APTR"],["nt-plan","Plan fields"],["nt-notes","Notes"]]],
   ["Fast calc", [["fc-line","Allocation and risk under each size",".fccell .a"]]]
 ];
+// Shown unless hidden; an opt-in part (fourth element true) is hidden unless shown.
+const SHOW_OPTIN = new Set(SHOWABLE.flatMap(([,items])=>items).filter(x=>x[3]).map(x=>x[0]));
+const isShown = k => SHOW_OPTIN.has(k) ? !!((root && root.ui && root.ui.shown) || {})[k]
+                                       : !((root && root.ui && root.ui.hidden) || {})[k];
 function applyShow(){
   let el = $("showStyle");
   if(!el){ el = document.createElement("style"); el.id = "showStyle"; document.head.appendChild(el); }
-  const hid = (root && root.ui && root.ui.hidden) || {};
   el.textContent = SHOWABLE.flatMap(([,items])=>items)
-    .filter(([k])=>hid[k]).map(([k,,sel])=>(sel || ".v-"+k)+"{display:none!important}").join("\n");
+    .filter(([k])=>!isShown(k)).map(([k,,sel])=>(sel || ".v-"+k)+"{display:none!important}").join("\n");
 }
 const ui = () => (root && root.ui) || UI_DEFAULT;
 // SCHEMA is stamped onto every saved book. Until now migrations were inferred from absent fields,
@@ -936,12 +990,13 @@ function bookSteps(acct){
 }
 // The book drawn by day from those records. Before `from` everything folds into the opening figure;
 // from it on, one point per day. Same sums as bookOf, so the last point is the book.
-function bookCurve(acct, from){
+function bookCurve(acct, from, to){
   const B = bookSteps(acct);
   let base = B.start;
   const byDay = new Map();
   B.steps.forEach(st=>{
     if(from!=null && st.ts < from){ base += st.flow + st.pl; return; }
+    if(to!=null && st.ts > to) return;                    // a custom period stops where it ends
     const k = dayOf(st.ts), o = byDay.get(k) || {flow:0, pl:0};
     o.flow += st.flow; o.pl += st.pl; byDay.set(k, o);
   });
@@ -1195,9 +1250,10 @@ function typeClean(){
   });
   if(isObj(root.ui)){
     ["stopCount"].forEach(k=>{ if(root.ui[k] != null) root.ui[k] = num(root.ui[k], UI_DEFAULT[k]); });
-    if(["all","ytd","90d"].indexOf(root.ui.period) < 0) root.ui.period = "all";
+    if(["all","ytd","mtd","wtd","90d","custom"].indexOf(root.ui.period) < 0) root.ui.period = "all";
+    ["periodFrom","periodTo"].forEach(k=>{ if(root.ui[k] != null && !/^\d{4}-\d{2}-\d{2}$/.test(root.ui[k])) delete root.ui[k]; });
     // Hidden-part keys become class names in a generated style rule.
-    if(isObj(root.ui.hidden)) Object.keys(root.ui.hidden).forEach(k=>{ if(!/^[a-z0-9-]{1,40}$/.test(k)) delete root.ui.hidden[k]; });
+    ["hidden","shown"].forEach(m=>{ if(isObj(root.ui[m])) Object.keys(root.ui[m]).forEach(k=>{ if(!/^[a-z0-9-]{1,40}$/.test(k)) delete root.ui[m][k]; }); });
   }
   if(root.fcTier != null) root.fcTier = Math.min(TIERS.length-1, Math.max(0, Math.round(num(root.fcTier, 1))));
 }
@@ -1308,6 +1364,7 @@ function normalize(){
   if(!root.ui || typeof root.ui !== "object") root.ui = {};
   Object.keys(UI_DEFAULT).forEach(k=>{ if(root.ui[k]==null) root.ui[k] = UI_DEFAULT[k]; });
   root.ui.hidden = Object.assign({}, root.ui.hidden);     // never the shared default object
+  root.ui.shown = Object.assign({}, root.ui.shown);
 
   if(!root.groups || typeof root.groups !== "object") root.groups = {};
   const gd = groupDefaults().settings;
@@ -1786,7 +1843,7 @@ function svgRHist(counts, from, to){
     const neg = (from+i) < 0;
     if(c>0){
       out += '<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
-             '" rx="3" fill="'+(neg?"#f4655f":"#2fd583")+'"><title>'+(from+i)+"R to "+(from+i+1)+"R: "+c+" trade(s)</title></rect>";
+             '" rx="3" fill="'+(neg?"#f4655f":"#2fd583")+'" data-pv="'+(from+i)+"R to "+(from+i+1)+"R: "+c+" trade"+(c===1?"":"s")+'"/>';
       out += '<text x="'+(x+w/2).toFixed(1)+'" y="'+(y-3).toFixed(1)+'" fill="#9aa6b8" font-size="9" text-anchor="middle" font-family="monospace">'+c+'</text>';
     }
   });
@@ -1833,7 +1890,7 @@ function svgSignedBars(values, labels, fmt){
     const x = padL + i*bw + bw*0.18, w = Math.max(1.5, bw*0.64);
     const top = v>=0 ? y(v) : zero, h = Math.max(1, Math.abs(y(v)-zero));
     out += '<rect x="'+x.toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+w.toFixed(1)+'" height="'+h.toFixed(1)+
-           '" rx="2" fill="'+(v>=0?"#2fd583":"#f4655f")+'"><title>'+esc(labels[i]||"")+" "+esc(fmt(v))+'</title></rect>';
+           '" rx="2" fill="'+(v>=0?"#2fd583":"#f4655f")+'" data-pv="'+esc((labels[i]||"")+": "+stripTags(fmt(v)))+'"/>';
   });
   out += '<text x="3" y="'+(padT+8)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi))+'</text>';
   out += '<text x="3" y="'+(H-padB+4)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo))+'</text>';
@@ -1864,12 +1921,37 @@ function svgTimeLine(points, fmt, opts){
   out += '<path d="'+d+' L'+X(pts[pts.length-1].x).toFixed(1)+" "+zero.toFixed(1)+" L"+X(pts[0].x).toFixed(1)+" "+zero.toFixed(1)+
          ' Z" fill="rgba(176,141,63,.16)"/>';
   out += '<path d="'+d+'" fill="none" stroke="#b08d3f" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
-  pts.forEach(p=>{ out += '<circle cx="'+X(p.x).toFixed(1)+'" cy="'+Y(p.y).toFixed(1)+'" r="2.4" fill="'+(p.y<0?"#f4655f":"#b08d3f")+'"><title>'+
-    new Date(p.x).toLocaleDateString()+" "+esc(fmt(p.y))+'</title></circle>'; });
+  pts.forEach(p=>{ out += ptMark(X(p.x), Y(p.y), 2.4, p.y<0?"#f4655f":"#b08d3f", new Date(p.x).toLocaleDateString()+": "+stripTags(fmt(p.y))); });
   out += '<text x="3" y="'+(Y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(hi-pad))+'</text>';
   out += '<text x="3" y="'+(Y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+esc(fmt(lo+pad))+'</text>';
   out += '<text x="'+padL+'" y="'+(H-3)+'" fill="#697588" font-size="8.5" font-family="monospace">'+new Date(x0).toLocaleDateString()+'</text>';
   out += '<text x="'+(W-6)+'" y="'+(H-3)+'" fill="#697588" font-size="8.5" text-anchor="end" font-family="monospace">'+new Date(x1).toLocaleDateString()+'</text>';
+  return out;
+}
+
+// A point that can be pointed at: a wide transparent target around the visible dot, carrying its
+// value for the tooltip. Highlighting is CSS (.pt:hover / .pt.on).
+function ptMark(cx, cy, r, fill, tip){
+  return '<g class="pt" data-pv="'+esc(tip)+'"><circle class="hit" cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="9" fill="transparent"/>' +
+    '<circle class="dot" cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="'+r+'" fill="'+fill+'"/></g>';
+}
+// R against days held, one dot per trade.
+function svgScatter(pts){
+  const W=560,H=130, padL=40, padB=20, padT=10;
+  if(!pts.length) return "";
+  const x1 = Math.max(2, ...pts.map(p=>p.x));
+  let lo = Math.min(0, ...pts.map(p=>p.y)), hi = Math.max(0, ...pts.map(p=>p.y));
+  if(hi-lo < 1e-9) hi = lo + 1;
+  const pad = (hi-lo)*0.12; lo -= pad; hi += pad;
+  const X = v => padL + (W-padL-12) * v/x1, Y = v => padT + (H-padT-padB) * (1-(v-lo)/(hi-lo));
+  let out = '<line x1="'+padL+'" y1="'+Y(0).toFixed(1)+'" x2="'+(W-4)+'" y2="'+Y(0).toFixed(1)+'" stroke="#2c3646" stroke-dasharray="3 3"/>';
+  // Many trades share a day count, so each is nudged sideways a little to keep every dot visible.
+  pts.forEach((p,i)=>{ out += ptMark(X(p.x) + ((i%5)-2)*3, Y(p.y), 3, p.y<0?"#f4655f":"#2fd583", p.tip); });
+  out += '<text x="3" y="'+(Y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+fmtR(hi-pad)+'</text>';
+  out += '<text x="3" y="'+(Y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+fmtR(lo+pad)+'</text>';
+  out += '<text x="'+padL+'" y="'+(H-4)+'" fill="#697588" font-size="8.5" font-family="monospace">0d</text>';
+  out += '<text x="'+((padL+W)/2).toFixed(0)+'" y="'+(H-4)+'" fill="#697588" font-size="8.5" text-anchor="middle" font-family="monospace">days held</text>';
+  out += '<text x="'+(W-6)+'" y="'+(H-4)+'" fill="#697588" font-size="8.5" text-anchor="end" font-family="monospace">'+x1+'d</text>';
   return out;
 }
 
@@ -1890,7 +1972,10 @@ function svgLine(values, opts){
   const area = d + " L"+x(pts.length-1).toFixed(1)+" "+zeroY.toFixed(1)+" L"+x(0).toFixed(1)+" "+zeroY.toFixed(1)+" Z";
   out += '<path d="'+area+'" fill="rgba(77,159,255,.14)"/>';
   out += '<path d="'+d+'" fill="none" stroke="#4d9fff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
-  pts.forEach((v,i)=>{ out += '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2.6" fill="'+(v<0?"#f4655f":"#4d9fff")+'"/>'; });
+  const off = pts.length - values.length;                 // a lone value is drawn from a zero start
+  pts.forEach((v,i)=>{ const tip = i<off ? null : (opts.tips ? opts.tips[i-off] : fmtR(v));
+    out += tip==null ? '<circle cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="2.6" fill="'+(v<0?"#f4655f":"#4d9fff")+'"/>'
+                     : ptMark(x(i), y(v), 2.6, v<0?"#f4655f":"#4d9fff", tip); });
   out += '<text x="3" y="'+(y(hi-pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+(hi-pad).toFixed(1)+'R</text>';
   out += '<text x="3" y="'+(y(lo+pad)+3).toFixed(1)+'" fill="#697588" font-size="9" font-family="monospace">'+(lo+pad).toFixed(1)+'R</text>';
   if(opts.labels){
@@ -2074,7 +2159,7 @@ function openModal(title, body, okLabel, onOk, onInput, opts){
     '<div class="row" style="margin-top:14px;justify-content:flex-end">' +
     (opts.noCancel ? '' : '<button onclick="closeModal()">Cancel</button>') +
     '<button class="primary" id="m_ok">' + okLabel + '</button></div>';
-  document.querySelector(".modalcard").style.maxWidth = opts.wide ? "640px" : "";
+  document.querySelector(".modalcard").style.maxWidth = opts.wide==="xl" ? "980px" : opts.wide ? "640px" : "";
   modalOk = onOk; modalInput = onInput || null;
   $("modal").style.display = "flex";
   applyTips($("modalBody"));
@@ -2152,6 +2237,7 @@ const SET_FIELDS = [
   ["s_minAllocOn","rule", "minAllocOn", "bool"],
   ["s_minAlloc",  "rule", "minAlloc",   "num"],
   ["s_scratchLo", "defs", "scratchLo",  "num"],
+  ["s_rollN",     "defs", "rollN",      "num"],
   ["s_scratchHi", "defs", "scratchHi",  "num"],
   ["s_winR",      "defs", "winR",       "num"],
   ["s_lossDisc",  "defs", "lossDisc",   "num"],
@@ -2237,10 +2323,9 @@ function bindSetFields(){
 
 // One line per panel, a checkbox per part. Checked is shown.
 function renderShowList(){
-  const hid = root.ui.hidden || {};
   $("showList").innerHTML = SHOWABLE.map(([panel, items])=>
     '<div class="showgrp"><div class="lbl">'+esc(panel)+'</div><div class="showopts">' +
-      items.map(([k,label])=>'<label class="inchk"><input type="checkbox" data-show="'+k+'"'+(hid[k]?"":" checked")+'>'+esc(label)+'</label>').join("") +
+      items.map(([k,label])=>'<label class="inchk"><input type="checkbox" data-show="'+k+'"'+(isShown(k)?" checked":"")+'>'+esc(label)+'</label>').join("") +
     '</div></div>').join("");
 }
 
@@ -3796,21 +3881,48 @@ const reviewsDueCount = () => scopeTrades().filter(x=>reviewDue(x.t)).length;
    A page preference, so it lives on root.ui and both tabs read the same one: a figure on one tab
    and the trade list behind it on the other can never be cut at different dates. A trade belongs
    to the period it closed in. The review badge ignores it -- a review is owed whatever is in view. */
-const PERIODS = [["all","All"], ["ytd","YTD"], ["90d","Last 90 days"]];
+// The presets run to today; Custom has both ends, kept as YYYY-MM-DD in ui.periodFrom / periodTo, and
+// a blank end is open. Weeks start on Monday, the trading week.
+const PERIODS = [["all","All"], ["ytd","YTD"], ["mtd","Month to date"], ["wtd","Week to date"], ["90d","Last 90 days"], ["custom","Custom"]];
 function periodStart(){
   const p = ui().period, n = new Date();
   if(p==="ytd") return new Date(n.getFullYear(), 0, 1).getTime();
+  if(p==="mtd") return new Date(n.getFullYear(), n.getMonth(), 1).getTime();
+  if(p==="wtd") return new Date(n.getFullYear(), n.getMonth(), n.getDate() - (n.getDay()+6)%7).getTime();
   if(p==="90d") return new Date(n.getFullYear(), n.getMonth(), n.getDate()-89).getTime();   // today and the 89 before
+  if(p==="custom" && ui().periodFrom){ const t = tsFromDateVal(ui().periodFrom); return t==null ? null : dayOf(t); }
   return null;
 }
+function periodEnd(){
+  if(ui().period!=="custom" || !ui().periodTo) return null;
+  const t = tsFromDateVal(ui().periodTo);
+  return t==null ? null : dayOf(t) + 864e5 - 1;              // the whole last day
+}
 const closeTs = t => t.closedAt || (t.events.length ? t.events[t.events.length-1].ts : t.createdAt);
-const inPeriod = t => { const s = periodStart(); return s==null || closeTs(t) >= s; };
-window.setPeriod = v => { root.ui.period = v; save(); render(); };
+const inPeriod = t => { const s = periodStart(), e = periodEnd(), c = closeTs(t); return (s==null || c >= s) && (e==null || c <= e); };
+const periodAll = () => periodStart()==null && periodEnd()==null;
+// Choosing Custom starts from whatever was showing, so the dates open on something sensible.
+window.setPeriod = v => {
+  if(v==="custom" && !ui().periodFrom){
+    const s = periodStart();
+    root.ui.periodFrom = dateVal(s==null ? Date.now() - 89*864e5 : s);
+    root.ui.periodTo = dateVal(Date.now());
+  }
+  root.ui.period = v; save(); render();
+};
+window.setPeriodDate = (which, v) => {
+  const k = which==="to" ? "periodTo" : "periodFrom";
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v)) root.ui[k] = v; else delete root.ui[k];
+  save(); render();
+};
 function renderPeriodPicks(){
-  const cur = ui().period;
+  const cur = ui().period, custom = cur==="custom";
   document.querySelectorAll(".periodPick").forEach(el=>{
     el.innerHTML = '<select style="width:auto;margin-right:8px" aria-label="Period" onchange="setPeriod(this.value)">' +
-      PERIODS.map(([v,l])=>'<option value="'+v+'"'+(v===cur?" selected":"")+'>'+l+'</option>').join("") + '</select>';
+      PERIODS.map(([v,l])=>'<option value="'+v+'"'+(v===cur?" selected":"")+'>'+l+'</option>').join("") + '</select>' +
+      (custom ? '<input type="date" class="pdate" aria-label="Period from" value="'+esc(ui().periodFrom||"")+'" onchange="setPeriodDate(\'from\', this.value)">' +
+                '<span class="muted" style="margin:0 6px">to</span>' +
+                '<input type="date" class="pdate" aria-label="Period to" value="'+esc(ui().periodTo||"")+'" onchange="setPeriodDate(\'to\', this.value)">' : '');
   });
 }
 /* ---- backup nudge ---- */
@@ -3954,7 +4066,7 @@ function renderClosed(){
   const tbl = $("closedTbl");
   if(!closed.length){
     tbl.innerHTML = "<tr><td class='muted'>"+(inPer.length ? "Nothing matches." :
-      periodStart()==null ? "No closed trades." : "No trades closed in this period.")+"</td></tr>";
+      periodAll() ? "No closed trades." : "No trades closed in this period.")+"</td></tr>";
     return;
   }
 
@@ -4150,7 +4262,7 @@ function renderGroupClosed(){
 
   if(!order.length){
     tbl.innerHTML = "<tr><td class='muted'>"+(inPer.length ? "Nothing matches." :
-      periodStart()==null ? "No closed trades in this group yet." : "No trades closed in this period.")+"</td></tr>";
+      periodAll() ? "No closed trades in this group yet." : "No trades closed in this period.")+"</td></tr>";
     return;
   }
 
@@ -4246,76 +4358,120 @@ function renderCharts(chrono){
   const S = chrono.map(t=>stats(t));
   const rms = S.map(s=>s.rm);
   const pls = S.map(s=>s.d.realized);
+  const tags = chrono.map(t=>t.ticker+" · "+shortDate(closeTs(t)));
   if(sum) sum.textContent = chrono.length + " closed trades";
+
+  // Only what is shown is worked out. A panel switched off in Settings › Show on screen is emptied
+  // rather than drawn and hidden, so it costs nothing.
+  const on = isShown;
+  const say = (id, text) => { const el = $(id); if(el){ el.setAttribute("role","img"); el.setAttribute("aria-label", text); } };
+  const put = (id, key, html, label) => {
+    const el = $(id);
+    if(!el) return;
+    if(!on(key)){ el.innerHTML = ""; return; }
+    el.innerHTML = html();
+    if(label) say(id, label());
+  };
 
   // --- distribution. Buckets span only the range actually traded, so the worst loss is the leftmost
   // column and the best win the rightmost — no dead space at either end.
   // floor+1 on the top end, so a trade landing exactly on a boundary (+2.00R) gets its own bucket
   // instead of being folded back into the one below it.
-  const from = Math.min(Math.floor(Math.min(...rms)), 0);
-  const to   = Math.max(Math.floor(Math.max(...rms)) + 1, 1);
-  const counts = [];
-  for(let b=from; b<to; b++) counts.push(rms.filter(r=> r>=b && r<b+1 ).length);
-  $("histChart").innerHTML = svgRHist(counts, from, to);
+  put("histChart", "sc-hist", ()=>{
+    const from = Math.min(Math.floor(Math.min(...rms)), 0);
+    const to   = Math.max(Math.floor(Math.max(...rms)) + 1, 1);
+    const counts = [];
+    for(let b=from; b<to; b++) counts.push(rms.filter(r=> r>=b && r<b+1 ).length);
+    return svgRHist(counts, from, to);
+  }, ()=>"R multiples of "+chrono.length+" closed trades, from "+fmtR(Math.min(...rms))+" to "+fmtR(Math.max(...rms)));
 
   // --- cumulative R over trades
   let run = 0;
-  $("curveChart").innerHTML = svgLine(rms.map(r=>(run+=r)), {labels:chrono.map(t=>t.ticker)});
+  const cum = rms.map(r=>(run+=r));
+  put("curveChart", "sc-curve", ()=>svgLine(cum, {labels:chrono.map(t=>t.ticker), tips:cum.map((v,i)=>"#"+(i+1)+" "+tags[i]+": "+fmtR(v))}),
+    ()=>"Cumulative R over trades, ending at "+fmtR(run));
 
-  // --- P/L per trade
-  $("plBars").innerHTML = svgSignedBars(pls, chrono.map(t=>t.ticker), fmt$);
+  // --- per trade, in money and in R
+  put("plBars", "sc-plbars", ()=>svgSignedBars(pls, tags, fmt$),
+    ()=>"P/L per trade: best "+fmt$(Math.max(...pls))+", worst "+fmt$(Math.min(...pls)));
+  put("rBars", "sc-rbars", ()=>svgSignedBars(rms, tags, fmtR),
+    ()=>"R per trade: best "+fmtR(Math.max(...rms))+", worst "+fmtR(Math.min(...rms)));
 
   // --- the book by day, and realised P/L as a percentage of where the period started
-  const BC = bookCurve(chartAcct(), periodStart());
-  $("plPct").innerHTML = svgTimeLine(BC.pct, v=>v.toFixed(1)+"%");
-  $("eqCurve").innerHTML = svgTimeLine(BC.eq, fmt$, {zeroBase:false});
+  if(on("sc-plpct") || on("sc-eq")){
+    const BC = bookCurve(chartAcct(), periodStart(), periodEnd());
+    put("plPct", "sc-plpct", ()=>svgTimeLine(BC.pct, v=>v.toFixed(1)+"%"),
+      ()=>"P/L as a percentage of the starting book, ending at "+BC.pct[BC.pct.length-1].y.toFixed(1)+"%");
+    put("eqCurve", "sc-eq", ()=>svgTimeLine(BC.eq, fmt$, {zeroBase:false}),
+      ()=>"Equity curve, from "+fmt$(BC.eq[0].y)+" to "+fmt$(BC.eq[BC.eq.length-1].y));
+  } else { $("plPct").innerHTML = ""; $("eqCurve").innerHTML = ""; }
 
-  // To a screen reader each chart is one picture: what it is and where it ends up.
-  const sayChart = (id, text) => { const el = $(id); if(el){ el.setAttribute("role","img"); el.setAttribute("aria-label", text); } };
-  sayChart("histChart", "R multiples of "+chrono.length+" closed trades, from "+fmtR(Math.min(...rms))+" to "+fmtR(Math.max(...rms)));
-  sayChart("curveChart", "Cumulative R over trades, ending at "+fmtR(run));
-  sayChart("plBars", "P/L per trade: best "+fmt$(Math.max(...pls))+", worst "+fmt$(Math.min(...pls)));
-  sayChart("plPct", "P/L as a percentage of the starting book, ending at "+BC.pct[BC.pct.length-1].y.toFixed(1)+"%");
-  sayChart("eqCurve", "Equity curve, from "+fmt$(BC.eq[0].y)+" to "+fmt$(BC.eq[BC.eq.length-1].y));
+  // --- the edge over the last ten trades, trade by trade: is it holding, fading or improving
+  // The window is a statistics definition (Settings), whole trades, at least two.
+  const ROLL = Math.max(2, Math.round(defs().rollN || 10));
+  if($("rollN")) $("rollN").textContent = ROLL;
+  put("rollChart", "sc-roll", ()=>{
+    if(rms.length < ROLL) return '<text x="280" y="68" text-anchor="middle" fill="#697588" font-size="11">Needs '+ROLL+' closed trades</text>';
+    const vals = [], tips = [];
+    for(let i=ROLL-1; i<rms.length; i++){
+      const v = rms.slice(i-ROLL+1, i+1).reduce((a,b)=>a+b, 0)/ROLL;
+      vals.push(v); tips.push("#"+(i+1)+" "+tags[i]+": last "+ROLL+" "+fmtR(v)+" a trade");
+    }
+    return svgLine(vals, {labels:chrono.slice(ROLL-1).map(t=>t.ticker), tips});
+  }, ()=>"Expectancy over the last "+ROLL+" trades, trade by trade");
 
-  // --- statistics
+  // --- days held against R: where the long holds and the quick exits each land
+  put("scatterChart", "sc-scatter", ()=>svgScatter(S.map((s,i)=>({x:s.days, y:s.rm, tip:tags[i]+": "+s.days+"d, "+fmtR(s.rm)}))),
+    ()=>"R against days held for "+chrono.length+" trades");
+
+  // --- statistics tiles, worked out only if any of them shows
   const wins = S.filter(s=>s.rm>0), losses = S.filter(s=>s.rm<=0);
   const avg = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
-  const avgDaysWin = avg(wins.map(s=>s.days)), avgDaysLoss = avg(losses.map(s=>s.days));
+  if(["st-days","st-rpd","st-dd","st-ls"].some(on)){
+    const avgDaysWin = avg(wins.map(s=>s.days)), avgDaysLoss = avg(losses.map(s=>s.days));
+    // Max drawdown of the R curve: worst peak-to-trough, the stretch you actually had to sit through.
+    let peak = 0, c = 0, maxDD = 0;
+    rms.forEach(r=>{ c += r; if(c>peak) peak = c; if(peak-c > maxDD) maxDD = peak-c; });
+    const longs = S.filter((s,i)=>chrono[i].side>0), shorts = S.filter((s,i)=>chrono[i].side<0);
+    const expOf = a => a.length ? avg(a.map(s=>s.rm)) : null;
+    // Total R over total days of exposure, not the mean of per-trade rates: averaging rates lets a
+    // one-day loser count as heavily as a month-long winner and drags the figure to nonsense.
+    const totDays = S.reduce((a,s)=>a+s.days, 0);
+    const rpd = totDays ? S.reduce((a,s)=>a+s.rm, 0)/totDays : null;
+    $("deepStats").innerHTML =
+      '<div class="metric v-st-days"><div class="k">Avg days held</div><div class="v">'+
+        (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+VBAR+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
+        '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span></div></div>' +
+      '<div class="metric v-st-rpd"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
+      '<div class="metric v-st-dd"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
+      '<div class="metric v-st-ls"><div class="k">Long '+VBAR+' short</div><div class="v">'+
+        (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+VBAR+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
+        '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
+  } else $("deepStats").innerHTML = "";
+  $("stats2").innerHTML = ["st-closed","st-win","st-total","st-exp","st-avg","st-disc","st-tags","st-noise","st-viol"].some(on)
+    ? statsHtml(bookStats(chrono)) : "";
 
-  // Max drawdown of the R curve: worst peak-to-trough, the stretch you actually had to sit through.
-  let peak = 0, cum = 0, maxDD = 0;
-  rms.forEach(r=>{ cum += r; if(cum>peak) peak = cum; if(peak-cum > maxDD) maxDD = peak-cum; });
-
-  const longs = S.filter((s,i)=>chrono[i].side>0), shorts = S.filter((s,i)=>chrono[i].side<0);
-  const expOf = a => a.length ? avg(a.map(s=>s.rm)) : null;
-  // Total R over total days of exposure, not the mean of per-trade rates: averaging rates lets a
-  // one-day loser count as heavily as a month-long winner and drags the figure to nonsense.
-  const totDays = S.reduce((a,s)=>a+s.days, 0);
-  const rpd = totDays ? S.reduce((a,s)=>a+s.rm, 0)/totDays : null;
-
-
-  $("deepStats").innerHTML =
-    '<div class="metric v-st-days"><div class="k">Avg days held</div><div class="v">'+
-      (avgDaysWin==null?"&mdash;":avgDaysWin.toFixed(1))+VBAR+(avgDaysLoss==null?"&mdash;":avgDaysLoss.toFixed(1))+'</div>' +
-      '<div class="r"><span class="pos">winners</span>'+VBAR+'<span class="neg">losers</span></div></div>' +
-    '<div class="metric v-st-rpd"><div class="k">R per day held</div><div class="v '+cls(rpd)+'">'+(rpd==null?"&mdash;":fmtR(rpd))+'</div><div class="r">total R over '+totDays+' days of exposure</div></div>' +
-    '<div class="metric v-st-dd"><div class="k">Max drawdown (R)</div><div class="v" style="color:'+(maxDD>0?"var(--amber)":"var(--green)")+'">&minus;'+maxDD.toFixed(2)+'R</div><div class="r">worst peak-to-trough on the R curve</div></div>' +
-    '<div class="metric v-st-ls"><div class="k">Long '+VBAR+' short</div><div class="v">'+
-      (expOf(longs)==null?"&mdash;":fmtR(expOf(longs)))+VBAR+(expOf(shorts)==null?"&mdash;":fmtR(expOf(shorts)))+
-      '</div><div class="r">expectancy by direction &middot; '+longs.length+"L "+shorts.length+'S</div></div>';
-
-  $("stats2").innerHTML = statsHtml(bookStats(chrono));
-  $("tierTbl").innerHTML = groupTable(chrono, S, t=>TIERS[t.tier], "Tier");
-  $("conceptTbl").innerHTML = groupTable(chrono, S, setupKey, "Setup");
+  // --- tables
+  put("tierTbl", "sc-tier", ()=>groupTable(chrono, S, t=>TIERS[t.tier], "Tier"));
+  put("conceptTbl", "sc-setup", ()=>groupTable(chrono, S, setupKey, "Setup"));
+  put("monthTbl", "sc-month", ()=>groupTable(chrono, S, t=>{ const d = new Date(closeTs(t)); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); },
+    "Month", {money:true, sort:(a,b)=>a.k<b.k ? -1 : 1,
+      labelOf:k=>{ const p = k.split("-").map(Number); return new Date(p[0], p[1]-1, 1).toLocaleDateString(undefined, {month:"short", year:"numeric"}); }}));
+  const DOW = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  put("dowTbl", "sc-weekday", ()=>groupTable(chrono, S, (t,s)=>new Date(s.openTs).getDay(), "Opened", {sort:(a,b)=>(a.k+6)%7-(b.k+6)%7, labelOf:k=>DOW[k]}));
+  const HOLD = ["1 day","2–5 days","6–20 days","21+ days"];
+  put("holdTbl", "sc-hold", ()=>groupTable(chrono, S, (t,s)=>s.days<=1 ? 0 : s.days<=5 ? 1 : s.days<=20 ? 2 : 3, "Held", {sort:(a,b)=>a.k-b.k, labelOf:k=>HOLD[k]}));
+  put("streakTbl", "sc-streak", ()=>streakTable(S));
 }
 
 // Expectancy grouped by any key. Small samples are marked rather than hidden — you need to see the
-// n before you read anything into the number.
-function groupTable(trades, S, keyOf, label){
+// n before you read anything into the number. keyOf gets the trade and its stats; opts can order
+// the rows (default: best expectancy first), name the keys, and add a P/L column.
+function groupTable(trades, S, keyOf, label, opts){
+  opts = opts || {};
   const g = new Map();
   trades.forEach((t,i)=>{
-    const k = keyOf(t);
+    const k = keyOf(t, S[i]);
     if(!g.has(k)) g.set(k, []);
     g.get(k).push(S[i]);
   });
@@ -4323,12 +4479,42 @@ function groupTable(trades, S, keyOf, label){
     const tot = arr.reduce((s,x)=>s+x.rm, 0);
     const exp = tot/arr.length;
     const wins = arr.filter(x=>x.rm>0).length;
-    return {k, n:arr.length, tot, exp, wr:Math.round(100*wins/arr.length)};
-  }).sort((a,b)=>b.exp-a.exp);
-  return "<tr><th>"+label+"</th><th class='num'>n</th><th class='num'>Win %</th><th class='num'>Total R</th><th class='num'>Expectancy</th></tr>" +
-    rows.map(r=>"<tr><td>"+esc(r.k)+(r.n<5?" <span class='muted' title='Too few trades to read much into'>small n</span>":"")+
+    return {k, n:arr.length, tot, exp, wr:Math.round(100*wins/arr.length), pl:arr.reduce((s,x)=>s+x.d.realized, 0)};
+  }).sort(opts.sort || ((a,b)=>b.exp-a.exp));
+  return "<tr><th>"+label+"</th><th class='num'>n</th><th class='num'>Win %</th><th class='num'>Total R</th><th class='num'>Expectancy</th>" +
+    (opts.money ? "<th class='num'>P/L</th>" : "") + "</tr>" +
+    rows.map(r=>"<tr><td>"+esc(opts.labelOf ? opts.labelOf(r.k) : r.k)+(r.n<5?" <span class='muted' title='Too few trades to read much into'>small n</span>":"")+
       "</td><td class='num'>"+r.n+"</td><td class='num'>"+r.wr+"%</td><td class='num "+cls(r.tot)+"'>"+fmtR(r.tot)+
-      "</td><td class='num "+cls(r.exp)+"'>"+fmtR(r.exp)+"</td></tr>").join("");
+      "</td><td class='num "+cls(r.exp)+"'>"+fmtR(r.exp)+"</td>" +
+      (opts.money ? "<td class='num "+cls(r.pl)+"'>"+fmt$(r.pl)+"</td>" : "") + "</tr>").join("");
+}
+
+// Runs of results, and what the next trade did after each kind. A win or loss is outside the scratch
+// band; a scratch ends a run either way.
+function streakTable(S){
+  const kind = rm => rm > defs().scratchHi ? "w" : rm < defs().scratchLo ? "l" : "s";
+  const ks = S.map(s=>kind(s.rm));
+  const best = {w:{n:0, r:0}, l:{n:0, r:0}};
+  let run = {k:null, n:0, r:0};
+  S.forEach((s,i)=>{
+    if(ks[i]===run.k){ run.n++; run.r += s.rm; } else run = {k:ks[i], n:1, r:s.rm};
+    if(run.k!=="s" && run.n > best[run.k].n) best[run.k] = {n:run.n, r:run.r};
+  });
+  const row = (name, n, tot, wr, exp) => "<tr><td>"+name+"</td><td class='num'>"+n+"</td>" +
+    "<td class='num'>"+(wr==null ? "&mdash;" : wr+"%")+"</td><td class='num "+cls(tot)+"'>"+(n ? fmtR(tot) : "&mdash;")+"</td>" +
+    "<td class='num "+(exp==null ? "" : cls(exp))+"'>"+(exp==null ? "&mdash;" : fmtR(exp))+"</td></tr>";
+  const after = (name, k) => {
+    const a = S.filter((s,i)=>i>0 && ks[i-1]===k);
+    if(!a.length) return row(name, 0, 0, null, null);
+    const tot = a.reduce((x,s)=>x+s.rm, 0);
+    return row(name, a.length, tot, Math.round(100*a.filter(s=>kind(s.rm)==="w").length/a.length), tot/a.length);
+  };
+  const NOW = {w:"wins", l:"losses", s:"scratches"};
+  return "<tr><th></th><th class='num'>Trades</th><th class='num'>Win %</th><th class='num'>Total R</th><th class='num'>Expectancy</th></tr>" +
+    row("Longest winning run", best.w.n, best.w.r, null, null) +
+    row("Longest losing run", best.l.n, best.l.r, null, null) +
+    row("Current run: "+NOW[run.k], run.n, run.r, null, null) +
+    after("After a win", "w") + after("After a loss", "l") + after("After a scratch", "s");
 }
 
 /* ========================= group mode ========================= */
@@ -5853,7 +6039,7 @@ const README_HTML =
     '<li><b>Cash</b> (Portfolio). <b>Deposit</b> and <b>Withdraw</b> record money in and out. <b>Adjust</b> matches the app\'s cash to your broker\'s.</li>' +
     '<li><b>New Trade.</b> Ticker, fill price, shares and stop. R and allocation are worked out and turn amber outside your settings; nothing blocks opening. Leave shares blank to take the tier\'s size, or leave the stop blank and type shares to open without one, flagged as unprotected. Setup, plan and notes are optional and can be added later in the gear.</li>' +
     '<li><b>Closed Trades.</b> Every closed trade, newest first, with its result in R. &#9656; shows the transaction log, notes, the loss tag and the 30-day review, which falls due a month after closing. The Opened and Closed dates open the calendar on that day. Filter by close dates, ticker, setup, result, side, tier, loss tag (or untagged losses) or reviews due.</li>' +
-    '<li><b>Statistics.</b> Win rate, expectancy, results by setup, the equity curve and more, for one account at a time. All, YTD and Last 90 days filter both this and Closed Trades.</li>' +
+    '<li><b>Statistics.</b> Win rate, expectancy, results by setup, the equity curve and more, for one account at a time. The period (All, YTD, Month or Week to date, Last 90 days, or Custom dates) filters both this and Closed Trades. Point at a bar or dot to see its value; click anywhere else on a chart or table to open it larger. Choose which panels show, including extras that start off, in Settings › Show on screen, and the rolling window in Statistics definitions.</li>' +
     '<li><b>Audit: broker file.</b> Upload a thinkorswim Transaction History CSV to compare it with your trades. Differences are listed with tick boxes, and only the ticked ones change anything when you press Apply. Orders the app has no trade for can be added as new trades, with no stop and tier A, to finish in the gear.</li>' +
     '<li><b>Audit: ledger.</b> Every transaction and cash movement, newest first, with corrections marked Adj. Filter it by dates, ticker (or &ldquo;cash&rdquo;), event, account or Adj. only to check a stretch by hand. Click its title to fold it away.</li>' +
     '<li><b>Data.</b> Export, copy, download or load your whole book as a file, settings included unless you switch that off in Display. Your book lives only in this browser, so download a backup regularly. <b>Clear all data</b> asks twice.</li>' +
@@ -5908,13 +6094,61 @@ function reviewLoad(text){
   return null;
 }
 
+/* ========================= statistics: expand and point at =========================
+   Every chart and table on Statistics has an expand button that opens a copy at full width, and
+   every mark carrying data-pv shows its value in one shared tip -- on hover with a mouse, on a tap
+   on a touch screen -- in the tab and in the expanded copy alike. */
+// A click anywhere on a panel opens it, except on a mark, where it shows that mark's value. The
+// panel itself is not a button -- that would hide its table from a screen reader -- so its title
+// is: the keyboard's and the screen reader's way in.
+function decoratePanels(){
+  document.querySelectorAll("#pane-charts .spanel").forEach(p=>{
+    const k = p.querySelector(".k");
+    if(!k || k.querySelector(".ptitle")) return;
+    k.innerHTML = '<button class="ptitle" type="button">'+k.innerHTML+'</button>';
+    p.addEventListener("click", e=>{ if(!e.target.closest("[data-pv]")) expandPanel(p); });
+  });
+}
+window.expandPanel = el => {
+  const p = el && el.closest ? el.closest(".spanel") : null;
+  if(!p) return;
+  const title = p.querySelector(".k").textContent.trim();
+  const body = [...p.children].filter(c=>!c.classList.contains("k")).map(c=>{
+    const x = c.cloneNode(true);
+    x.removeAttribute("id"); x.querySelectorAll("[id]").forEach(e=>e.removeAttribute("id"));
+    return x.outerHTML;
+  }).join("");
+  openModal(esc(title), '<div class="chartbig">'+body+'</div>', "Close", ()=>null, null, {wide:"xl", noCancel:true});
+};
+(function(){
+  const tip = document.createElement("div");
+  tip.id = "chartTip"; tip.setAttribute("aria-hidden", "true");
+  document.body.appendChild(tip);
+  let cur = null;
+  const mark = e => e.target && e.target.closest ? e.target.closest("svg.chart [data-pv]") : null;
+  const show = (el, x, y) => {
+    if(cur && cur!==el) cur.classList.remove("on");
+    cur = el; el.classList.add("on");
+    tip.textContent = el.getAttribute("data-pv");
+    tip.style.display = "block";
+    tip.style.left = Math.max(4, Math.min(innerWidth - tip.offsetWidth - 4, x + 12)) + "px";
+    tip.style.top = Math.max(4, y - 34) + "px";
+  };
+  const hide = () => { tip.style.display = "none"; if(cur) cur.classList.remove("on"); cur = null; };
+  document.addEventListener("mouseover", e=>{ const el = mark(e); if(el) show(el, e.clientX, e.clientY); });
+  document.addEventListener("mousemove", e=>{ if(cur) show(cur, e.clientX, e.clientY); });
+  document.addEventListener("mouseout", e=>{ const el = mark(e); if(el && el===cur && !(e.relatedTarget && el.contains(e.relatedTarget))) hide(); });
+  document.addEventListener("click", e=>{ const el = mark(e); if(el) show(el, e.clientX, e.clientY); else hide(); });
+})();
+
 /* ========================= bindings ========================= */
 function bindSettings(){
   bindSetFields();
   $("showList").addEventListener("change", e=>{
     const k = e.target && e.target.dataset && e.target.dataset.show;
     if(!k) return;
-    if(e.target.checked) delete root.ui.hidden[k]; else root.ui.hidden[k] = true;
+    if(SHOW_OPTIN.has(k)){ if(e.target.checked) root.ui.shown[k] = true; else delete root.ui.shown[k]; }
+    else if(e.target.checked) delete root.ui.hidden[k]; else root.ui.hidden[k] = true;
     save(); applyShow();
   });
   // Switching the estimate on goes through the disclaimer until it has been accepted once.
@@ -6259,7 +6493,7 @@ load();
 // Fast calc always starts on tier A. The highlight is a choice made for one trade; carried over a
 // reload it would quietly file the next one under whatever the last happened to be.
 root.fcTier = 1;
-bindSettings(); render();
+bindSettings(); decoratePanels(); render();
 tickClock(); setInterval(tickClock, 1000);
 if(REVIEW){ document.title = "RCalculator review"; $("reimportBtn").style.display = "none"; reviewPrompt(); } else maybeReadme();
 if(root.finnhub && allOpenTrades().length) refreshMarks();

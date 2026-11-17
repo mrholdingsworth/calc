@@ -23,7 +23,7 @@ for a book instead of showing the read-me -- one file serves both, so they canno
 
 1. `OPEN-ITEMS.md` — To do, Ruled out, then Decided/done newest-first. Reasons, not just changes.
 2. `V2-PLAN.md` — the **"Settled 2026-10-26"**, **"2026-10-27"** and **"2026-10-28"** and **"2026-10-29"**
-   sections first (decisions 1–51): they record Steve's answers and
+   sections first (decisions 1–53): they record Steve's answers and
    supersede anything earlier in the file that disagrees, including the outline document.
 3. This file.
 4. `WEAKNESSES.md` (the register) and `REVIEW-2026-10-26.md` only when you need the history of a
@@ -149,6 +149,10 @@ from that); a field needs a `<label for>` or `aria-label`; a toggle carries `ari
 `aria-pressed`; an explainer goes in `TIPS` or an `.info` bubble and becomes a description
 automatically. The `a11y` case fails on a nameless field or symbol button on any tab.
 
+**A Statistics panel is computed only if shown.** A new one gets a `.spanel` wrapper (made clickable, its
+title a button, at boot), a Show-on-screen entry (fourth element `true` if it should start
+off), and a `put(id, key, ...)` in `renderCharts`; marks carry `data-pv` for the hover tip.
+
 **The read-me describes every tool.** A new tab, button or Settings group gets its line in
 `README_HTML`, one to four sentences: what it does and how to use it.
 
@@ -186,6 +190,6 @@ build state on `root`, call `render()`, assert on the DOM, wrap test code in
   file's header). `compare.js` proved v2 did what v1.3 did (historical: v2 has since changed arithmetic on purpose, e.g. dividends). `v2-checks.js` proves v2 still
   does what v2 decided — AUM, sizing, lots, split stops, gear edits, groups, the short block, marks,
   the migrations, the New Trade warnings, built-in tags, colours, labels, stops loaded, buying power, initial capital, tax, Closed
-  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers, the read-me, the ledger filters, the AUM and 1R tiles, the after-action settings, the Closed Trades filters, settings-free exports, the release markers (link previews included) and review mode — 501 checks; `runChecks()` returns `{passed, failed}`. **Run
+  Trades and Statistics, a sweep of every show/hide item, the broker file, dividends (and their tax), the calendar, the coaching export, hostile numbers, the read-me, the ledger filters, the AUM and 1R tiles, the after-action settings, the Closed Trades filters, settings-free exports, the release markers (link previews included), review mode, the Statistics panels and the periods — 546 checks; `runChecks()` returns `{passed, failed}`. **Run
   `v2-checks` before every push**, and when you add a feature, add its case. After editing a case,
   make it fail once on purpose before trusting a clean run.

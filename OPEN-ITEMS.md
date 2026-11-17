@@ -65,6 +65,41 @@ deliberately.*
 
 ## Decided / done
 
+### 2026-11-17 — 2.0, rolling window setting, click-to-open panels, period presets and custom range (V2-PLAN 53)
+
+- **Rolling window** is a statistics definition (Settings › Statistics definitions, default 10,
+  whole trades, at least 2); the chart's title follows it.
+- **The whole panel opens it larger**, replacing the expand button. A click on a bar or dot shows
+  its value instead. The panel is not marked as a button (that would hide its table from a screen
+  reader); its title is a plain-looking button, the keyboard's way in.
+- **Period** (Closed Trades and Statistics): All, YTD, Month to date, Week to date (from Monday),
+  Last 90 days, and Custom with From and To dates, both days included and a blank end open. Custom
+  starts from whatever period was showing, to today. The equity curve stops at a custom end.
+- `v2-checks.js`: `periods`; `statsPanels` covers the window and clicks. 546/546, twice in one page;
+  seven deliberate breaks, each caught.
+
+### 2026-11-17 — 2.0, Statistics: hover, expand, choose panels, R per trade, new panels (V2-PLAN 52)
+
+- **Hover:** every bar and point carries its value (ticker, close date, value; the histogram its
+  bucket and count). Pointing at it rings or outlines the mark and shows the value in one shared
+  tip; a tap does the same on a phone, a tap elsewhere clears it. Points have a wide invisible target.
+- **Choose panels, and only shown ones are worked out:** each chart and table is in Settings › Show
+  on screen › Statistics charts. A hidden panel is emptied, not drawn and hidden; the tile rows are
+  skipped when all their tiles are hidden. Show-on-screen entries can now be off by default (a
+  fourth element `true`, kept in `ui.shown` rather than `ui.hidden`).
+- **Expand:** a button on every chart and table opens a copy at full width (ids stripped, the
+  hover tip still works on it).
+- **R per trade, in order closed**, beside P/L per trade (on). P/L % now sits beside the equity curve.
+- **New panels, off by default:** by month (with P/L), by weekday opened, by days held, streaks and
+  what follows (longest winning and losing runs, the current run, and the next trade after a win,
+  a loss or a scratch -- wins and losses outside the scratch band), rolling expectancy over the
+  last 10 trades, and R against days held (dots nudged apart where days coincide).
+- On the real book: after a win the next trade averages +0.61R (57% wins); after a loss -0.09R
+  (22%); after a scratch -0.21R. Longest losing run 6 (-2.15R).
+- `v2-checks.js`: `statsPanels` (a 12-trade fixture worked by hand); the Show-on-screen sweep
+  switches opt-in parts on to test them. 534/534, twice in one page; eight deliberate breaks, each
+  caught.
+
 ### 2026-11-04 — 2.0 released: cutover, and the review page (V2-PLAN 51)
 
 - **Cutover.** v1.3 is parked at `_parked/v1.3.html` (it still reads `rcalc.v1`, so it is also the

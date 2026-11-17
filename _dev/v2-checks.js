@@ -619,13 +619,15 @@ const CASES = {
     const paint = k => { root.tab = tab(k); render(); if(k.startsWith("fc-")){ $("fc_price").value = "50"; $("fc_stop").value = "48"; renderFastCalc(); } };
     SHOWABLE.flatMap(([,items])=>items).forEach(item=>{
       const k = item[0];
-      root.ui.hidden = {}; paint(k);
+      // An opt-in part shows when shown; any other when not hidden.
+      root.ui.hidden = {}; root.ui.shown = SHOW_OPTIN.has(k) ? {[k]:true} : {}; paint(k);
       const on = live(item);
       check("show "+k+": matches and visible", on.length>0 && on.some(e=>getComputedStyle(e).display!=="none"), true);
-      root.ui.hidden[k] = true; paint(k);
+      if(SHOW_OPTIN.has(k)) root.ui.shown = {}; else root.ui.hidden[k] = true;
+      paint(k);
       check("show "+k+": hidden when off", live(item).every(e=>getComputedStyle(e).display==="none"), true);
     });
-    root.ui.hidden = {};
+    root.ui.hidden = {}; root.ui.shown = {};
     rowOpen = {};
   },
 
@@ -1385,6 +1387,116 @@ const CASES = {
       if(d0) Object.defineProperty(window, "localStorage", d0); else delete window.localStorage;
       renderSaveAlert();
     }
+  },
+
+  /* Statistics: only shown panels are worked out, R per trade beside P/L, new panels off until
+     switched on, a value under the pointer, and every panel expands. Twelve trades, by hand:
+     R      1  2 -.5 -1 -1  0  .5 1.5  1 -.5 .05 -1      (scratch band -0.05 to +0.10)
+     kind   w  w  l   l  l  s  w   w   w  l   s   l
+     days   1  1  1   3  4 10 25   1   2  7   1  30 */
+  statsPanels(){
+    const RS = [1, 2, -0.5, -1, -1, 0, 0.5, 1.5, 1, -0.5, 0.05, -1], HOLD = [0, 0, 1, 3, 4, 10, 25, 0, 2, 7, 1, 30];
+    // Closing in this order (Statistics reads trades by close), each held its own length.
+    const trades = RS.map((r, i)=>{ const c = -60 + i*3, o = c - HOLD[i];
+      return trade({ticker:"T"+String.fromCharCode(65+i), status:"closed", closedAt:T0()+c*D,
+        events:[ev("entry",{qty:100, price:50, stop:49}, o), ev("close",{qty:100, price:50 + r*10}, c)]}); });
+    book(trades); root.ui.hidden = {}; root.ui.shown = {};
+    root.tab = "charts"; render();
+    check("R per trade is on by default; the new panels are not", [isShown("sc-rbars"), ["sc-month","sc-weekday","sc-hold","sc-streak","sc-roll","sc-scatter"].some(isShown)], [true, false]);
+    const bars = [...$("rBars").querySelectorAll("rect[data-pv]")];
+    check("a bar per trade, valued in R", [bars.length, bars[0].getAttribute("data-pv")], [12, "TA · "+shortDate(trades[0].closedAt)+": +1.00R"]);
+    check("off means not worked out", ["rollChart","scatterChart","monthTbl","dowTbl","holdTbl","streakTbl"].map(id=>$(id).innerHTML), ["","","","","",""]);
+    check("and not on screen", getComputedStyle($("rollChart").closest(".spanel")).display, "none");
+
+    // Switched on from Settings, as a person would.
+    root.tab = "settings"; render();
+    ["sc-month","sc-weekday","sc-hold","sc-streak","sc-roll","sc-scatter"].forEach(k=>{
+      const box = $("showList").querySelector('input[data-show="'+k+'"]');
+      box.checked = true; box.dispatchEvent(new Event("change", {bubbles:true}));
+    });
+    check("kept as switched on", Object.keys(root.ui.shown).sort(), ["sc-hold","sc-month","sc-roll","sc-scatter","sc-streak","sc-weekday"]);
+    root.tab = "charts"; render();
+    const roll = [...$("rollChart").querySelectorAll(".pt")].map(g=>g.getAttribute("data-pv"));
+    check("rolling ten: +0.30, +0.21, -0.10 a trade", [roll.length, /last 10 \+0\.30R a trade$/.test(roll[0]), /last 10 -0\.10R a trade$/.test(roll[2])], [3, true, true]);
+    root.defs.rollN = 5; render();
+    check("the rolling window is a setting", [$("rollChart").querySelectorAll(".pt").length, $("rollN").textContent, !!$("s_rollN")], [8, "5", true]);
+    root.defs.rollN = 10; render();
+    check("a dot per trade against days held", [$("scatterChart").querySelectorAll(".pt").length, /: 30d, -1\.00R$/.test($("scatterChart").querySelectorAll(".pt")[11].getAttribute("data-pv"))], [12, true]);
+    const rows = id => [...$(id).querySelectorAll("tr")].slice(1).map(r=>[...r.cells].map(c=>c.textContent.replace(/small n/,"").trim()));
+    check("streaks", rows("streakTbl"), [
+      ["Longest winning run","3","—","+3.00R","—"], ["Longest losing run","3","—","-2.50R","—"], ["Current run: losses","1","—","-1.00R","—"],
+      ["After a win","5","60%","+3.50R","+0.70R"], ["After a loss","4","0%","-1.95R","-0.49R"], ["After a scratch","2","50%","-0.50R","-0.25R"]]);
+    check("by days held, shortest first", rows("holdTbl").map(r=>[r[0], r[1]]), [["1 day","5"],["2–5 days","3"],["6–20 days","2"],["21+ days","2"]]);
+    check("by weekday: every trade, Monday first", [rows("dowTbl").reduce((n,r)=>n+(+r[1]), 0),
+      rows("dowTbl").map(r=>["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].indexOf(r[0])).every((v,i,a)=>!i || v>a[i-1])], [12, true]);
+    check("by month: every trade, with P/L", [rows("monthTbl").reduce((n,r)=>n+(+r[1]), 0), /P\/L/.test($("monthTbl").rows[0].textContent)], [12, true]);
+
+    // Switched off, a default panel is emptied and its tiles skipped.
+    root.ui.hidden = {"sc-hist":true, "st-closed":true, "st-win":true, "st-total":true, "st-exp":true, "st-avg":true, "st-disc":true,
+                      "st-tags":true, "st-noise":true, "st-viol":true, "st-days":true, "st-rpd":true, "st-dd":true, "st-ls":true};
+    render();
+    check("hidden: not worked out", [$("histChart").innerHTML, $("stats2").innerHTML, $("deepStats").innerHTML], ["", "", ""]);
+    root.ui.hidden = {}; render();
+
+    // The value under the pointer.
+    const bar = $("rBars").querySelector("rect[data-pv]");
+    bar.dispatchEvent(new MouseEvent("mouseover", {bubbles:true, clientX:100, clientY:200}));
+    check("pointing at a bar shows its value and marks it", [$("chartTip").style.display, $("chartTip").textContent, bar.classList.contains("on")],
+      ["block", bar.getAttribute("data-pv"), true]);
+    bar.dispatchEvent(new MouseEvent("mouseout", {bubbles:true}));
+    check("and leaving hides it", [$("chartTip").style.display, bar.classList.contains("on")], ["none", false]);
+    const pt = $("curveChart").querySelector(".pt .hit");
+    pt.dispatchEvent(new MouseEvent("click", {bubbles:true, clientX:50, clientY:50}));
+    check("a tap on a point does the same", [$("chartTip").style.display, /^#1 TA/.test($("chartTip").textContent)], ["block", true]);
+    document.body.dispatchEvent(new MouseEvent("click", {bubbles:true}));
+    check("a tap elsewhere hides it", $("chartTip").style.display, "none");
+
+    // A click anywhere on a panel opens it larger; on a mark it shows the value instead.
+    check("every panel's title is its button, for the keyboard", [...document.querySelectorAll("#pane-charts .spanel")].every(p=>p.querySelector(".k > button.ptitle")), true);
+    closeModal();
+    $("rBars").querySelector("rect[data-pv]").dispatchEvent(new MouseEvent("click", {bubbles:true, clientX:10, clientY:10}));
+    check("a click on a mark does not open it", $("modal").style.display !== "flex", true);
+    document.body.dispatchEvent(new MouseEvent("click", {bubbles:true}));
+    $("rBars").closest(".spanel").dispatchEvent(new MouseEvent("click", {bubbles:true}));
+    check("expanded: titled, the whole chart, no duplicate ids", [$("modalTitle").textContent, $("modalBody").querySelectorAll("rect[data-pv]").length,
+      document.querySelectorAll("#rBars").length], ["R per trade, in order closed", 12, 1]);
+    closeModal();
+    $("streakTbl").closest(".spanel").querySelector(".ptitle").click();
+    check("tables expand too", $("modalBody").querySelectorAll("tr").length, 7);
+    closeModal();
+    root.ui.shown = {};
+  },
+
+  /* The period: presets to today (a week starts Monday), and Custom with both ends, inclusive. */
+  periods(){
+    const n = new Date(), noon = (y, m, d) => new Date(y, m, d, 12).getTime();
+    const mon = n.getDate() - (n.getDay()+6)%7;
+    const mk = (tk, at) => trade({ticker:tk, status:"closed", closedAt:at,
+      events:[ev("entry",{qty:10, price:50, stop:48, ts:at-36e5}), ev("close",{qty:10, price:51, ts:at})]});
+    const A = mk("MON", noon(n.getFullYear(), n.getMonth(), mon)), B = mk("SUN", noon(n.getFullYear(), n.getMonth(), mon-1));
+    const C = mk("FST", noon(n.getFullYear(), n.getMonth(), 1)), Dd = mk("PRV", noon(n.getFullYear(), n.getMonth(), 0));
+    [A, B, C, Dd].forEach(t=>{ t.events[0].ts = t.closedAt - 36e5; t.events[1].ts = t.closedAt; });
+    book([A, B, C, Dd]); root.tab = "tally";
+    const per = p => { setPeriod(p); return state.trades.filter(t=>t.status==="closed" && inPeriod(t)).map(t=>t.ticker); };
+    const wtd = per("wtd"), mtd = per("mtd");
+    check("week to date: from Monday", [wtd.includes("MON"), wtd.includes("SUN")], [true, false]);
+    check("month to date: from the 1st", [mtd.includes("FST"), mtd.includes("PRV")], [true, false]);
+    check("Custom opens on what was showing, to today", [per("custom").length >= 1, ui().periodFrom, ui().periodTo],
+      [true, dateVal(new Date(n.getFullYear(), n.getMonth(), 1).getTime()), dateVal(Date.now())]);
+    check("Custom shows its two dates on both tabs", document.querySelectorAll(".periodPick input.pdate").length, 4);
+    setPeriodDate("from", dateVal(B.closedAt)); setPeriodDate("to", dateVal(B.closedAt));
+    check("a one-day range, both ends counted", per("custom"), ["SUN"]);
+    check("Statistics cut the same", chartTrades().map(t=>t.ticker), ["SUN"]);
+    const BC = bookCurve("Trading", periodStart(), periodEnd());
+    check("the equity curve stops at the end", BC.eq[BC.eq.length-1].x <= periodEnd(), true);
+    setPeriodDate("to", "");
+    check("a blank end is open", per("custom").includes("MON"), true);
+    setPeriod("all");
+    check("presets show no dates", document.querySelectorAll(".periodPick input.pdate").length, 0);
+    const bad = JSON.parse(JSON.stringify(root)); bad.ui.period = "mtd"; bad.ui.periodFrom = "nope"; bad.ui.periodTo = "2026-01-02";
+    root = bad; normalize();
+    check("kept and cleaned on load", [root.ui.period, "periodFrom" in root.ui, root.ui.periodTo], ["mtd", false, "2026-01-02"]);
+    root.ui.period = "all"; delete root.ui.periodFrom; delete root.ui.periodTo;
   },
 
   /* Small things that each broke once. */
